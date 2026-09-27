@@ -619,26 +619,43 @@ code {
 
 .selector-tema {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.3rem;
-  padding-left: 0.65rem;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 25%, transparent);
   color: var(--ink-soft);
 }
 
-.selector-tema select {
-  min-height: 2.75rem;
-  max-width: 6rem;
-  padding: 0.3rem 0.4rem 0.3rem 0;
+.opcion-tema {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid transparent;
   background: transparent;
-  color: var(--ink);
+  color: var(--ink-soft);
   border-radius: 999px;
-  font-size: 0.8rem;
   cursor: pointer;
 }
 
-.selector-tema option { background: var(--card); }
+.opcion-tema:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--line) 45%, transparent);
+}
+
+.opcion-tema[aria-pressed="true"] {
+  color: var(--seal);
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.opcion-tema:focus-visible {
+  outline-offset: -3px;
+}
 
 .menu-toggle {
   align-items: center;

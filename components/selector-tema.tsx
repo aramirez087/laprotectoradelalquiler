@@ -4,10 +4,18 @@ import { useEffect, useState } from 'react'
 
 export type Tema = 'system' | 'light' | 'dark'
 
+const opciones: { valor: Tema; etiqueta: string; trazo: string }[] = [
+  { valor: 'light', etiqueta: 'Tema claro', trazo: 'M12 3v1m0 16v1M3 12h1m16 0h1M5.6 5.6l.7.7m11.4 11.4.7.7M5.6 18.4l.7-.7M17.7 6.3l.7-.7M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0' },
+  { valor: 'dark', etiqueta: 'Tema oscuro', trazo: 'M20.2 14.2A8.5 8.5 0 0 1 9.8 3.8a8.5 8.5 0 1 0 10.4 10.4Z' },
+  { valor: 'system', etiqueta: 'Tema del sistema', trazo: 'M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM9 21h6m-3-4v4' },
+]
+
 export function SelectorTema({ inicial }: { inicial: Tema }) {
   const [tema, setTema] = useState(inicial)
 
   useEffect(() => {
+    document.documentElement.dataset.theme = tema
+    document.cookie = `protectora-tema=${tema}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
     const sistema = window.matchMedia('(prefers-color-scheme: dark)')
     function actualizarColor() {
       const oscuro = tema === 'dark' || (tema === 'system' && sistema.matches)
@@ -20,25 +28,23 @@ export function SelectorTema({ inicial }: { inicial: Tema }) {
     return () => sistema.removeEventListener('change', actualizarColor)
   }, [tema])
 
-  function cambiar(valor: string) {
-    if (valor !== 'system' && valor !== 'light' && valor !== 'dark') return
-    document.documentElement.dataset.theme = valor
-    document.cookie = `protectora-tema=${valor}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
-    setTema(valor)
-  }
-
   return (
-    <label className="selector-tema" title="Tema de la interfaz">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-        <circle cx="12" cy="12" r="8" />
-        <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
-      </svg>
-      <span className="sr-only">Tema de la interfaz</span>
-      <select value={tema} onChange={(event) => cambiar(event.target.value)}>
-        <option value="system">Sistema</option>
-        <option value="light">Claro</option>
-        <option value="dark">Oscuro</option>
-      </select>
-    </label>
+    <div className="selector-tema" role="group" aria-label="Tema de la interfaz">
+      {opciones.map(({ valor, etiqueta, trazo }) => (
+        <button
+          key={valor}
+          type="button"
+          className="opcion-tema"
+          aria-label={etiqueta}
+          title={etiqueta}
+          aria-pressed={tema === valor}
+          onClick={() => setTema(valor)}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d={trazo} />
+          </svg>
+        </button>
+      ))}
+    </div>
   )
 }
