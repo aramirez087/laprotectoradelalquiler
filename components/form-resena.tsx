@@ -206,6 +206,16 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
           </p>
         </div>
       </Paso>
+      <label htmlFor="anonima" className="opcion-rol flex items-start gap-3">
+        <input id="anonima" name="anonima" type="checkbox" value="1" className="mt-1 h-4 w-4 shrink-0" />
+        <span>
+          <span className="block text-sm font-medium">Publicar sin mi nombre</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">
+            En la ficha aparece como anónima. No escriba su nombre en el relato. Administración sí ve qué cuenta la
+            envió.
+          </span>
+        </span>
+      </label>
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision

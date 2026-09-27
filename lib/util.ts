@@ -154,6 +154,32 @@ export function urlImagen(url: string | null | undefined) {
   }
 }
 
+/**
+ * Nombre que puede verse en una ficha. Si la reseña es anónima, el nombre real
+ * solo se conserva para administración; cualquier otro valor recibido se ignora.
+ */
+export function identidadAutorResena(opts: {
+  anonima: boolean
+  esAdmin: boolean
+  nombre?: string | null
+  rol?: string | null
+}): { nombre: string; rol: string | null; marcaAnonima: boolean } {
+  if (opts.anonima && !opts.esAdmin) {
+    return { nombre: 'Anónimo', rol: null, marcaAnonima: false }
+  }
+  if (opts.anonima) {
+    return {
+      nombre: opts.nombre?.trim() || 'Sin nombre',
+      rol: opts.rol ?? null,
+      marcaAnonima: true,
+    }
+  }
+  if (!opts.nombre?.trim()) {
+    return { nombre: 'Reseña importada', rol: null, marcaAnonima: false }
+  }
+  return { nombre: opts.nombre, rol: opts.rol ?? null, marcaAnonima: false }
+}
+
 export function etiquetaRol(rol: string) {
   const mapa: Record<string, string> = {
     admin: 'Administración',

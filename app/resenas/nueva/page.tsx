@@ -71,7 +71,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
       const puedeVer =
         usuario.rol === 'admin' ||
         (usuario.identificacion != null && usuario.identificacion === p.identificacion) ||
-        (p.resenas ?? []).some((r) => r.autor?.id === usuario.id && r.estado === 'publicada') ||
+        (p.resenas ?? []).some((r) => r.propia && r.estado === 'publicada') ||
         privadas.length > 0
       personaInicial = {
         personaId: p.id,

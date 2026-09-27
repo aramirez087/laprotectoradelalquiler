@@ -97,6 +97,7 @@ export default async function PerfilPage(props: {
                     </p>
                   </div>
                   <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
+                  {r.anonima && <span className="chip">Anónima</span>}
                   {r.estado !== 'publicada' && (
                     <span className="chip chip-alerta">{etiquetaEstado(r.estado)}</span>
                   )}

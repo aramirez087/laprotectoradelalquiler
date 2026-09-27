@@ -84,7 +84,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   }
   const verCedulaCompleta =
     usuario.rol === 'admin' ||
-    resenas.some((r) => r.autor?.id === usuario.id) ||
+    resenas.some((r) => r.propia) ||
     privadas.length > 0 ||
     (usuario.identificacion != null && persona.identificacion === usuario.identificacion)
 
@@ -123,7 +123,12 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
       ) : resenas.length === 0 ? null : (
         <div className="space-y-4">
           {resenas.map((r) => (
-            <TarjetaResena key={r.id} resena={r} puedeDenunciar={r.autor?.id !== usuario.id} />
+            <TarjetaResena
+              key={r.id}
+              resena={r}
+              puedeDenunciar={!r.propia}
+              esAdmin={usuario.rol === 'admin'}
+            />
           ))}
         </div>
       )}
@@ -134,6 +139,8 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
             <article key={r.id} className="expediente space-y-2">
               <p className="text-sm text-ink-soft">
                 {etiquetaEstado(r.estado)}
+                {r.autor ? ` · ${r.autor}` : ''}
+                {r.anonima ? ' · Anónima' : ''}
                 {r.creado_en ? ` · ${fechaCorta(r.creado_en)}` : ''}
               </p>
               <p className="whitespace-pre-wrap text-sm">{r.comentario?.trim() || 'Sin comentario.'}</p>

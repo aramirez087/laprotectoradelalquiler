@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida } from '../lib/util.ts'
+import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida, identidadAutorResena } from '../lib/util.ts'
 
 test('preserves internal search destinations through sign-in', () => {
   const destino = '/fichas?q=Jos%C3%A9+Sol%C3%ADs&provincia=1&pagina=2'
@@ -46,6 +46,36 @@ test('turns a Facebook profile link or username into a canonical profile URL', (
   assert.equal(normalizarPerfilFacebook('https://example.com/maria.solis'), null)
   assert.equal(normalizarPerfilFacebook('https://facebook.com'), null)
   assert.equal(normalizarPerfilFacebook(''), null)
+})
+
+test('an anonymous review hides the account except to administration', () => {
+  const publico = identidadAutorResena({
+    anonima: true,
+    esAdmin: false,
+    nombre: 'María Solís',
+    rol: 'propietario',
+  })
+  assert.deepEqual(publico, { nombre: 'Anónimo', rol: null, marcaAnonima: false })
+
+  const admin = identidadAutorResena({
+    anonima: true,
+    esAdmin: true,
+    nombre: 'María Solís',
+    rol: 'propietario',
+  })
+  assert.deepEqual(admin, { nombre: 'María Solís', rol: 'propietario', marcaAnonima: true })
+
+  const firmada = identidadAutorResena({
+    anonima: false,
+    esAdmin: false,
+    nombre: 'María Solís',
+    rol: 'inquilino',
+  })
+  assert.equal(firmada.nombre, 'María Solís')
+  assert.equal(firmada.marcaAnonima, false)
+
+  const importada = identidadAutorResena({ anonima: false, esAdmin: false, nombre: '  ', rol: null })
+  assert.equal(importada.nombre, 'Reseña importada')
 })
 
 test('search-card documents never reveal a complete identifier, including short or missing values', () => {

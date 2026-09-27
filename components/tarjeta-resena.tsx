@@ -1,33 +1,45 @@
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { FormDenuncia } from '@/components/form-denuncia'
-import { esMencionNeutra, etiquetaEstado, etiquetaRol, fechaCorta, urlImagen } from '@/lib/util'
+import { esMencionNeutra, etiquetaEstado, etiquetaRol, fechaCorta, identidadAutorResena, urlImagen } from '@/lib/util'
 import type { FilaResenaCompleta } from '@/lib/tipos'
 
 export function TarjetaResena({
   resena,
   puedeDenunciar,
+  esAdmin = false,
 }: {
   resena: FilaResenaCompleta
   puedeDenunciar: boolean
+  esAdmin?: boolean
 }) {
-  const autor = resena.autor?.nombre ?? 'Reseña importada'
+  const identidad = identidadAutorResena({
+    anonima: resena.anonima,
+    esAdmin,
+    nombre: resena.autor?.nombre,
+    rol: resena.autor?.rol,
+  })
   const fotos = [...(resena.fotos ?? [])].sort((a, b) => a.orden - b.orden)
 
   return (
     <article className="expediente space-y-4 break-words">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Avatar nombre={autor} tamano="sm" />
+          <Avatar nombre={identidad.nombre} tamano="sm" />
           <div>
-            <p className="text-sm font-semibold">{autor}</p>
+            <p className="text-sm font-semibold">{identidad.nombre}</p>
             <p className="text-xs text-ink-soft">
-              {etiquetaRol(resena.autor?.rol ?? 'propietario')}
-              {resena.creado_en ? ` · ${fechaCorta(resena.creado_en)}` : ''}
+              {[identidad.rol ? etiquetaRol(identidad.rol) : null, resena.creado_en ? fechaCorta(resena.creado_en) : null]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
+            {resena.anonima && resena.propia && !esAdmin && (
+              <p className="text-xs text-ink-soft">Su nombre no aparece en esta reseña.</p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {identidad.marcaAnonima && <span className="chip">Anónima</span>}
           {resena.estado !== 'publicada' && (
             <span className="chip chip-alerta">{etiquetaEstado(resena.estado)}</span>
           )}

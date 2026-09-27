@@ -66,6 +66,7 @@ export interface Resena {
   fecha_inicio_alquiler: string | null
   fecha_fin_alquiler: string | null
   comentario: string | null
+  anonima: boolean
   verificada: boolean
   detalle_verificacion: string | null
   estado: EstadoResena
@@ -140,6 +141,9 @@ export interface FilaResenaCompleta {
   fecha_inicio_alquiler: string | null
   fecha_fin_alquiler: string | null
   creado_en: string
+  anonima: boolean
+  /** La reseña es de quien está mirando la ficha. No revela la cuenta a los demás. */
+  propia: boolean
   autor: { id: number; nombre: string; rol: Rol } | null
   etiquetas: Array<{ etiqueta: Etiqueta }>
   conductas: Array<{ conducta: { nombre: string } | null }> | null

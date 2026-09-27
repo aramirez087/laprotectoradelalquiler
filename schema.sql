@@ -209,6 +209,9 @@ CREATE TABLE resenas (
   fecha_inicio_alquiler date,
   fecha_fin_alquiler date,
   comentario text,
+  -- Quien escribe puede pedir que la ficha no muestre su nombre.
+  -- autor_id se conserva; la sesión no puede leerlo (ver el bloque RLS).
+  anonima boolean NOT NULL DEFAULT false,
   verificada boolean NOT NULL DEFAULT false,
   detalle_verificacion text,
   estado text NOT NULL DEFAULT 'publicada'
@@ -318,6 +321,16 @@ BEGIN
           OR (SELECT rol FROM usuarios WHERE auth_user_id = auth.uid()) = 'admin'
         )
       );
+    -- Misma regla que db/resenas-anonimas.sql: la sesión no lee autor_id.
+    REVOKE SELECT ON TABLE resenas FROM PUBLIC, anon, authenticated;
+    REVOKE SELECT (autor_id) ON TABLE resenas FROM PUBLIC, anon, authenticated;
+    GRANT SELECT (
+      id, persona_id, vivienda_id, tipo, calificacion_id, recomienda, drogas,
+      dano_vivienda_id, detalle_dano, proceso_judicial_id, tipo_contrato_id,
+      tipo_alquiler_id, tiempo_alquiler_id, fecha_inicio_alquiler, fecha_fin_alquiler,
+      comentario, verificada, detalle_verificacion, estado, fuente, id_fuente,
+      creado_en, actualizado_en, anonima
+    ) ON TABLE resenas TO anon, authenticated;
 
     -- personas: lectura pública; creación libre (la app la valida en el DAL)
     ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
@@ -326,7 +339,7 @@ BEGIN
     CREATE POLICY personas_escritura ON personas
       FOR INSERT TO authenticated WITH CHECK (true);
 
-    -- usuarios: lectura abierta (la ficha muestra autores enlazados);
+    -- usuarios: lectura abierta (la ficha firma las reseñas que no son anónimas);
     -- crear/editar/eliminar solo la propia cuenta
     ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
     CREATE POLICY usuarios_lectura ON usuarios

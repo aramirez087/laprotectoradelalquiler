@@ -26,6 +26,7 @@ export function ResenaAdmin({ fila }: { fila: FilaAdminResena }) {
               .filter(Boolean)
               .join(' · ')}
           </p>
+          {fila.anonima && <p className="text-sm text-ink-soft">En la ficha el nombre no se muestra.</p>}
           {fila.autor && (fila.autor.identificacion || fila.autor.facebook) && (
             <p className="text-sm text-ink-soft">
               {fila.autor.identificacion ? `Cédula del autor ${fila.autor.identificacion}` : 'Autor'}

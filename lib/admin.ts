@@ -24,7 +24,7 @@ export class SinClaveAdmin extends AvisoAdmin {
 const POR_PAGINA = 20
 
 const SELECT_RESENA = `
-  id, estado, comentario, detalle_verificacion, creado_en,
+  id, anonima, estado, comentario, detalle_verificacion, creado_en,
   calificacion:calificaciones(valor, texto),
   persona:personas(id, nombre, nombre2, apellido1, apellido2, identificacion),
   autor:usuarios(id, nombre, email, identificacion)
@@ -32,6 +32,7 @@ const SELECT_RESENA = `
 
 export interface FilaAdminResena {
   id: number
+  anonima: boolean
   estado: EstadoResena
   comentario: string | null
   detalle_verificacion: string | null
@@ -135,6 +136,7 @@ async function facebookPorUsuario(db: Cliente, ids: number[]) {
 
 type CrudoResena = {
   id: number
+  anonima: boolean | null
   estado: EstadoResena
   comentario: string | null
   detalle_verificacion: string | null
@@ -149,6 +151,7 @@ function aFila(row: CrudoResena): FilaAdminResena | null {
   if (!persona) return null
   return {
     id: row.id,
+    anonima: row.anonima === true,
     estado: row.estado,
     comentario: row.comentario,
     detalle_verificacion: row.detalle_verificacion,

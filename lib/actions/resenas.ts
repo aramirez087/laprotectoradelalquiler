@@ -68,6 +68,7 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
       comentario: f.comentario,
       etiquetas: [],
       autorId: usuario.id,
+      anonima: formData.get('anonima') === '1',
     })
     revalidatePath('/fichas')
     revalidatePath(`/fichas/${fichaId}`)

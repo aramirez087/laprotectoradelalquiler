@@ -153,7 +153,8 @@ export async function requerirRol(...roles: Rol[]) {
 export const puedeConsultar = cache(async (usuario: Usuario): Promise<boolean> => {
   if (usuario.rol === 'admin') return true
   if (sinSupabase()) return false
-  const supabase = await createClient()
+  const admin = createAdmin()
+  const supabase = admin ?? (await createClient())
   const { count, error } = await supabase
     .from('resenas')
     .select('id', { count: 'exact', head: true })
@@ -274,6 +275,10 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
   if (!usuario || !(await puedeConsultar(usuario))) return null
 
   const supabase = await createClient()
+  const admin = createAdmin()
+  // autor_id no es legible por la sesión. Con clave de servicio se resuelve
+  // después y se omite si la reseña es anónima para quien no administra.
+  const autorIncrustado = admin ? '' : '\n         autor:usuarios(id, nombre, rol),'
   const { data, error } = await supabase
     .from('personas')
     .select(
@@ -283,9 +288,8 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
          id, estado, tipo, calificacion_id, recomienda, drogas,
          dano_vivienda_id, proceso_judicial_id, tipo_contrato_id,
          tipo_alquiler_id, tiempo_alquiler_id,
-         detalle_dano, comentario, verificada, creado_en,
-         fecha_inicio_alquiler, fecha_fin_alquiler,
-         autor:usuarios(id, nombre, rol),
+         detalle_dano, comentario, verificada, anonima, creado_en,
+         fecha_inicio_alquiler, fecha_fin_alquiler,${autorIncrustado}
          calificacion:calificaciones(valor, texto),
          dano:danos_vivienda(nombre),
          proceso:procesos_judiciales(nombre),
@@ -301,7 +305,7 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
     .maybeSingle()
   if (error) throw error
   if (!data) return null
-  return enriquecerFicha(data as FichaCompleta)
+  return enriquecerFicha(data as FichaCompleta, usuario)
 })
 
 // ============================================================================
@@ -330,6 +334,7 @@ export async function crearResena(input: {
   comentario?: string | null
   etiquetas: number[]
   autorId: number
+  anonima?: boolean
 }) {
   const yo = await requireUsuario()
   if (yo.id !== input.autorId) throw new Error('No puede publicar a nombre de otra cuenta.')
@@ -421,6 +426,7 @@ export async function crearResena(input: {
       fecha_inicio_alquiler: input.fechaInicio || null,
       fecha_fin_alquiler: input.fechaFin || null,
       comentario: input.comentario || null,
+      anonima: input.anonima === true,
       estado: enRevision ? 'borrador' : 'publicada',
     })
     .select('id')
@@ -443,7 +449,7 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
   if (!admin) return []
   let consulta = admin
     .from('resenas')
-    .select('id, estado, comentario, detalle_verificacion, creado_en')
+    .select('id, estado, comentario, detalle_verificacion, creado_en, anonima, autor:usuarios(nombre)')
     .eq('persona_id', personaId)
     .neq('estado', 'publicada')
     .order('creado_en', { ascending: false })
@@ -451,13 +457,18 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
   if (usuario.rol !== 'admin') consulta = consulta.eq('autor_id', usuario.id)
   const { data, error } = await consulta
   if (error) throw error
-  return (data ?? []) as Array<{
-    id: number
-    estado: EstadoResena
-    comentario: string | null
-    detalle_verificacion: string | null
-    creado_en: string
-  }>
+  return (data ?? []).map((fila) => {
+    const autor = uno(fila.autor as { nombre: string } | Array<{ nombre: string }> | null)
+    return {
+      id: fila.id as number,
+      estado: fila.estado as EstadoResena,
+      comentario: (fila.comentario as string | null) ?? null,
+      detalle_verificacion: (fila.detalle_verificacion as string | null) ?? null,
+      creado_en: fila.creado_en as string,
+      anonima: fila.anonima === true,
+      autor: usuario.rol === 'admin' ? autor?.nombre ?? null : null,
+    }
+  })
 }
 
 export async function listarResenasDe(autorId: number) {
@@ -516,9 +527,49 @@ async function clienteCatalogo() {
   return createAdmin() ?? (await createClient())
 }
 
-async function enriquecerFicha(ficha: FichaCompleta): Promise<FichaCompleta> {
+async function atribuirAutores(resenas: FilaResenaCompleta[], usuario: Usuario): Promise<FilaResenaCompleta[]> {
   const admin = createAdmin()
-  if (!admin) return ficha
+  const ids = resenas.map((r) => r.id)
+  const vinculos = new Map<number, { autorId: number; anonima: boolean }>()
+  const autores = new Map<number, { id: number; nombre: string; rol: Rol }>()
+
+  if (admin && ids.length) {
+    const { data, error } = await admin.from('resenas').select('id, autor_id, anonima').in('id', ids)
+    if (error) throw error
+    for (const fila of data ?? []) {
+      vinculos.set(fila.id as number, { autorId: fila.autor_id as number, anonima: fila.anonima === true })
+    }
+    const autorIds = [...new Set([...vinculos.values()].map((v) => v.autorId))]
+    if (autorIds.length) {
+      const { data: cuentas, error: errorCuentas } = await admin
+        .from('usuarios')
+        .select('id, nombre, rol')
+        .in('id', autorIds)
+      if (errorCuentas) throw errorCuentas
+      for (const cuenta of cuentas ?? []) {
+        autores.set(cuenta.id as number, {
+          id: cuenta.id as number,
+          nombre: String(cuenta.nombre),
+          rol: cuenta.rol as Rol,
+        })
+      }
+    }
+  }
+
+  return resenas.map((r) => {
+    const vinculo = vinculos.get(r.id)
+    const anonima = vinculo?.anonima ?? r.anonima === true
+    const autorId = vinculo?.autorId ?? r.autor?.id ?? null
+    const autor = autorId != null ? autores.get(autorId) ?? r.autor : r.autor
+    const propia = autorId === usuario.id
+    const visible = !anonima || usuario.rol === 'admin'
+    return { ...r, anonima, propia, autor: visible ? autor ?? null : null }
+  })
+}
+
+async function enriquecerFicha(ficha: FichaCompleta, usuario: Usuario): Promise<FichaCompleta> {
+  const admin = createAdmin()
+  if (!admin) return { ...ficha, resenas: await atribuirAutores(ficha.resenas ?? [], usuario) }
   const catalogo = await obtenerLookups()
   const porId = <T extends { id: number }>(filas: T[]) => new Map(filas.map((f) => [f.id, f]))
   const calificaciones = porId(catalogo.calificaciones)
@@ -527,7 +578,8 @@ async function enriquecerFicha(ficha: FichaCompleta): Promise<FichaCompleta> {
   const contratos = porId(catalogo.contratos)
   const tipos = porId(catalogo.tiposAlquiler)
   const tiempos = porId(catalogo.tiempos)
-  const ids = ficha.resenas.map((r) => r.id)
+  const existentes = ficha.resenas ?? []
+  const ids = existentes.map((r) => r.id)
 
   let etiquetas: Array<{ resena_id: number; etiqueta: Etiqueta | Etiqueta[] | null }> = []
   let conductas: Array<{ resena_id: number; conducta: { nombre: string } | Array<{ nombre: string }> | null }> = []
@@ -550,7 +602,7 @@ async function enriquecerFicha(ficha: FichaCompleta): Promise<FichaCompleta> {
     ? ficha.provincia
     : catalogo.provincias.find((p) => p.id === ficha.provincia_id) ?? null
 
-  const resenas: FilaResenaCompleta[] = ficha.resenas.map((r) => {
+  const resenas: FilaResenaCompleta[] = existentes.map((r) => {
     const etiquetasResena = etiquetas
       .filter((e) => e.resena_id === r.id)
       .flatMap((e) => {
@@ -577,7 +629,7 @@ async function enriquecerFicha(ficha: FichaCompleta): Promise<FichaCompleta> {
     }
   })
 
-  return { ...ficha, provincia, resenas }
+  return { ...ficha, provincia, resenas: await atribuirAutores(resenas, usuario) }
 }
 
 export const obtenerLookups = cache(async (): Promise<Lookups> => {
