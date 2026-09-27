@@ -6,17 +6,20 @@
 //   node scripts/migrar-legacy.mjs --seco           # solo cuenta, no escribe
 //   node scripts/migrar-legacy.mjs --pasos=lookups,personas,usuarios,resenas
 //   node scripts/migrar-legacy.mjs --crear-accounts # crea identidades en Supabase Auth
+//   node scripts/migrar-legacy.mjs --probar-claves   # solo verifica el detector de claves
 //
 // Variables de entorno:
 //   LEGACY_MYSQL_HOST / PORT / USER / PASSWORD / DB  (fuente MySQL)
 //   DATABASE_URL                                      (Postgres destino, conexión directa)
-//   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY          (solo con --crear-accounts)
+//   NEXT_PUBLIC_SUPABASE_URL (o SUPABASE_URL) y
+//   SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)  (solo con --crear-accounts)
 //
 // Idempotente: puede correrse varias veces (upsert por clave natural).
 // Los ids de lookups legacy se preservan para que las FK de fichas sigan válidas;
 // las FK que no encuentran su lookup en destino se convierten en NULL.
 // ============================================================================
 
+import crypto from 'node:crypto';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 
@@ -31,6 +34,9 @@ for (const f of ['.env.local', '.env']) {
   try { process.loadEnvFile(new URL(`../${f}`, import.meta.url)); } catch { /* opcional */ }
 }
 
+const SUPABASE_URL_ADMIN = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_KEY_ADMIN = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+
 const mysqlCfg = {
   host: process.env.LEGACY_MYSQL_HOST ?? '127.0.0.1',
   port: Number(process.env.LEGACY_MYSQL_PORT ?? 3306),
@@ -42,12 +48,18 @@ const mysqlCfg = {
   charset: 'utf8mb4',
 };
 
+assertClasificacion();
+if (args.includes('--probar-claves')) {
+  console.log('clasificarSecreto ok');
+  process.exit(0);
+}
+
 if (!seco && !process.env.DATABASE_URL) {
   console.error('Falta DATABASE_URL (conexión directa a Postgres) o usa --seco');
   process.exit(1);
 }
-if (CREAR_ACCOUNTS && (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
-  console.error('--crear-accounts requiere SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY');
+if (CREAR_ACCOUNTS && (!SUPABASE_URL_ADMIN || !SUPABASE_KEY_ADMIN)) {
+  console.error('--crear-accounts requiere NEXT_PUBLIC_SUPABASE_URL (o SUPABASE_URL) y SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)');
   process.exit(1);
 }
 
@@ -62,13 +74,19 @@ function sslConfig() {
 const m = await mysql.createPool(mysqlCfg);
 const pool = !seco ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: sslConfig() }) : null;
 const supabaseAdmin = CREAR_ACCOUNTS
-  ? (await import('@supabase/supabase-js')).createClient(
-      process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
+  ? (await import('@supabase/supabase-js')).createClient(SUPABASE_URL_ADMIN, SUPABASE_KEY_ADMIN, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
   : null;
 
 const log = (msg) => console.log(`\n▸ ${msg}`);
-const resumen = { lookups: {}, personas: 0, usuarios: 0, resenas: 0 };
+const resumen = {
+  lookups: {},
+  personas: 0,
+  usuarios: 0,
+  resenas: 0,
+  claves: { bcrypt: 0, anterior: 0, restablecer: 0 },
+};
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -117,6 +135,121 @@ async function upsert(sql, row, label) {
 
 /** Solo devuelve el id si existe en el lookup de destino (si no, NULL). */
 const ref = (set, v) => (v == null ? null : (set.has(Number(v)) ? Number(v) : null));
+
+function emailDe(valor) {
+  const email = String(valor ?? '').toLowerCase().trim();
+  if (!email.includes('@') || email.startsWith('@') || /\s/.test(email)) return null;
+  return email;
+}
+
+function emailSintetico(email) {
+  return !email || email.endsWith('@legacy.laprotec');
+}
+
+function digitosDe(valor) {
+  return String(valor ?? '').replace(/\D/g, '');
+}
+
+function rolDe(texto) {
+  const t = String(texto ?? '');
+  if (/admin/i.test(t)) return 'admin';
+  if (/agen/i.test(t)) return 'agencia';
+  if (/inquilin/i.test(t)) return 'inquilino';
+  return 'propietario';
+}
+
+function rangoRol(rol) {
+  return { admin: 3, agencia: 2, propietario: 1, inquilino: 0 }[rol] ?? 0;
+}
+
+/**
+ * Detecta si el valor guardado en el legacy se puede usar para entrar.
+ * No imprime el valor. bcrypt y argon2 los acepta Supabase como hash.
+ * Un texto que no parece hash es la clave que la persona escribía.
+ * md5, sha y formatos desconocidos no se pueden verificar aquí: esa persona
+ * elige una clave nueva con "Olvidé mi clave".
+ */
+function clasificarSecreto(valor) {
+  const s = String(valor ?? '').trim();
+  if (!s) return { tipo: 'vacio' };
+  if (/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(s)) return { tipo: 'bcrypt', hash: s };
+  if (/^\$argon2(id|i|d)\$/.test(s)) return { tipo: 'argon', hash: s };
+  if (/^[a-f0-9]{32}$/i.test(s)) return { tipo: 'md5' };
+  if (/^[a-f0-9]{40}$/i.test(s)) return { tipo: 'sha1' };
+  if (/^[a-f0-9]{64}$/i.test(s)) return { tipo: 'sha256' };
+  if (s.startsWith('$') || s.length > 72) return { tipo: 'otra' };
+  if (s.length < 6) return { tipo: 'corta' };
+  return { tipo: 'plana', clave: s };
+}
+
+function assertClasificacion() {
+  const casos = [
+    ['$2y$10$' + 'a'.repeat(53), 'bcrypt'],
+    ['$2a$10$' + 'a'.repeat(53), 'bcrypt'],
+    ['$argon2id$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA', 'argon'],
+    ['a'.repeat(32), 'md5'],
+    ['a'.repeat(40), 'sha1'],
+    ['ab', 'corta'],
+    ['clave12', 'plana'],
+    ['', 'vacio'],
+    ['$P$Bhashdesconocido', 'otra'],
+    ['x'.repeat(80), 'otra'],
+  ];
+  for (const [valor, tipo] of casos) {
+    const obtuvo = clasificarSecreto(valor).tipo;
+    if (obtuvo !== tipo) {
+      console.error(`clasificarSecreto fallo: esperaba ${tipo}, obtuvo ${obtuvo}`);
+      process.exit(1);
+    }
+  }
+}
+
+function secretoVacio() {
+  return { tipo: 'vacio' };
+}
+
+function tomarSecreto(actual, incoming, incomingEsLogin) {
+  if (!incoming || incoming.tipo === 'vacio') return actual ?? secretoVacio();
+  const usable = incoming.tipo === 'bcrypt' || incoming.tipo === 'argon' || incoming.tipo === 'plana';
+  if (incomingEsLogin && usable) return incoming;
+  if (actual && (actual.tipo === 'bcrypt' || actual.tipo === 'argon' || actual.tipo === 'plana')) return actual;
+  if (usable) return incoming;
+  if (!actual || actual.tipo === 'vacio') return incoming;
+  return actual;
+}
+
+function cuentaNueva(parcial) {
+  return {
+    email: parcial.email,
+    nombre: parcial.nombre || 'Usuario legacy',
+    identificacion: parcial.identificacion || null,
+    telefono: parcial.telefono || null,
+    avatar: parcial.avatar || null,
+    rol: parcial.rol || 'propietario',
+    activo: parcial.activo !== false,
+    ultimoAcceso: parcial.ultimoAcceso ?? null,
+    secreto: parcial.secreto ?? secretoVacio(),
+    esLogin: parcial.esLogin === true,
+  };
+}
+
+function fusionarCuenta(base, extra, extraEsLogin) {
+  if (extra.identificacion && !base.identificacion) base.identificacion = extra.identificacion;
+  if (extra.telefono && !base.telefono) base.telefono = extra.telefono;
+  if (extra.avatar && !base.avatar) base.avatar = extra.avatar;
+  if (extra.nombre && (base.nombre === 'Usuario legacy' || base.nombre === 'Usuario')) base.nombre = extra.nombre;
+  if (rangoRol(extra.rol) > rangoRol(base.rol)) base.rol = extra.rol;
+  if (extraEsLogin) base.activo = extra.activo;
+  else if (extra.activo) base.activo = true;
+  base.secreto = tomarSecreto(base.secreto, extra.secreto, extraEsLogin);
+  if (extra.ultimoAcceso && !base.ultimoAcceso) base.ultimoAcceso = extra.ultimoAcceso;
+}
+
+function bucketClave(secreto) {
+  if (secreto?.tipo === 'bcrypt' || secreto?.tipo === 'argon') return 'bcrypt';
+  if (secreto?.tipo === 'plana') return 'anterior';
+  return 'restablecer';
+}
 
 // Ids presentes en destino para cada lookup (se llena en pasoLookups)
 const IDS = {
@@ -380,87 +513,287 @@ async function pasoPersonas() {
 // PASO 3 — Usuarios
 // ----------------------------------------------------------------------------
 
+async function cargarCuentasLegacy() {
+  const porEmail = new Map();
+  const sinCorreo = [];
+
+  const rows = await mysqlAll('users');
+  if (rows) {
+    const vistos = new Set();
+    for (const r of rows) {
+      const emailReal = emailDe(r.user_email);
+      const email = emailReal ?? `u${r.user_id}@legacy.laprotec`;
+      if (vistos.has(email)) continue;
+      vistos.add(email);
+      const nombre = [r.firstname, r.lastname].filter(Boolean).join(' ')
+        || r.nombre_completo || 'Usuario legacy';
+      const inactivo = /inactiv|susp|baja|cancel|venc|expir/i.test(r.status || '');
+      const cuenta = cuentaNueva({
+        email,
+        nombre,
+        identificacion: r.document || null,
+        telefono: r.telephone || null,
+        avatar: r.img_user || null,
+        rol: rolDe(r.access),
+        activo: !inactivo && !emailSintetico(email),
+        ultimoAcceso: r.date_added ?? null,
+        secreto: clasificarSecreto(r.user_password_hash),
+      });
+      if (emailReal) porEmail.set(email, cuenta);
+      else sinCorreo.push(cuenta);
+    }
+  } else console.log('  · tabla `users` no existe');
+
+  if (await mysqlTableExists('tb_login')) {
+    const logins = await mysqlRows(
+      `SELECT camp_fk_persona, camp_clave, camp_activo, camp_fecha_ingreso FROM tb_login`,
+    );
+    const personas = (await mysqlTableExists('tb_persona'))
+      ? await mysqlRows(
+        `SELECT camp_id_persona, camp_identificacion, camp_nombreUno, camp_nombreDOs,
+                camp_apellidoUno, camp_apellidoDos, camp_idSolicitud
+         FROM tb_persona`,
+      )
+      : [];
+    const solicitantes = (await mysqlTableExists('tb_solicitante'))
+      ? await mysqlRows(
+        `SELECT camp_id, camp_email, camp_cedula, camp_telefono_uno, camp_nombre,
+                camp_apellido_uno, camp_apellido_dos
+         FROM tb_solicitante`,
+      )
+      : [];
+    const permisos = (await mysqlTableExists('tb_permiso'))
+      ? await mysqlRows(`SELECT camp_fk_persona, camp_nombre FROM tb_permiso`)
+      : [];
+
+    const personaPorId = new Map(personas.map((p) => [Number(p.camp_id_persona), p]));
+    const solPorId = new Map(solicitantes.map((s) => [Number(s.camp_id), s]));
+    const solPorCedula = new Map();
+    for (const s of solicitantes) {
+      const d = digitosDe(s.camp_cedula);
+      if (d.length >= 6 && !solPorCedula.has(d)) solPorCedula.set(d, s);
+    }
+    const permisoPorPersona = new Map(permisos.map((p) => [Number(p.camp_fk_persona), p.camp_nombre]));
+    const cuentaPorCedula = new Map();
+    for (const cuenta of porEmail.values()) {
+      const d = digitosDe(cuenta.identificacion);
+      if (d.length >= 6 && !cuentaPorCedula.has(d)) cuentaPorCedula.set(d, cuenta);
+    }
+
+    let conLogin = 0;
+    for (const login of logins) {
+      const persona = personaPorId.get(Number(login.camp_fk_persona));
+      const ident = persona?.camp_identificacion || null;
+      const digitos = digitosDe(ident);
+      const sol = (persona?.camp_idSolicitud && solPorId.get(Number(persona.camp_idSolicitud)))
+        || (digitos.length >= 6 ? solPorCedula.get(digitos) : null)
+        || null;
+      const email = emailDe(sol?.camp_email);
+      const nombrePersona = [persona?.camp_nombreUno, persona?.camp_nombreDOs, persona?.camp_apellidoUno, persona?.camp_apellidoDos]
+        .filter(Boolean).join(' ');
+      const nombreSol = [sol?.camp_nombre, sol?.camp_apellido_uno, sol?.camp_apellido_dos].filter(Boolean).join(' ');
+      const extra = cuentaNueva({
+        email: email ?? `login-${login.camp_fk_persona}@legacy.laprotec`,
+        nombre: nombreSol || nombrePersona || 'Usuario legacy',
+        identificacion: ident,
+        telefono: sol?.camp_telefono_uno || null,
+        rol: rolDe(permisoPorPersona.get(Number(login.camp_fk_persona))),
+        activo: Number(login.camp_activo) === 1,
+        ultimoAcceso: login.camp_fecha_ingreso ?? null,
+        secreto: clasificarSecreto(login.camp_clave),
+        esLogin: true,
+      });
+      const destino = (email && porEmail.get(email))
+        || (digitos.length >= 6 ? cuentaPorCedula.get(digitos) : null)
+        || null;
+      if (destino) {
+        fusionarCuenta(destino, extra, true);
+        if (email && emailSintetico(destino.email)) {
+          porEmail.delete(destino.email);
+          destino.email = email;
+          porEmail.set(email, destino);
+        }
+      } else if (email) {
+        porEmail.set(email, extra);
+        if (digitos.length >= 6) cuentaPorCedula.set(digitos, extra);
+      } else {
+        sinCorreo.push(extra);
+      }
+      conLogin++;
+    }
+    console.log(`  tb_login → ${conLogin} accesos`);
+  } else console.log('  · tb_login no existe');
+
+  for (const cuenta of sinCorreo) {
+    const digitos = digitosDe(cuenta.identificacion);
+    const ya = [...porEmail.values()].find((c) => digitos.length >= 6 && digitosDe(c.identificacion) === digitos);
+    if (ya) fusionarCuenta(ya, cuenta, cuenta.esLogin);
+    else if (!porEmail.has(cuenta.email)) porEmail.set(cuenta.email, cuenta);
+  }
+
+  return [...porEmail.values()];
+}
+
 async function pasoUsuarios() {
   log('Usuarios');
-  const rows = await mysqlAll('users');
-  if (!rows) { console.log('  · tabla `users` no existe'); return; }
-
-  const porEmail = new Map();
-  for (const r of rows) {
-    let email = (r.user_email || '').toLowerCase().trim();
-    if (!email) email = `u${r.user_id}@legacy.laprotec`;
-    if (porEmail.has(email)) continue;
-    porEmail.set(email, r);
+  const cuentas = await cargarCuentasLegacy();
+  resumen.claves = { bcrypt: 0, anterior: 0, restablecer: 0 };
+  for (const cuenta of cuentas) {
+    if (!cuenta.activo || emailSintetico(cuenta.email)) continue;
+    resumen.claves[bucketClave(cuenta.secreto)]++;
   }
 
   let n = 0;
-  for (const [email, r] of porEmail) {
-    const nombre = [r.firstname, r.lastname].filter(Boolean).join(' ')
-      || r.nombre_completo || 'Usuario legacy';
-    const rol = /admin/i.test(r.access || '') ? 'admin'
-      : /agen/i.test(r.access || '') ? 'agencia' : 'propietario';
-    const inactivo = /inactiv|susp|baja|cancel|venc|expir/i.test(r.status || '');
+  for (const cuenta of cuentas) {
     n += await upsert(
       `INSERT INTO usuarios (email, nombre, identificacion, telefono, avatar_url, rol, activo, ultimo_acceso)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       ON CONFLICT (email) DO NOTHING`,
-      [email, nombre, r.document || null, r.telephone || null, r.img_user || null,
-       rol, !inactivo, r.date_added ?? null],
-      `usuario ${email}`,
+       ON CONFLICT (email) DO UPDATE SET
+         identificacion = COALESCE(usuarios.identificacion, EXCLUDED.identificacion),
+         telefono = COALESCE(usuarios.telefono, EXCLUDED.telefono),
+         avatar_url = COALESCE(usuarios.avatar_url, EXCLUDED.avatar_url),
+         nombre = CASE
+           WHEN usuarios.nombre IN ('Usuario legacy', 'Usuario') THEN EXCLUDED.nombre
+           ELSE usuarios.nombre
+         END,
+         rol = CASE
+           WHEN usuarios.auth_user_id IS NOT NULL THEN usuarios.rol
+           WHEN usuarios.rol = 'admin' OR EXCLUDED.rol = 'admin' THEN 'admin'
+           WHEN usuarios.rol = 'agencia' OR EXCLUDED.rol = 'agencia' THEN 'agencia'
+           WHEN usuarios.rol = 'propietario' OR EXCLUDED.rol = 'propietario' THEN 'propietario'
+           ELSE 'inquilino'
+         END,
+         activo = CASE
+           WHEN usuarios.auth_user_id IS NULL THEN EXCLUDED.activo
+           ELSE usuarios.activo
+         END`,
+      [cuenta.email, cuenta.nombre, cuenta.identificacion, cuenta.telefono, cuenta.avatar,
+        cuenta.rol, cuenta.activo, cuenta.ultimoAcceso],
+      `usuario ${cuenta.email}`,
     );
   }
   resumen.usuarios = n;
-  console.log(`  users → ${porEmail.size} emails únicos (${n} nuevos)`);
+  const reales = cuentas.filter((c) => !emailSintetico(c.email)).length;
+  const activas = cuentas.filter((c) => c.activo && !emailSintetico(c.email)).length;
+  console.log(`  cuentas: ${cuentas.length} (${reales} con correo, ${activas} activas)`);
+  console.log(
+    `  claves de las activas: ${resumen.claves.bcrypt} hash compatible, ${resumen.claves.anterior} la misma clave, ${resumen.claves.restablecer} tienen que restablecerla`,
+  );
 
   if (!seco) {
     const q = await pool.query(`SELECT count(*)::int AS n FROM usuarios`);
     console.log(`  TOTAL usuarios en destino: ${q.rows[0].n}`);
 
-    // Enlazar persona propia por cédula
     const l = await pool.query(`
       UPDATE usuarios u SET persona_id = p.id
       FROM personas p
-      WHERE p.identificacion = u.identificacion AND u.persona_id IS NULL`);
+      WHERE p.identificacion = u.identificacion
+        AND u.persona_id IS NULL
+        AND u.identificacion IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM usuarios o WHERE o.persona_id = p.id)`);
     console.log(`  personas enlazadas a usuarios: ${l.rowCount}`);
+
+    const digitos = await pool.query(`
+      UPDATE usuarios u SET persona_id = m.persona_id
+      FROM (
+        SELECT u2.id AS usuario_id, min(p.id) AS persona_id
+        FROM usuarios u2
+        JOIN personas p
+          ON regexp_replace(p.identificacion, '\\D', '', 'g')
+           = regexp_replace(u2.identificacion, '\\D', '', 'g')
+        WHERE u2.persona_id IS NULL
+          AND u2.identificacion IS NOT NULL
+          AND length(regexp_replace(u2.identificacion, '\\D', '', 'g')) >= 6
+          AND NOT EXISTS (SELECT 1 FROM usuarios o WHERE o.persona_id = p.id)
+        GROUP BY u2.id
+        HAVING count(DISTINCT p.id) = 1
+      ) m
+      WHERE u.id = m.usuario_id`);
+    console.log(`  personas enlazadas por cédula sin guiones: ${digitos.rowCount}`);
 
     const s = await pool.query(`SELECT setval(pg_get_serial_sequence('usuarios','id'), COALESCE((SELECT max(id) FROM usuarios), 1))`);
     void s;
   }
 
-  if (CREAR_ACCOUNTS) await crearCuentasAuth();
+  if (CREAR_ACCOUNTS) await crearCuentasAuth(cuentas);
+  for (const cuenta of cuentas) cuenta.secreto = null;
 }
 
-// Crea identidades en Supabase Auth (contraseña aleatoria; el usuario la resetea).
-async function crearCuentasAuth() {
-  const cuentas = (await pool.query(
-    `SELECT id, email, nombre FROM usuarios WHERE auth_user_id IS NULL AND activo`,
+function mensajeAuthSeguro(mensaje, secreto) {
+  const texto = mensaje || 'error';
+  if (secreto?.clave && texto.includes(secreto.clave)) return 'la clave no fue aceptada';
+  if (secreto?.hash && texto.includes(secreto.hash)) return 'el hash no fue aceptado';
+  return texto;
+}
+
+async function idAuthPorEmail(email) {
+  try {
+    const q = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
+    return q.rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Crea la identidad de login. Conserva el hash o la clave anterior cuando se puede.
+// Si no, la cuenta queda creada y la persona elige clave en /recuperar.
+async function crearCuentasAuth(cuentas) {
+  const porEmail = new Map(cuentas.map((c) => [c.email, c]));
+  const pendientes = (await pool.query(
+    `SELECT id, email, nombre FROM usuarios
+     WHERE auth_user_id IS NULL AND activo AND email NOT LIKE '%@legacy.laprotec'`,
   )).rows;
-  let ok = 0, fallo = 0;
-  console.log(`  Creando en Supabase Auth: 0/${cuentas.length}`);
-  for (const c of cuentas) {
-    const password = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email: c.email, password, email_confirm: true,
-      user_metadata: { nombre: c.nombre },
-    });
+  let ok = 0;
+  let fallo = 0;
+  let conservadas = 0;
+  let restablecer = 0;
+  console.log(`  Creando en Supabase Auth: 0/${pendientes.length}`);
+  for (const c of pendientes) {
+    const cuenta = porEmail.get(c.email.toLowerCase());
+    const secreto = cuenta?.secreto ?? secretoVacio();
+    const ya = await idAuthPorEmail(c.email);
+    if (ya) {
+      await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [ya, c.id]);
+      ok++;
+      continue;
+    }
+
+    const atributos = {
+      email: c.email,
+      email_confirm: true,
+      user_metadata: { nombre: c.nombre, rol: cuenta?.rol ?? 'propietario' },
+    };
+    let conservo = false;
+    if ((secreto.tipo === 'bcrypt' || secreto.tipo === 'argon') && secreto.hash) {
+      atributos.password_hash = secreto.hash;
+      conservo = true;
+    } else if (secreto.tipo === 'plana' && secreto.clave) {
+      atributos.password = secreto.clave;
+      conservo = true;
+    } else {
+      atributos.password = crypto.randomBytes(24).toString('base64url');
+    }
+
+    const { data, error } = await supabaseAdmin.auth.admin.createUser(atributos);
     if (error) {
-      if (/already|registered|duplicate/i.test(error.message)) {
-        const lista = (await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })).data.users;
-        const existente = lista.find((u) => u.email?.toLowerCase() === c.email.toLowerCase());
-        if (existente) {
-          await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [existente.id, c.id]);
-          ok++; continue;
-        }
+      const duplicado = /already|registered|duplicate/i.test(error.message);
+      const id = duplicado ? await idAuthPorEmail(c.email) : null;
+      if (id) {
+        await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [id, c.id]);
+        ok++;
+        continue;
       }
       fallo++;
-      console.error(`  ✗ ${c.email}: ${error.message}`);
+      console.error(`  ✗ ${c.email}: ${mensajeAuthSeguro(error.message, secreto)}`);
       continue;
     }
     await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [data.user.id, c.id]);
     ok++;
-    if (ok % 50 === 0) console.log(`  Creando en Supabase Auth: ${ok}/${cuentas.length}`);
+    if (conservo) conservadas++;
+    else restablecer++;
+    if (ok % 50 === 0) console.log(`  Creando en Supabase Auth: ${ok}/${pendientes.length}`);
   }
-  console.log(`  Auth: ${ok} ok, ${fallo} fallos`);
+  console.log(`  Auth: ${ok} ok, ${fallo} fallos, ${conservadas} con su clave, ${restablecer} deben restablecerla`);
 }
 
 // ----------------------------------------------------------------------------
@@ -484,8 +817,8 @@ async function pasoResenas() {
     for (const r of q.rows) personaMap.set(r.identificacion, r.id);
   }
 
-  // Autores: registrador (id persona LEGACY) → identificacion → usuario;
-  // si el registrador no tiene cuenta, se crea una fantasma inactiva.
+  // Autores: registrador (id persona LEGACY) → identificacion → usuario.
+  // Si no hay cuenta real, se crea una fantasma inactiva (no puede entrar).
   const regIds = [...new Set(fichas.map((r) => Number(r.camp_fk_registrador)).filter(Boolean))];
   const autorMap = new Map();
   if (!seco && regIds.length) {

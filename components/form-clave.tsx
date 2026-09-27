@@ -1,12 +1,20 @@
 'use client'
 
 import { useActionState } from 'react'
-import { cambiarClave } from '@/lib/actions/auth'
+import { cambiarClave, type EstadoForm } from '@/lib/actions/auth'
 import { CampoClave } from '@/components/campo-clave'
 import { MensajeForm } from '@/components/mensaje-form'
 
-export function FormClave() {
-  const [estado, action, pendiente] = useActionState(cambiarClave, undefined)
+type AccionClave = (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
+
+export function FormClave({
+  accion = cambiarClave,
+  etiqueta = 'Cambiar clave',
+}: {
+  accion?: AccionClave
+  etiqueta?: string
+}) {
+  const [estado, action, pendiente] = useActionState(accion, undefined)
 
   return (
     <form action={action} className="max-w-md space-y-4">
@@ -27,7 +35,7 @@ export function FormClave() {
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <button disabled={pendiente} className="btn-primario">
-        {pendiente ? 'Guardando…' : 'Cambiar clave'}
+        {pendiente ? 'Guardando…' : etiqueta}
       </button>
     </form>
   )

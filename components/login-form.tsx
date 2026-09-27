@@ -37,6 +37,11 @@ export function LoginForm({ siguiente }: { siguiente: string }) {
       <button disabled={pendiente} className="btn-primario w-full">
         {pendiente ? 'Entrando…' : 'Iniciar sesión'}
       </button>
+      <p className="text-center text-sm">
+        <Link href="/recuperar" className="text-ink-soft underline-offset-2 hover:underline">
+          ¿Olvidó su clave?
+        </Link>
+      </p>
       <p className="text-center text-sm text-ink-soft">
         ¿No tiene cuenta?{' '}
         <Link href="/registro" className="font-semibold text-seal underline-offset-2 hover:underline">

@@ -1,7 +1,14 @@
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
+import { EsperaAprobacion } from '@/components/espera-aprobacion'
+import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
 
-export default function HomePage() {
+export default async function HomePage() {
+  const usuario = await obtenerUsuario()
+  if (usuario && !(await puedeConsultar(usuario))) {
+    return <EsperaAprobacion usuario={usuario} />
+  }
+
   return (
     <div className="flex min-h-[72vh] flex-col items-center justify-center px-4 pb-16">
       <h1 className="text-[2.75rem] font-normal tracking-tight sm:text-6xl">La Protectora</h1>

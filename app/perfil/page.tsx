@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { FormClave } from '@/components/form-clave'
-import { requireUsuario, listarResenasDe } from '@/lib/dal'
+import { requireUsuario, listarResenasDe, puedeConsultar } from '@/lib/dal'
 import { cerrarSesion } from '@/lib/actions/auth'
 import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
@@ -12,6 +12,7 @@ export const metadata = { title: 'Mi perfil' }
 export default async function PerfilPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const enviada = primer((await props.searchParams).enviada) === '1'
   const usuario = await requireUsuario()
+  const consulta = await puedeConsultar(usuario)
   const sinBackend = sinSupabase()
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
   let aviso: string | null = null
@@ -42,6 +43,9 @@ export default async function PerfilPage(props: { searchParams: Promise<Record<s
       </header>
 
       {enviada && <p className="aviso aviso-ok">La reseña quedó en revisión.</p>}
+      {!consulta && (
+        <p className="text-sm text-ink-soft">Cuando administración apruebe una reseña, puede consultar fichas.</p>
+      )}
 
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
@@ -60,9 +64,9 @@ export default async function PerfilPage(props: { searchParams: Promise<Record<s
           </div>
         ) : (
           <ul className="space-y-3">
-            {misResenas.map((r) => (
-              <li key={r.id}>
-                <Link href={`/fichas/${r.persona.id}`} className="expediente flex items-center gap-3">
+            {misResenas.map((r) => {
+              const cuerpo = (
+                <>
                   <Avatar nombre={nombreCompleto(r.persona)} tamano="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-xl">{nombreCompleto(r.persona)}</p>
@@ -73,9 +77,20 @@ export default async function PerfilPage(props: { searchParams: Promise<Record<s
                   </div>
                   <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
                   {r.estado !== 'publicada' && <span className="chip chip-alerta">{etiquetaEstado(r.estado)}</span>}
-                </Link>
-              </li>
-            ))}
+                </>
+              )
+              return (
+                <li key={r.id}>
+                  {consulta ? (
+                    <Link href={`/fichas/${r.persona.id}`} className="expediente flex items-center gap-3">
+                      {cuerpo}
+                    </Link>
+                  ) : (
+                    <div className="expediente flex items-center gap-3">{cuerpo}</div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

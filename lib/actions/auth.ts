@@ -1,5 +1,6 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import * as z from 'zod'
 import { requireUsuario } from '@/lib/dal'
@@ -73,7 +74,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   }
 
   if (data.session) {
-    redirect('/fichas')
+    redirect('/resenas/nueva')
   }
   return {
     mensaje: 'Cuenta creada. Revise su correo para confirmar el registro y luego inicie sesión.',
@@ -129,6 +130,61 @@ const SchemaClave = z
     confirmacion: z.string(),
   })
   .refine((datos) => datos.clave === datos.confirmacion, { message: 'Las claves no coinciden.' })
+
+async function origenDeLaPeticion() {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  if (!host) return null
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
+export async function solicitarRecuperacion(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  if (sinSupabase()) return avisoSinSupabase()
+
+  const parsed = z.object({ email: z.email('Escriba un correo válido') }).safeParse({
+    email: (formData.get('email') as string)?.toLowerCase(),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Escriba un correo válido.' }
+
+  const origen = await origenDeLaPeticion()
+  if (!origen) return { error: 'No pudimos armar el enlace. Intente de nuevo.' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${origen}/auth/confirmar?next=/restablecer`,
+  })
+  if (error && /redirect|not allowed/i.test(error.message)) {
+    return { error: 'Falta autorizar el enlace de retorno en Supabase, en Authentication → URL Configuration.' }
+  }
+  if (error && /rate limit/i.test(error.message)) {
+    return { error: 'Espere un momento antes de pedir otro enlace.' }
+  }
+  return { mensaje: 'Si ese correo tiene cuenta, le enviamos un enlace para elegir una clave nueva.' }
+}
+
+export async function establecerClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  if (sinSupabase()) return avisoSinSupabase()
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'El enlace venció. Pida otro.' }
+
+  const parsed = SchemaClave.safeParse({
+    clave: formData.get('clave'),
+    confirmacion: formData.get('confirmacion'),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise la clave.' }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.clave })
+  if (error) {
+    if (/same password|should be different/i.test(error.message)) {
+      return { error: 'Elija una clave distinta a la actual.' }
+    }
+    return { error: 'No pudimos guardar la clave. Pida otro enlace e intente de nuevo.' }
+  }
+  redirect('/')
+}
 
 export async function cambiarClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   if (sinSupabase()) return avisoSinSupabase()

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import * as z from 'zod'
-import { requireUsuario } from '@/lib/dal'
+import { puedeConsultar, requireUsuario } from '@/lib/dal'
 import { createClient } from '@/lib/supabase/server'
 import type { EstadoForm } from './auth'
 
@@ -15,6 +15,9 @@ const SchemaDenuncia = z.object({
 export async function denunciar(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
   const usuario = await requireUsuario()
   if (!usuario.activo) return { error: 'Su cuenta está inactiva y no puede denunciar.' }
+  if (!(await puedeConsultar(usuario))) {
+    return { error: 'Puede denunciar cuando administración apruebe una reseña suya.' }
+  }
 
   const parsed = SchemaDenuncia.safeParse({
     resenaId: formData.get('resenaId'),

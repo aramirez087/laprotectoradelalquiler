@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { requireUsuario, obtenerLookups, buscarFichas } from '@/lib/dal'
+import { EsperaAprobacion } from '@/components/espera-aprobacion'
+import { requireUsuario, obtenerLookups, buscarFichas, puedeConsultar } from '@/lib/dal'
 import { fechaCorta, nombreCompleto } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
@@ -36,7 +37,11 @@ function ventana(actual: number, total: number) {
 }
 
 export default async function FichasPage(props: PageProps<'/fichas'>) {
-  await requireUsuario()
+  const usuario = await requireUsuario()
+  if (!(await puedeConsultar(usuario))) {
+    return <EsperaAprobacion usuario={usuario} />
+  }
+
   const searchParams = await props.searchParams
   const q = primer(searchParams.q).trim()
   const provincia = primer(searchParams.provincia)

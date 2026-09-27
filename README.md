@@ -56,7 +56,7 @@ Plataforma comunitaria de confianza para el alquiler en Costa Rica:
    npm run db:migrar -- --seco
    # luego la importación real:
    npm run db:migrar
-   # opcional: crea las identidades en Supabase Auth (contraseña aleatoria):
+   # crea las identidades en Supabase Auth y conserva la clave cuando se puede:
    npm run db:migrar -- --crear-accounts
    ```
 

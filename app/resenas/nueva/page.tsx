@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireUsuario, obtenerLookups, obtenerFicha, resenasPrivadasVisibles } from '@/lib/dal'
+import { requireUsuario, obtenerLookups, obtenerFicha, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
@@ -10,6 +10,7 @@ export const metadata = { title: 'Escribir reseña' }
 
 export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>) {
   const usuario = await requireUsuario()
+  const consulta = await puedeConsultar(usuario)
   const searchParams = await props.searchParams
   const personaId = Number(searchParams.personaId ?? 0) || null
 
@@ -40,7 +41,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
     provinciaId: number | null
   } | null = null
 
-  if (personaId && lookups) {
+  if (personaId && lookups && consulta) {
     const p = await obtenerFicha(personaId).catch(() => null)
     if (p) {
       const privadas = await resenasPrivadasVisibles(p.id, usuario).catch(() => [])
@@ -67,13 +68,16 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
       <div>
         <h1 className="text-2xl">Reseña</h1>
         {usuario.rol !== 'admin' && createAdmin() && (
-          <p className="mt-2 text-sm text-ink-soft">La reseña se publica cuando administración la revisa.</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            La reseña se publica cuando administración la revisa.
+            {!consulta && ' Con una reseña aprobada puede consultar fichas.'}
+          </p>
         )}
       </div>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {lookups && <FormResena personaInicial={personaInicial} lookups={lookups} />}
-      <Link href="/fichas" className="text-sm font-semibold text-ink-soft">
-        ← Volver a fichas
+      <Link href={consulta ? '/fichas' : '/perfil'} className="text-sm font-semibold text-ink-soft">
+        {consulta ? '← Volver a fichas' : '← Perfil'}
       </Link>
     </div>
   )

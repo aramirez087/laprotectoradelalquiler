@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans } from 'next/font/google'
 import './globals.css'
 import { Nav } from '@/components/nav'
-import { obtenerUsuario } from '@/lib/dal'
+import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
@@ -30,6 +30,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout(props: LayoutProps<'/'>) {
   const usuario = await obtenerUsuario()
+  const consulta = usuario ? await puedeConsultar(usuario) : false
 
   return (
     <html lang="es" className={`${instrumentSans.variable} h-full antialiased`}>
@@ -39,7 +40,11 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         </a>
         <Nav usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol } : null} />
         {usuario && !usuario.activo && (
-          <p className="franja-aviso">Su cuenta está inactiva. Puede consultar el registro, no publicar.</p>
+          <p className="franja-aviso">
+            {consulta
+              ? 'Su cuenta está inactiva. Puede consultar el registro, no publicar.'
+              : 'Su cuenta está inactiva. No puede publicar.'}
+          </p>
         )}
         <main id="contenido" className="flex-1">
           {props.children}

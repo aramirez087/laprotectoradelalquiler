@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireUsuario, obtenerFicha, resenasPrivadasVisibles } from '@/lib/dal'
+import { EsperaAprobacion } from '@/components/espera-aprobacion'
+import { requireUsuario, obtenerFicha, obtenerUsuario, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
@@ -26,6 +27,8 @@ export async function generateMetadata(props: PageProps<'/fichas/[id]'>): Promis
   const { id } = await props.params
   const personaId = Number(id)
   if (!Number.isInteger(personaId) || personaId <= 0 || sinSupabase()) return { title: 'Ficha' }
+  const usuario = await obtenerUsuario()
+  if (!usuario || !(await puedeConsultar(usuario))) return { title: 'Fichas' }
   try {
     const persona = await obtenerFicha(personaId)
     return { title: persona ? nombreCompleto(persona) : 'Ficha' }
@@ -40,6 +43,10 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   if (!Number.isInteger(personaId) || personaId <= 0) notFound()
 
   const usuario = await requireUsuario()
+  if (!(await puedeConsultar(usuario))) {
+    return <EsperaAprobacion usuario={usuario} />
+  }
+
   const searchParams = await props.searchParams
   const volver = hrefVolver(primer(searchParams.q), primer(searchParams.provincia), primer(searchParams.pagina))
 

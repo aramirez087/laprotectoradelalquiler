@@ -87,7 +87,7 @@ Edita `.env.local` con lo que copiaste:
 ```ini
 NEXT_PUBLIC_SUPABASE_URL=https://abcdefgh.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...   # o NEXT_PUBLIC_SUPABASE_ANON_KEY (legacy)
-SUPABASE_SECRET_KEY=sb_secret_...                        # o SUPABASE_SERVICE_ROLE_KEY (legacy); solo si vas a correr --crear-accounts (paso 6)
+SUPABASE_SECRET_KEY=sb_secret_...                        # o SUPABASE_SERVICE_ROLE_KEY (legacy); hace falta para --crear-accounts (paso 6)
 DATABASE_URL=postgresql://postgres.abcdefgh:TU_CLAVE@aws-0-sa-east-1.pooler.supabase.com:5432/postgres   # botón "Session" del dashboard
 
 # Credenciales del MySQL legacy (pídalas a quien administra esa BD)
@@ -162,8 +162,8 @@ Corre 4 pasos (en este orden):
 | --- | --- |
 | `lookups` | Copia tablas de referencia (provincias, cantones, distritos, barrios, calificaciones, etiquetas, daños, procesos, tipos de contrato/alquiler). **Preserva los ids del legacy** para que las referencias de las fichas sigan siendo correctas. Si el legacy no tiene alguna (p. ej. `tb_dano_vivienda`), usa el seed local y lo avisa. |
 | `personas` | Crea/actualiza `personas` desde `tb_persona`, `tb_inquilinos_no_nacionales` (las fichas) y `tb_solicitante`, usando la cédula/identificación como clave natural. |
-| `usuarios` | Importa la tabla `users` legacy (1 cuenta por email; mapea `access`→rol, `status`→activo) y enlaza cada cuenta con su `persona` por cédula. |
-| `resenas` | Importa cada ficha de `tb_inquilinos_no_nacionales` como una reseña (`fuente='legacy'`), con su autor, calificación, etiquetas, daños, procesos y comentario. Si el registrador de una ficha no tiene cuenta, crea una **cuenta fantasma inactiva** para no perder la reseña. |
+| `usuarios` | Importa `users` y el login real de la plataforma (`tb_login` + persona + solicitante + permiso): 1 cuenta por correo, rol, activo y cédula. No escribe claves en `usuarios`. |
+| `resenas` | Importa cada ficha de `tb_inquilinos_no_nacionales` como una reseña (`fuente='legacy'`), con su autor, calificación, etiquetas, daños, procesos y comentario. Si el registrador no tiene cuenta, crea una **cuenta fantasma inactiva** (`…@legacy.laprotec`). Esa cuenta no puede entrar. |
 
 Al final imprime un `Resumen` JSON. Salidas que verás a menudo y que **no son
 errores**:
@@ -175,21 +175,38 @@ errores**:
 **¿Se puede correr dos veces?** Sí. Es idempotente: la segunda ejecución
 actualiza valores y no duplica filas. Útil si el legacy avanzó entre corridas.
 
-### Opcional: crear las cuentas de login (paso 6)
+### Paso 6 — Crear las cuentas de login
 
 ```bash
 npm run db:migrar -- --crear-accounts
 ```
 
-Crea en **Supabase Auth** una identidad para cada usuario migrado que esté
-activo, con una **contraseña aleatoria** (la guarda en memoria durante la
-ejecución; no se imprime). Los usuarios legados entrarían con
-*Reset password* (en el paso de login): Supabase les manda un correo con el
-enlace. Requiere `SUPABASE_SERVICE_ROLE_KEY` en `.env.local`.
+Crea en **Supabase Auth** una identidad para cada usuario migrado **activo**
+con correo real. Las cuentas `@legacy.laprotec` (sin correo, o autores de
+reseña sin cuenta) no entran. Usa las variables que ya están en `.env.local`
+(`NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SECRET_KEY`; también acepta
+`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`).
 
-> Consejo: si la BD legacy tiene miles de usuarios, este paso tarda (una
-> llamada por cuenta). Es opcional: la app funciona sin él; solo esos
-> usuarios no podrán iniciar sesión hasta que se cree su identidad.
+La clave se conserva cuando se puede:
+
+- Si el legacy guardó un hash **bcrypt** o **argon2** (`users.user_password_hash`
+  o `tb_login.camp_clave`), Supabase lo importa y la persona entra con la misma clave.
+- Si `tb_login.camp_clave` es la clave en texto (el sistema viejo la comparaba
+  tal cual), se le entrega a Supabase para que la guarde hasheada. El script
+  no la imprime ni la escribe en `usuarios`.
+- Si el valor es md5, sha u otro formato, o no hay clave, la cuenta se crea
+  igual y la persona elige una nueva en **Entrar → ¿Olvidó su clave?**.
+
+Antes de que esos correos funcionen, en el dashboard de Supabase abra
+**Authentication → URL Configuration** y agregue la dirección de la app, por
+ejemplo `http://localhost:3000/**` en desarrollo y `https://su-dominio/**` en
+producción. Sin eso, el enlace del correo es rechazado.
+
+El resumen del paso de usuarios dice cuántas claves se conservan y cuántas
+hay que restablecer, sin mostrar ninguna clave.
+
+> Si hay miles de cuentas, este paso tarda (una llamada por cuenta). Sin él
+> los perfiles y las reseñas ya están importados, pero nadie puede entrar.
 
 ## Paso 7 — Verificar
 

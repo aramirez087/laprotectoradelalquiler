@@ -79,6 +79,38 @@ export async function requerirRol(...roles: Rol[]) {
   return u
 }
 
+/**
+ * Consultar el registro (buscar fichas y leer reseñas ajenas) exige al menos
+ * una reseña propia ya publicada. Administración entra siempre.
+ * Si la consulta falla, se niega el acceso.
+ */
+export const puedeConsultar = cache(async (usuario: Usuario): Promise<boolean> => {
+  if (usuario.rol === 'admin') return true
+  if (sinSupabase()) return false
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from('resenas')
+    .select('id', { count: 'exact', head: true })
+    .eq('autor_id', usuario.id)
+    .eq('estado', 'publicada')
+  if (error) return false
+  return (count ?? 0) > 0
+})
+
+export type MotivoEspera = 'ninguna' | 'revision' | 'rechazada'
+
+/** Por qué alguien aún no consulta: no ha escrito, está en revisión, o solo tiene rechazos. */
+export const motivoEspera = cache(async (usuario: Usuario): Promise<MotivoEspera> => {
+  const admin = createAdmin()
+  if (!admin) return 'ninguna'
+  const { data, error } = await admin.from('resenas').select('estado').eq('autor_id', usuario.id)
+  if (error || !data?.length) return 'ninguna'
+  const estados = data.map((fila) => String(fila.estado))
+  if (estados.includes('borrador')) return 'revision'
+  if (estados.includes('oculta')) return 'rechazada'
+  return 'ninguna'
+})
+
 // ============================================================================
 // Fichas (personas reseñadas)
 // ============================================================================
@@ -88,6 +120,9 @@ export async function buscarFichas(opts: {
   provincia?: string
   pagina?: number
 }): Promise<{ fichas: VistaFicha[]; total: number }> {
+  const usuario = await obtenerUsuario()
+  if (!usuario || !(await puedeConsultar(usuario))) return { fichas: [], total: 0 }
+
   const supabase = await createClient()
   const porPagina = 20
   const pagina = Math.max(1, Number.isFinite(opts.pagina) ? Math.floor(opts.pagina ?? 1) : 1)
@@ -158,7 +193,7 @@ export async function buscarFichas(opts: {
 export async function resumenRegistro(): Promise<{ personas: number; resenas: number } | null> {
   if (sinSupabase()) return null
   const usuario = await obtenerUsuario()
-  if (!usuario) return null
+  if (!usuario || !(await puedeConsultar(usuario))) return null
   try {
     const supabase = await createClient()
     const [personas, resenas] = await Promise.all([
@@ -173,6 +208,9 @@ export async function resumenRegistro(): Promise<{ personas: number; resenas: nu
 }
 
 export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | null> => {
+  const usuario = await obtenerUsuario()
+  if (!usuario || !(await puedeConsultar(usuario))) return null
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('personas')
@@ -390,6 +428,8 @@ export async function denunciarResena(input: {
 }
 
 export async function buscarPersonasParaResena(q: string) {
+  const usuario = await obtenerUsuario()
+  if (!usuario || !(await puedeConsultar(usuario))) return []
   const supabase = await createClient()
   const { data } = await supabase
     .from('personas')
