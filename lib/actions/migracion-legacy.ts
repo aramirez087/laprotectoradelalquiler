@@ -82,7 +82,10 @@ export async function migrarLegacyAction(
     }
     const destino = configuracionDestinoLegacy()
     if (!destino.baseDatos) {
-      return { error: 'Falta DATABASE_URL en el servidor. Configure el destino antes de importar.' }
+      return {
+        error:
+          'Falta la conexión a Postgres en el servidor. Configure DATABASE_URL o conecte el proyecto de Supabase desde Vercel.',
+      }
     }
     const crearCuentas = formData.get('crearCuentas') === 'on'
     if (crearCuentas && !destino.auth) {

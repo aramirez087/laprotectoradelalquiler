@@ -21,7 +21,7 @@ export default function MigracionLegacyPage() {
 
       {!destino.baseDatos && (
         <p className="aviso aviso-error" role="alert">
-          El destino no está listo: falta <code>DATABASE_URL</code> en el servidor. Todavía puede probar la conexión al origen.
+          El destino no está listo: falta la conexión de Postgres en el servidor. Todavía puede probar la conexión al origen.
         </p>
       )}
 

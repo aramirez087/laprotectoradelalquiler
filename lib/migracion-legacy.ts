@@ -50,8 +50,10 @@ type ResultadoEjecucion = {
 }
 
 export function configuracionDestinoLegacy() {
+  const databaseUrl =
+    process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING
   return {
-    baseDatos: Boolean(process.env.DATABASE_URL),
+    baseDatos: Boolean(databaseUrl),
     auth:
       Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
       Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY),
@@ -152,6 +154,8 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<
       cwd: process.cwd(),
       env: {
         ...process.env,
+        DATABASE_URL:
+          process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || '',
         LEGACY_MYSQL_HOST: datos.host,
         LEGACY_MYSQL_PORT: String(datos.port),
         LEGACY_MYSQL_USER: datos.user,
