@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Paginacion } from '@/components/paginacion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
-import { requireUsuario, obtenerLookups, buscarFichas, puedeConsultar } from '@/lib/dal'
+import { requireUsuario, buscarFichas, puedeConsultar } from '@/lib/dal'
 import { formatoNumero, paginaSegura, primer } from '@/lib/util'
 import { BuscadorFichas } from '@/components/buscador-fichas'
 import { TarjetaFicha } from '@/components/tarjeta-ficha'
@@ -11,19 +11,17 @@ import type { VistaFicha } from '@/lib/tipos'
 
 export const metadata = { title: 'Fichas' }
 
-function hrefLista(opts: { q?: string; provincia?: string; pagina?: number }) {
+function hrefLista(opts: { q?: string; pagina?: number }) {
   const p = new URLSearchParams()
   if (opts.q) p.set('q', opts.q)
-  if (opts.provincia) p.set('provincia', opts.provincia)
   if (opts.pagina && opts.pagina > 1) p.set('pagina', String(opts.pagina))
   const s = p.toString()
   return s ? `/fichas?${s}` : '/fichas'
 }
 
-function hrefFicha(id: number, opts: { q?: string; provincia?: string; pagina?: number }) {
+function hrefFicha(id: number, opts: { q?: string; pagina?: number }) {
   const p = new URLSearchParams()
   if (opts.q) p.set('q', opts.q)
-  if (opts.provincia) p.set('provincia', opts.provincia)
   if (opts.pagina && opts.pagina > 1) p.set('pagina', String(opts.pagina))
   const s = p.toString()
   return s ? `/fichas/${id}?${s}` : `/fichas/${id}`
@@ -32,9 +30,8 @@ function hrefFicha(id: number, opts: { q?: string; provincia?: string; pagina?: 
 export default async function FichasPage(props: PageProps<'/fichas'>) {
   const searchParams = await props.searchParams
   const q = primer(searchParams.q).trim()
-  const provincia = primer(searchParams.provincia)
   const pagina = paginaSegura(primer(searchParams.pagina))
-  const usuario = await requireUsuario(hrefLista({ q, provincia, pagina }))
+  const usuario = await requireUsuario(hrefLista({ q, pagina }))
   if (!(await puedeConsultar(usuario))) {
     return <EsperaAprobacion usuario={usuario} />
   }
@@ -42,28 +39,21 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   let fichas: VistaFicha[] = []
   let total = 0
   let aviso: string | null = null
-  let provincias: { id: number; nombre: string }[] = []
 
   try {
-    const resultado = await buscarFichas({ q, provincia: provincia || undefined, pagina })
+    const resultado = await buscarFichas({ q, pagina })
     fichas = resultado.fichas
     total = resultado.total
   } catch {
     aviso = 'No pudimos consultar el registro. Intente de nuevo en un momento.'
   }
 
-  try {
-    provincias = (await obtenerLookups()).provincias
-  } catch {
-    if (!aviso) aviso = 'No pudimos cargar las provincias. La búsqueda por nombre sigue disponible.'
-  }
-
   const porPagina = 20
   const paginas = Math.max(1, Math.ceil(total / porPagina))
-  if (!aviso && pagina > paginas) redirect(hrefLista({ q, provincia, pagina: paginas }))
+  if (!aviso && pagina > paginas) redirect(hrefLista({ q, pagina: paginas }))
   const desde = fichas.length === 0 ? 0 : (pagina - 1) * porPagina + 1
   const hasta = (pagina - 1) * porPagina + fichas.length
-  const filtros = { q, provincia }
+  const filtros = { q }
 
   return (
     <div className="contenedor space-y-5">
@@ -79,18 +69,13 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
           Escribir reseña
         </Link>
       </header>
-      <BuscadorFichas q={q} provincia={provincia} provincias={provincias} />
-      {(q || provincia) && (
+      <BuscadorFichas q={q} />
+      {q && (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-ink-soft">Filtros:</span>
-          {q && <span className="chip max-w-full break-words">“{q}”</span>}
-          {provincia && (
-            <span className="chip">
-              {provincias.find((p) => String(p.id) === provincia)?.nombre ?? 'Provincia seleccionada'}
-            </span>
-          )}
+          <span className="text-ink-soft">Búsqueda:</span>
+          <span className="chip max-w-full break-words">“{q}”</span>
           <Link href="/fichas" className="enlace-texto">
-            Quitar filtros
+            Quitar búsqueda
           </Link>
         </div>
       )}
@@ -106,11 +91,11 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
       {fichas.length === 0 && !aviso ? (
         <EstadoVacio
           titulo="No encontramos fichas"
-          texto="Pruebe con un apellido, revise el documento o busque en todas las provincias."
+          texto="Pruebe con un apellido o revise el documento."
         >
-          {(q || provincia) && (
+          {q && (
             <Link href="/fichas" className="btn-secundario">
-              Quitar filtros
+              Quitar búsqueda
             </Link>
           )}
           <Link href="/resenas/nueva" className="enlace-texto">

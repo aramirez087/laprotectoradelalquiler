@@ -41,7 +41,10 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         <a href="#contenido" className="skip">
           Saltar al contenido
         </a>
-        <Nav usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol } : null} tema={tema} />
+        <Nav
+          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, consulta } : null}
+          tema={tema}
+        />
         {usuario && !usuario.activo && (
           <p className="franja-aviso">
             {consulta

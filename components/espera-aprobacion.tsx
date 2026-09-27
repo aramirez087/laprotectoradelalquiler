@@ -21,7 +21,7 @@ export function EstadoAcceso({ motivo, activo }: { motivo: MotivoEspera; activo:
   const texto = !activo
     ? 'Puede revisar sus reseñas y el estado de su cuenta desde su perfil.'
     : revision
-      ? 'Ya recibimos su reseña. Cuando administración la apruebe, podrá buscar y consultar las fichas del registro.'
+      ? 'Administración revisa su cédula, su perfil de Facebook y su reseña. Cuando la apruebe, puede consultar el registro.'
       : rechazada
         ? 'Consulte el motivo en su perfil antes de enviar otra reseña. Necesita una reseña aprobada para acceder al registro.'
         : 'Comparta una experiencia de alquiler. Cuando administración la apruebe, podrá consultar las experiencias de la comunidad.'

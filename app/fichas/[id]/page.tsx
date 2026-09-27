@@ -14,10 +14,9 @@ function primer(v: string | string[] | undefined) {
   return (Array.isArray(v) ? v[0] : v) ?? ''
 }
 
-function hrefVolver(q: string, provincia: string, pagina: string) {
+function hrefVolver(q: string, pagina: string) {
   const p = new URLSearchParams()
   if (q) p.set('q', q)
-  if (provincia) p.set('provincia', provincia)
   if (pagina && pagina !== '1') p.set('pagina', pagina)
   const s = p.toString()
   return destinoInterno(s ? `/fichas?${s}` : '/fichas')
@@ -43,7 +42,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   if (!Number.isInteger(personaId) || personaId <= 0) notFound()
 
   const searchParams = await props.searchParams
-  const volver = hrefVolver(primer(searchParams.q), primer(searchParams.provincia), primer(searchParams.pagina))
+  const volver = hrefVolver(primer(searchParams.q), primer(searchParams.pagina))
   const consulta = volver.includes('?') ? volver.slice(volver.indexOf('?')) : ''
   const usuario = await requireUsuario(`/fichas/${personaId}${consulta}`)
   if (!(await puedeConsultar(usuario))) {

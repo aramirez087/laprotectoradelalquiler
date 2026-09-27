@@ -307,9 +307,17 @@ BEGIN
     ALTER TABLE resenas ENABLE ROW LEVEL SECURITY;
     CREATE POLICY resenas_lectura ON resenas
       FOR SELECT TO authenticated, anon USING (estado = 'publicada');
+    -- Quien no administra solo puede dejar la reseña en revisión.
+    -- Publicarla (y así abrir la consulta) lo hace la administración.
     CREATE POLICY resenas_escritura ON resenas
       FOR INSERT TO authenticated
-      WITH CHECK (autor_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid()));
+      WITH CHECK (
+        autor_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid())
+        AND (
+          estado = 'borrador'
+          OR (SELECT rol FROM usuarios WHERE auth_user_id = auth.uid()) = 'admin'
+        )
+      );
 
     -- personas: lectura pública; creación libre (la app la valida en el DAL)
     ALTER TABLE personas ENABLE ROW LEVEL SECURITY;

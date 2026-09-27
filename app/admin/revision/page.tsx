@@ -34,6 +34,9 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
     <div className="contenedor space-y-8">
       <section className="space-y-4">
         <h1 className="text-3xl">Revisión</h1>
+        <p className="text-sm text-ink-soft">
+          Revise la cédula, el perfil de Facebook y el relato. Aprobar la reseña permite a esa persona consultar el registro.
+        </p>
         {aviso && <p className="aviso aviso-error">{aviso}</p>}
         {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas en revisión.</p>}
         <div className="space-y-3">

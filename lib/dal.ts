@@ -183,7 +183,6 @@ export const motivoEspera = cache(async (usuario: Usuario): Promise<MotivoEspera
 
 export async function buscarFichas(opts: {
   q?: string
-  provincia?: string
   pagina?: number
 }): Promise<{ fichas: VistaFicha[]; total: number }> {
   const usuario = await obtenerUsuario()
@@ -209,9 +208,6 @@ export async function buscarFichas(opts: {
       `identificacion.ilike.%${v}%`,
     ])
     query = query.or(filtros.join(','))
-  }
-  if (opts.provincia && /^\d+$/.test(opts.provincia)) {
-    query = query.eq('provincia_id', Number(opts.provincia))
   }
 
   const { data, count, error } = await query
@@ -340,8 +336,11 @@ export async function crearResena(input: {
 
   const supabase = await createClient()
   const admin = createAdmin()
-  const enRevision = yo.rol !== 'admin' && admin != null
-  const dbResena = enRevision && admin ? admin : supabase
+  const enRevision = yo.rol !== 'admin'
+  if (enRevision && !admin) {
+    throw new Error('No pudimos enviar la reseña a revisión. Falta la configuración de administración.')
+  }
+  const dbResena = enRevision ? admin! : supabase
   const identificacion = input.identificacion.trim().replace(/\s+/g, '')
 
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.

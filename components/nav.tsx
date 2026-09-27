@@ -8,7 +8,13 @@ import { Marca } from '@/components/marca'
 import { SelectorTema, type Tema } from '@/components/selector-tema'
 import type { Rol } from '@/lib/tipos'
 
-export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } | null; tema: Tema }) {
+export function Nav({
+  usuario,
+  tema,
+}: {
+  usuario: { nombre: string; rol: Rol; consulta: boolean } | null
+  tema: Tema
+}) {
   const path = usePathname()
   const [rutaAbierta, setRutaAbierta] = useState<string | null>(null)
   const abierto = rutaAbierta === path
@@ -36,9 +42,11 @@ export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } |
 
   const enlaces = (
     <>
-      <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
-        Consultar fichas
-      </Link>
+      {(!usuario || usuario.consulta || usuario.rol === 'admin') && (
+        <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
+          Consultar fichas
+        </Link>
+      )}
       <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
         Escribir reseña
       </Link>

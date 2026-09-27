@@ -1,14 +1,6 @@
 import { Icono } from '@/components/icono'
 
-export function BuscadorFichas({
-  q,
-  provincia,
-  provincias,
-}: {
-  q: string
-  provincia: string
-  provincias: { id: number; nombre: string }[]
-}) {
+export function BuscadorFichas({ q }: { q: string }) {
   return (
     <form
       action="/fichas"
@@ -33,19 +25,6 @@ export function BuscadorFichas({
             className="campo pl-11"
           />
         </div>
-      </div>
-      <div className="min-w-0 sm:w-fit">
-        <label className="etiqueta-campo" htmlFor="provincia">
-          Provincia
-        </label>
-        <select id="provincia" name="provincia" defaultValue={provincia} className="campo">
-          <option value="">Todas las provincias</option>
-          {provincias.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
       </div>
       <button type="submit" className="btn-primario">
         Buscar fichas

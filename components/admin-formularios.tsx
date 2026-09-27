@@ -7,7 +7,7 @@ import { etiquetaRol } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
 
 const DECISIONES = {
-  publicar: 'Publicar',
+  publicar: 'Aprobar',
   rechazar: 'Rechazar',
   revisar: 'A revisión',
 } as const
