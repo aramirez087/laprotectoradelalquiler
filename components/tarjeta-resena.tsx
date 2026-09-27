@@ -1,7 +1,7 @@
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { FormDenuncia } from '@/components/form-denuncia'
-import { esMencionNeutra, etiquetaRol, fechaCorta, urlImagen } from '@/lib/util'
+import { esMencionNeutra, etiquetaEstado, etiquetaRol, fechaCorta, urlImagen } from '@/lib/util'
 import type { FilaResenaCompleta } from '@/lib/tipos'
 
 export function TarjetaResena({
@@ -28,6 +28,9 @@ export function TarjetaResena({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {resena.estado !== 'publicada' && (
+            <span className="chip chip-alerta">{etiquetaEstado(resena.estado)}</span>
+          )}
           {resena.verificada && <span className="chip chip-ok">Verificada</span>}
           <CalificacionEstrellas valor={resena.calificacion?.valor ?? null} texto={resena.calificacion?.texto} />
         </div>

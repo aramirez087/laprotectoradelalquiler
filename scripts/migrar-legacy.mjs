@@ -543,14 +543,21 @@ async function pasoResenas() {
       else if (v >= 1 && v <= 5) califId = IDS.califPorValor.get(v) ?? null;
     }
 
-    const estado = /ocult|inactiv|archiv|elimin|borrad/i.test(r.camp_estadoText || '') ? 'oculta' : 'publicada';
+    // Legacy: 0 pendiente, 1 aceptada, 2 rechazada.
+    const estadoNum = r.camp_estado == null || r.camp_estado === '' ? null : Number(r.camp_estado);
+    const estado = estadoNum === 0
+      ? 'borrador'
+      : estadoNum === 2 || /ocult|inactiv|archiv|elimin|borrad|rechaz/i.test(r.camp_estadoText || '')
+        ? 'oculta'
+        : 'publicada';
+    const nota = (r.camp_estadoText || '').trim() || null;
 
     n += await upsert(
       `INSERT INTO resenas
          (persona_id, autor_id, tipo, calificacion_id, recomienda, drogas,
           dano_vivienda_id, proceso_judicial_id, tipo_contrato_id, tipo_alquiler_id,
-          tiempo_alquiler_id, comentario, estado, fuente, id_fuente)
-       VALUES ($1,$2,'inquilino',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'legacy',$13)
+          tiempo_alquiler_id, comentario, detalle_verificacion, estado, fuente, id_fuente)
+       VALUES ($1,$2,'inquilino',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'legacy',$14)
        ON CONFLICT (fuente, id_fuente) DO UPDATE SET
          persona_id = EXCLUDED.persona_id,
          autor_id = EXCLUDED.autor_id,
@@ -563,12 +570,13 @@ async function pasoResenas() {
          tipo_alquiler_id = EXCLUDED.tipo_alquiler_id,
          tiempo_alquiler_id = EXCLUDED.tiempo_alquiler_id,
          comentario = EXCLUDED.comentario,
+         detalle_verificacion = EXCLUDED.detalle_verificacion,
          estado = EXCLUDED.estado`,
       [personaId, autorId, califId, siNo(r.camp_fk_recomienda_inquilino), siNo(r.camp_drogas),
        ref(IDS.danos, r.camp_fk_dano_vivienda), ref(IDS.procesos, r.camp_fk_proceso_judicial),
        ref(IDS.tipos_contrato, r.camp_fk_tipo_contrato), ref(IDS.tipos_alquiler, r.camp_fk_tipo_alquiler),
        ref(IDS.tiempos_alquiler, r.camp_fk_tiempo_alquiler),
-       r.camp_comentario_adicional ?? null, estado, r.camp_id_inquilino],
+       r.camp_comentario_adicional ?? null, nota, estado, r.camp_id_inquilino],
       `resena legacy ${r.camp_id_inquilino}`,
     );
 

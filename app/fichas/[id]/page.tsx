@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireUsuario, obtenerFicha } from '@/lib/dal'
+import { requireUsuario, obtenerFicha, resenasPrivadasVisibles } from '@/lib/dal'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
 import { sinSupabase } from '@/lib/supabase/server'
-import { destinoInterno, mascararCedula, nombreCompleto } from '@/lib/util'
+import { destinoInterno, etiquetaEstado, fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
 import type { FilaResenaCompleta } from '@/lib/tipos'
 
 function primer(v: string | string[] | undefined) {
@@ -70,9 +70,16 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   if (!persona) notFound()
 
   const resenas = ((persona.resenas ?? []) as FilaResenaCompleta[]).filter((r) => r.estado === 'publicada')
+  let privadas: Awaited<ReturnType<typeof resenasPrivadasVisibles>> = []
+  try {
+    privadas = await resenasPrivadasVisibles(persona.id, usuario)
+  } catch {
+    privadas = []
+  }
   const verCedulaCompleta =
     usuario.rol === 'admin' ||
     resenas.some((r) => r.autor?.id === usuario.id) ||
+    privadas.length > 0 ||
     (usuario.identificacion != null && persona.identificacion === usuario.identificacion)
 
   const valores = resenas.flatMap((r) => (r.calificacion?.valor ? [r.calificacion.valor] : []))
@@ -104,14 +111,29 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
           Reseña
         </Link>
       </header>
-      {resenas.length === 0 ? (
+      {resenas.length === 0 && privadas.length === 0 ? (
         <p className="text-sm text-ink-soft">Sin reseñas.</p>
-      ) : (
+      ) : resenas.length === 0 ? null : (
         <div className="space-y-4">
           {resenas.map((r) => (
             <TarjetaResena key={r.id} resena={r} puedeDenunciar={r.autor?.id !== usuario.id} />
           ))}
         </div>
+      )}
+      {privadas.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg">En revisión o rechazadas</h2>
+          {privadas.map((r) => (
+            <article key={r.id} className="expediente space-y-2">
+              <p className="text-sm text-ink-soft">
+                {etiquetaEstado(r.estado)}
+                {r.creado_en ? ` · ${fechaCorta(r.creado_en)}` : ''}
+              </p>
+              <p className="whitespace-pre-wrap text-sm">{r.comentario?.trim() || 'Sin comentario.'}</p>
+              {r.detalle_verificacion && <p className="text-sm text-ink-soft">{r.detalle_verificacion}</p>}
+            </article>
+          ))}
+        </section>
       )}
     </div>
   )

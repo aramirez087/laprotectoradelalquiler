@@ -12,6 +12,7 @@ import type {
   FichaCompleta,
   FilaResenaCompleta,
   FotoResena,
+  EstadoResena,
   Lookups,
   NombreId,
   Persona,
@@ -230,7 +231,13 @@ export async function crearResena(input: {
   etiquetas: number[]
   autorId: number
 }) {
+  const yo = await requireUsuario()
+  if (yo.id !== input.autorId) throw new Error('No puede publicar a nombre de otra cuenta.')
+
   const supabase = await createClient()
+  const admin = createAdmin()
+  const enRevision = yo.rol !== 'admin' && admin != null
+  const dbResena = enRevision && admin ? admin : supabase
   const identificacion = input.identificacion.trim().replace(/\s+/g, '')
 
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.
@@ -291,8 +298,10 @@ export async function crearResena(input: {
     }
   }
 
-  // 2) Reseña
-  const { data: resena, error: eResena } = await supabase
+  // 2) Reseña. Quien no administra queda en revisión. El cliente de
+  // servicio hace falta porque la política de lectura oculta los borradores
+  // y un INSERT ... RETURNING no devolvería el id.
+  const { data: resena, error: eResena } = await dbResena
     .from('resenas')
     .insert({
       persona_id: persona!.id,
@@ -309,7 +318,7 @@ export async function crearResena(input: {
       fecha_inicio_alquiler: input.fechaInicio || null,
       fecha_fin_alquiler: input.fechaFin || null,
       comentario: input.comentario || null,
-      estado: 'publicada',
+      estado: enRevision ? 'borrador' : 'publicada',
     })
     .select('id')
     .single()
@@ -317,17 +326,42 @@ export async function crearResena(input: {
 
   // 3) Etiquetas
   if (input.etiquetas.length) {
-    await supabase
+    const { error: errorEtiquetas } = await dbResena
       .from('resena_etiquetas')
       .insert(input.etiquetas.map((etiqueta_id) => ({ resena_id: resena!.id, etiqueta_id })))
+    if (errorEtiquetas) throw errorEtiquetas
   }
 
-  return { resenaId: resena!.id, personaId: persona!.id }
+  return { resenaId: resena!.id, personaId: persona!.id, enRevision }
+}
+
+export async function resenasPrivadasVisibles(personaId: number, usuario: Usuario) {
+  const admin = createAdmin()
+  if (!admin) return []
+  let consulta = admin
+    .from('resenas')
+    .select('id, estado, comentario, detalle_verificacion, creado_en')
+    .eq('persona_id', personaId)
+    .neq('estado', 'publicada')
+    .order('creado_en', { ascending: false })
+    .limit(20)
+  if (usuario.rol !== 'admin') consulta = consulta.eq('autor_id', usuario.id)
+  const { data, error } = await consulta
+  if (error) throw error
+  return (data ?? []) as Array<{
+    id: number
+    estado: EstadoResena
+    comentario: string | null
+    detalle_verificacion: string | null
+    creado_en: string
+  }>
 }
 
 export async function listarResenasDe(autorId: number) {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const yo = await requireUsuario()
+  const admin = createAdmin()
+  const db = admin && (yo.id === autorId || yo.rol === 'admin') ? admin : await createClient()
+  const { data, error } = await db
     .from('resenas')
     .select(
       `*, persona:personas(id, nombre, nombre2, apellido1, apellido2),

@@ -32,6 +32,11 @@ export function Nav({ usuario }: { usuario: { nombre: string; rol: Rol } | null 
       <Link href="/resenas/nueva" className={clase('/resenas/nueva')}>
         Reseña
       </Link>
+      {usuario?.rol === 'admin' && (
+        <Link href="/admin" className={clase('/admin')}>
+          Administración
+        </Link>
+      )}
       {usuario ? (
         <>
           <Link href="/perfil" className={clase('/perfil')}>

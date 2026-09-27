@@ -70,10 +70,33 @@ export function etiquetaRol(rol: string) {
 export function etiquetaEstado(estado: string) {
   const mapa: Record<string, string> = {
     publicada: 'Publicada',
-    borrador: 'Borrador',
-    oculta: 'Oculta',
+    borrador: 'En revisión',
+    oculta: 'Rechazada',
   }
   return mapa[estado] ?? estado
+}
+
+export function esEstadoResena(valor: string): valor is 'borrador' | 'publicada' | 'oculta' {
+  return valor === 'borrador' || valor === 'publicada' || valor === 'oculta'
+}
+
+export function etiquetaMotivo(motivo: string) {
+  const mapa: Record<string, string> = {
+    informacion_falsa: 'Información falsa',
+    difamacion: 'Difamación',
+    datos_incorrectos: 'Datos incorrectos',
+    otro: 'Otro',
+  }
+  return mapa[motivo] ?? motivo
+}
+
+export function primer(v: string | string[] | undefined) {
+  return (Array.isArray(v) ? v[0] : v) ?? ''
+}
+
+export function paginaSegura(valor: string) {
+  const n = Number(valor)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
 }
 
 export function esMencionNeutra(nombre: string, tipo: 'dano' | 'proceso') {

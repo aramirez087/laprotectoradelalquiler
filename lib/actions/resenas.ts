@@ -56,7 +56,7 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
     .filter((n) => Number.isInteger(n) && n > 0)
 
   try {
-    const { personaId: fichaId } = await crearResena({
+    const { personaId: fichaId, enRevision } = await crearResena({
       personaId,
       identificacion: f.identificacion ?? '',
       nombre: f.nombre,
@@ -81,7 +81,9 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
     })
     revalidatePath('/fichas')
     revalidatePath(`/fichas/${fichaId}`)
-    redirect(`/fichas/${fichaId}`)
+    revalidatePath('/perfil')
+    revalidatePath('/admin/revision')
+    redirect(enRevision ? '/perfil?enviada=1' : `/fichas/${fichaId}`)
   } catch (e) {
     unstable_rethrow(e)
     return { error: e instanceof Error ? e.message : 'No se pudo guardar la reseña.' }

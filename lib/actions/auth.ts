@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import * as z from 'zod'
+import { requireUsuario } from '@/lib/dal'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
@@ -116,6 +117,38 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
   }
 
   redirect(destinoInterno(formData.get('siguiente')))
+}
+
+const SchemaClave = z
+  .object({
+    clave: z
+      .string()
+      .min(8, 'La clave debe tener al menos 8 caracteres')
+      .regex(/[a-zA-Z]/, 'Debe incluir letras')
+      .regex(/[0-9]/, 'Debe incluir números'),
+    confirmacion: z.string(),
+  })
+  .refine((datos) => datos.clave === datos.confirmacion, { message: 'Las claves no coinciden.' })
+
+export async function cambiarClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  if (sinSupabase()) return avisoSinSupabase()
+  await requireUsuario()
+
+  const parsed = SchemaClave.safeParse({
+    clave: formData.get('clave'),
+    confirmacion: formData.get('confirmacion'),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise la clave.' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.clave })
+  if (error) {
+    if (/same password|should be different/i.test(error.message)) {
+      return { error: 'Elija una clave distinta a la actual.' }
+    }
+    return { error: 'No pudimos cambiar la clave. Intente de nuevo.' }
+  }
+  return { mensaje: 'Clave actualizada.' }
 }
 
 export async function cerrarSesion() {

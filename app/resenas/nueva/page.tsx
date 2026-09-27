@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { requireUsuario, obtenerLookups, obtenerFicha } from '@/lib/dal'
+import { requireUsuario, obtenerLookups, obtenerFicha, resenasPrivadasVisibles } from '@/lib/dal'
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
+import { createAdmin } from '@/lib/supabase/admin'
 import { mascararCedula } from '@/lib/util'
 
 export const metadata = { title: 'Escribir reseña' }
@@ -42,10 +43,12 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
   if (personaId && lookups) {
     const p = await obtenerFicha(personaId).catch(() => null)
     if (p) {
+      const privadas = await resenasPrivadasVisibles(p.id, usuario).catch(() => [])
       const puedeVer =
         usuario.rol === 'admin' ||
         (usuario.identificacion != null && usuario.identificacion === p.identificacion) ||
-        (p.resenas ?? []).some((r) => r.autor?.id === usuario.id && r.estado === 'publicada')
+        (p.resenas ?? []).some((r) => r.autor?.id === usuario.id && r.estado === 'publicada') ||
+        privadas.length > 0
       personaInicial = {
         personaId: p.id,
         identificacion: puedeVer ? p.identificacion : mascararCedula(p.identificacion),
@@ -63,6 +66,9 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
     <div className="contenedor max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl">Reseña</h1>
+        {usuario.rol !== 'admin' && createAdmin() && (
+          <p className="mt-2 text-sm text-ink-soft">La reseña se publica cuando administración la revisa.</p>
+        )}
       </div>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {lookups && <FormResena personaInicial={personaInicial} lookups={lookups} />}

@@ -306,7 +306,7 @@ BEGIN
     -- resenas: lectura pública de publicadas; solo se puede autor como uno mismo
     ALTER TABLE resenas ENABLE ROW LEVEL SECURITY;
     CREATE POLICY resenas_lectura ON resenas
-      FOR SELECT TO authenticated USING (estado = 'publicada');
+      FOR SELECT TO authenticated, anon USING (estado = 'publicada');
     CREATE POLICY resenas_escritura ON resenas
       FOR INSERT TO authenticated
       WITH CHECK (autor_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid()));
@@ -314,7 +314,7 @@ BEGIN
     -- personas: lectura pública; creación libre (la app la valida en el DAL)
     ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
     CREATE POLICY personas_lectura ON personas
-      FOR SELECT TO authenticated USING (true);
+      FOR SELECT TO authenticated, anon USING (true);
     CREATE POLICY personas_escritura ON personas
       FOR INSERT TO authenticated WITH CHECK (true);
 
@@ -322,7 +322,7 @@ BEGIN
     -- crear/editar/eliminar solo la propia cuenta
     ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
     CREATE POLICY usuarios_lectura ON usuarios
-      FOR SELECT TO authenticated USING (true);
+      FOR SELECT TO authenticated, anon USING (true);
     CREATE POLICY usuarios_crear ON usuarios
       FOR INSERT TO authenticated WITH CHECK (auth_user_id = auth.uid());
     CREATE POLICY usuarios_actualizar ON usuarios

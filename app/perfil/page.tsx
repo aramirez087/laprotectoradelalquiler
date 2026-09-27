@@ -1,14 +1,16 @@
 import Link from 'next/link'
+import { FormClave } from '@/components/form-clave'
 import { requireUsuario, listarResenasDe } from '@/lib/dal'
 import { cerrarSesion } from '@/lib/actions/auth'
-import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto } from '@/lib/util'
+import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { sinSupabase } from '@/lib/supabase/server'
 
 export const metadata = { title: 'Mi perfil' }
 
-export default async function PerfilPage() {
+export default async function PerfilPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const enviada = primer((await props.searchParams).enviada) === '1'
   const usuario = await requireUsuario()
   const sinBackend = sinSupabase()
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
@@ -39,6 +41,8 @@ export default async function PerfilPage() {
         </form>
       </header>
 
+      {enviada && <p className="aviso aviso-ok">La reseña quedó en revisión.</p>}
+
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <h2 className="text-2xl">Mis reseñas</h2>
@@ -49,7 +53,7 @@ export default async function PerfilPage() {
         {aviso && <p className="aviso aviso-error">{aviso}</p>}
         {!aviso && misResenas.length === 0 ? (
           <div className="expediente space-y-3">
-            <p className="text-ink-soft">Todavía no ha publicado reseñas.</p>
+            <p className="text-ink-soft">Todavía no ha escrito reseñas.</p>
             <Link href="/resenas/nueva" className="btn-primario">
               Escribir la primera
             </Link>
@@ -62,7 +66,10 @@ export default async function PerfilPage() {
                   <Avatar nombre={nombreCompleto(r.persona)} tamano="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-display text-xl">{nombreCompleto(r.persona)}</p>
-                    <p className="text-xs text-ink-soft">{fechaCorta(r.creado_en)}</p>
+                    <p className="text-xs text-ink-soft">
+                      {fechaCorta(r.creado_en)}
+                      {r.estado === 'oculta' && r.detalle_verificacion ? ` · ${r.detalle_verificacion}` : ''}
+                    </p>
                   </div>
                   <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
                   {r.estado !== 'publicada' && <span className="chip chip-alerta">{etiquetaEstado(r.estado)}</span>}
@@ -71,6 +78,11 @@ export default async function PerfilPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section id="clave" className="space-y-3">
+        <h2 className="text-2xl">Clave</h2>
+        <FormClave />
       </section>
     </div>
   )
