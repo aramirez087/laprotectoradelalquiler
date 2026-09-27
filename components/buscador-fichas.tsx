@@ -34,7 +34,7 @@ export function BuscadorFichas({
           />
         </div>
       </div>
-      <div className="min-w-0 sm:w-48">
+      <div className="min-w-0 sm:w-fit">
         <label className="etiqueta-campo" htmlFor="provincia">
           Provincia
         </label>
