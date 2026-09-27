@@ -15,7 +15,7 @@ export function TarjetaResena({
   const fotos = [...(resena.fotos ?? [])].sort((a, b) => a.orden - b.orden)
 
   return (
-    <article className="expediente space-y-4">
+    <article className="expediente space-y-4 break-words">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Avatar nombre={autor} tamano="sm" />
@@ -114,7 +114,7 @@ export function TarjetaResena({
             const src = urlImagen(f.url)
             if (!src) return null
             return (
-              <a key={f.id} href={src} target="_blank" rel="noopener noreferrer" className="block">
+              <a key={f.id} href={src} target="_blank" rel="noopener noreferrer" className="block" aria-label={`${f.descripcion ?? 'Fotografía de la reseña'} (se abre en una pestaña nueva)`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={src}

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { consultarResenas, conteoPorUsuario, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
@@ -34,6 +35,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
       aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar las reseñas de esa cuenta.'
     }
     const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+    if (!aviso && pagina > paginas) redirect(`/admin/conteo?autor=${autorId}${paginas > 1 ? `&pagina=${paginas}` : ''}`)
     const autor = filas[0]?.autor
 
     return (
@@ -77,23 +79,24 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
           Nombre o correo
         </label>
         <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre o correo" />
-        <button type="submit" className="mr-1.5 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink">
+        <button type="submit" className="boton-buscar">
           Buscar
         </button>
       </form>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {!aviso && visibles.length === 0 && <p className="text-sm text-ink-soft">Nadie tiene reseñas.</p>}
       {visibles.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-line p-4" tabIndex={0} role="region" aria-label="Conteo de reseñas por usuario">
           <table className="w-full min-w-[36rem] text-left text-sm">
+            <caption className="sr-only">Reseñas por usuario y estado</caption>
             <thead className="text-ink-soft">
               <tr>
-                <th className="py-2 pr-3 font-medium">Cuenta</th>
-                <th className="py-2 pr-3 font-medium">Total</th>
-                <th className="py-2 pr-3 font-medium">Publicadas</th>
-                <th className="py-2 pr-3 font-medium">En revisión</th>
-                <th className="py-2 pr-3 font-medium">Rechazadas</th>
-                <th className="py-2 font-medium">
+                <th scope="col" className="py-2 pr-3 font-medium">Cuenta</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Total</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Publicadas</th>
+                <th scope="col" className="py-2 pr-3 font-medium">En revisión</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Rechazadas</th>
+                <th scope="col" className="py-2 font-medium">
                   <span className="sr-only">Abrir</span>
                 </th>
               </tr>
@@ -113,8 +116,8 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
                   <td className="py-3 pr-3">{formatoNumero(fila.revision)}</td>
                   <td className="py-3 pr-3">{formatoNumero(fila.rechazadas)}</td>
                   <td className="py-3 text-right">
-                    <Link href={`/admin/conteo?autor=${fila.id}`} className="text-sm font-medium">
-                      Ver
+                    <Link href={`/admin/conteo?autor=${fila.id}`} className="enlace-texto" aria-label={`Ver reseñas de ${fila.nombre}`}>
+                      Ver reseñas
                     </Link>
                   </td>
                 </tr>

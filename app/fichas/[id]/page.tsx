@@ -42,13 +42,13 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   const personaId = Number(id)
   if (!Number.isInteger(personaId) || personaId <= 0) notFound()
 
-  const usuario = await requireUsuario()
+  const searchParams = await props.searchParams
+  const volver = hrefVolver(primer(searchParams.q), primer(searchParams.provincia), primer(searchParams.pagina))
+  const consulta = volver.includes('?') ? volver.slice(volver.indexOf('?')) : ''
+  const usuario = await requireUsuario(`/fichas/${personaId}${consulta}`)
   if (!(await puedeConsultar(usuario))) {
     return <EsperaAprobacion usuario={usuario} />
   }
-
-  const searchParams = await props.searchParams
-  const volver = hrefVolver(primer(searchParams.q), primer(searchParams.provincia), primer(searchParams.pagina))
 
   if (sinSupabase()) {
     return (
@@ -94,32 +94,33 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   const nombre = nombreCompleto(persona)
 
   return (
-    <div className="contenedor space-y-6">
-      <Link href={volver} className="text-sm text-ink-soft">
-        Fichas
+    <div className="contenedor max-w-4xl space-y-6">
+      <Link href={volver} className="enlace-atras">
+        ← Volver a los resultados
       </Link>
 
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <header className="cabecera-ficha flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar nombre={nombre} fotoUrl={persona.foto_url} tamano="lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-3xl">{nombre}</h1>
+          <h1 className="break-words text-3xl">{nombre}</h1>
           <p className="mt-1 text-sm text-ink-soft">
             {[
               verCedulaCompleta ? persona.identificacion : mascararCedula(persona.identificacion),
               persona.provincia?.nombre,
-              promedio ? promedio.toFixed(1) : null,
+              promedio ? `${promedio.toFixed(1)} de 5` : null,
               resenas.length === 1 ? '1 reseña' : `${resenas.length} reseñas`,
             ]
               .filter(Boolean)
               .join(' · ')}
           </p>
         </div>
-        <Link href={`/resenas/nueva?personaId=${persona.id}`} className="text-sm font-medium text-ink">
-          Reseña
+        <Link href={`/resenas/nueva?personaId=${persona.id}`} className="btn-primario">
+          Escribir reseña
         </Link>
       </header>
+      <h2 className="text-xl">Experiencias compartidas</h2>
       {resenas.length === 0 && privadas.length === 0 ? (
-        <p className="text-sm text-ink-soft">Sin reseñas.</p>
+        <p className="text-sm text-ink-soft">Todavía no hay reseñas para esta persona.</p>
       ) : resenas.length === 0 ? null : (
         <div className="space-y-4">
           {resenas.map((r) => (

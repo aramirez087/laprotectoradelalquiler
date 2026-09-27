@@ -22,13 +22,18 @@ export function CampoClave({
         name={name}
         type={visible ? 'text' : 'password'}
         required
+        minLength={autoComplete === 'new-password' ? 8 : undefined}
+        pattern={autoComplete === 'new-password' ? '(?=.*[a-zA-Z])(?=.*[0-9]).{8,}' : undefined}
+        title={autoComplete === 'new-password' ? 'Al menos 8 caracteres, con letras y números.' : undefined}
         autoComplete={autoComplete}
         aria-describedby={describedBy}
         className="campo pr-24"
       />
       <button
         type="button"
-        className="absolute inset-y-1 right-1 rounded-full px-3 text-xs font-bold text-ink-soft"
+        className="absolute inset-y-0 right-1 min-w-16 rounded-lg px-3 text-xs font-semibold text-ink-soft"
+        aria-label={`${visible ? 'Ocultar' : 'Mostrar'} ${id === 'confirmacion' ? 'confirmación de clave' : 'clave'}`}
+        aria-controls={id}
         aria-pressed={visible}
         onClick={() => setVisible((v) => !v)}
       >

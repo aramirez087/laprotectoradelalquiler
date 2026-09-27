@@ -26,18 +26,28 @@ export function Paginacion({
       ) : (
         <span className="px-3 text-sm text-ink-soft">Anterior</span>
       )}
-      {ventana(pagina, paginas).map((n, i, lista) => {
-        const previo = lista[i - 1]
-        const salto = previo != null && n - previo > 1
-        return (
-          <span key={n} className="contents">
-            {salto && <span className="px-1 text-ink-soft">…</span>}
-            <Link href={href(n)} aria-current={n === pagina ? 'page' : undefined} className={n === pagina ? 'btn-primario' : 'btn-secundario'}>
-              {n}
-            </Link>
-          </span>
-        )
-      })}
+      <span className="text-sm text-ink-soft sm:hidden">
+        {pagina} de {paginas}
+      </span>
+      <div className="hidden items-center gap-2 sm:flex">
+        {ventana(pagina, paginas).map((n, i, lista) => {
+          const previo = lista[i - 1]
+          const salto = previo != null && n - previo > 1
+          return (
+            <span key={n} className="contents">
+              {salto && <span className="px-1 text-ink-soft">…</span>}
+              <Link
+                href={href(n)}
+                aria-label={`Página ${n}`}
+                aria-current={n === pagina ? 'page' : undefined}
+                className={n === pagina ? 'btn-primario' : 'btn-secundario'}
+              >
+                {n}
+              </Link>
+            </span>
+          )
+        })}
+      </div>
       {pagina < paginas ? (
         <Link href={href(pagina + 1)} className="btn-secundario">
           Siguiente

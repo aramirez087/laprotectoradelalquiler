@@ -10,13 +10,14 @@ import type { Rol } from '@/lib/tipos'
 
 export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } | null; tema: Tema }) {
   const path = usePathname()
-  const [abierto, setAbierto] = useState(false)
+  const [rutaAbierta, setRutaAbierta] = useState<string | null>(null)
+  const abierto = rutaAbierta === path
   const menu = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     function alTeclado(e: KeyboardEvent) {
       if (e.key === 'Escape' && abierto) {
-        setAbierto(false)
+        setRutaAbierta(null)
         menu.current?.focus()
       }
     }
@@ -30,13 +31,13 @@ export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } |
   }
 
   function actual(href: string) {
-    return path === href || path.startsWith(`${href}/`) ? 'page' as const : undefined
+    return path === href || path.startsWith(`${href}/`) ? ('page' as const) : undefined
   }
 
   const enlaces = (
     <>
       <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
-        Fichas
+        Consultar fichas
       </Link>
       <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
         Escribir reseña
@@ -49,7 +50,7 @@ export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } |
       {usuario ? (
         <>
           <Link href="/perfil" aria-current={actual('/perfil')} className={clase('/perfil')}>
-            Perfil
+            Mi perfil
           </Link>
           <form action={cerrarSesion}>
             <button type="submit" className="enlace-nav">
@@ -59,7 +60,7 @@ export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } |
         </>
       ) : (
         <Link href="/login" aria-current={actual('/login')} className={clase('/login')}>
-          Entrar
+          Iniciar sesión
         </Link>
       )}
     </>
@@ -67,40 +68,47 @@ export function Nav({ usuario, tema }: { usuario: { nombre: string; rol: Rol } |
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link href="/" aria-label="La Protectora del Alquiler, inicio">
+      <div className="cabecera-nav">
+        <Link
+          href="/"
+          onClick={() => setRutaAbierta(null)}
+          aria-label="La Protectora del Alquiler, inicio"
+          className="marca-nav"
+        >
           <Marca />
         </Link>
-        <div className="flex items-center gap-3 sm:gap-6">
-          <nav className="hidden items-center gap-5 lg:flex" aria-label="Principal">
+        <button
+          ref={menu}
+          type="button"
+          className="menu-toggle lg:hidden"
+          aria-label={abierto ? 'Cerrar menú' : 'Abrir menú'}
+          aria-expanded={abierto}
+          aria-controls="menu-principal"
+          onClick={() => setRutaAbierta(abierto ? null : path)}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d={abierto ? 'm6 6 12 12M6 18 18 6' : 'M4 7h16M4 12h16M4 17h16'} />
+          </svg>
+        </button>
+        <div id="menu-principal" className={abierto ? 'panel-nav panel-nav-abierto' : 'panel-nav'}>
+          <nav className="enlaces-principales" aria-label="Principal" onClick={() => setRutaAbierta(null)}>
             {enlaces}
           </nav>
-          <SelectorTema inicial={tema} />
-          <button
-            ref={menu}
-            type="button"
-            className="menu-toggle lg:hidden"
-            aria-label={abierto ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={abierto}
-            aria-controls="menu-principal"
-            onClick={() => setAbierto((v) => !v)}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-              <path d={abierto ? 'm6 6 12 12M6 18 18 6' : 'M4 7h16M4 12h16M4 17h16'} />
-            </svg>
-          </button>
+          <div className="tema-nav">
+            <span className="text-sm text-ink-soft lg:hidden">Apariencia</span>
+            <SelectorTema inicial={tema} />
+          </div>
         </div>
       </div>
-      {abierto && (
-        <nav
-          id="menu-principal"
-          className="flex flex-col gap-1 border-t border-line px-4 py-3 lg:hidden"
-          aria-label="Principal"
-          onClick={() => setAbierto(false)}
-        >
-          {enlaces}
-        </nav>
-      )}
     </header>
   )
 }

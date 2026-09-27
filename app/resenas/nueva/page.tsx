@@ -1,18 +1,40 @@
+import { crearResenaAction } from '@/lib/actions/resenas'
 import Link from 'next/link'
-import { requireUsuario, obtenerLookups, obtenerFicha, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
+import {
+  requireUsuario,
+  obtenerLookups,
+  obtenerFicha,
+  puedeConsultar,
+  resenasPrivadasVisibles,
+} from '@/lib/dal'
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
 import { createAdmin } from '@/lib/supabase/admin'
-import { mascararCedula } from '@/lib/util'
+import { mascararCedula, primer } from '@/lib/util'
 
 export const metadata = { title: 'Escribir reseña' }
 
 export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>) {
-  const usuario = await requireUsuario()
-  const consulta = await puedeConsultar(usuario)
   const searchParams = await props.searchParams
-  const personaId = Number(searchParams.personaId ?? 0) || null
+  const id = Number(primer(searchParams.personaId))
+  const personaId = Number.isSafeInteger(id) && id > 0 ? id : null
+  const usuario = await requireUsuario(personaId ? `/resenas/nueva?personaId=${personaId}` : '/resenas/nueva')
+  const consulta = await puedeConsultar(usuario)
+
+  if (!usuario.activo)
+    return (
+      <div className="contenedor max-w-xl space-y-4">
+        <h1 className="text-3xl">Su cuenta está inactiva</h1>
+        <p className="text-ink-soft">
+          En este momento no puede enviar reseñas. Puede revisar el estado de las que ya escribió en su
+          perfil.
+        </p>
+        <Link href="/perfil" className="btn-secundario">
+          Ver mi perfil
+        </Link>
+      </div>
+    )
 
   if (sinSupabase()) {
     return (
@@ -66,7 +88,12 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
   return (
     <div className="contenedor max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl">Reseña</h1>
+        <p className="eyebrow mb-3">Una experiencia que ayuda</p>
+        <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+          Cuente lo que vivió durante el alquiler. Los detalles concretos ayudan a otras personas a entender
+          su experiencia.
+        </p>
         {usuario.rol !== 'admin' && createAdmin() && (
           <p className="mt-2 text-sm text-ink-soft">
             La reseña se publica cuando administración la revisa.
@@ -75,7 +102,14 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         )}
       </div>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
-      {lookups && <FormResena personaInicial={personaInicial} lookups={lookups} />}
+      {lookups && (
+        <FormResena
+          accion={crearResenaAction}
+          personaInicial={personaInicial}
+          lookups={lookups}
+          enRevision={usuario.rol !== 'admin' && !!createAdmin()}
+        />
+      )}
       <Link href={consulta ? '/fichas' : '/perfil'} className="text-sm font-semibold text-ink-soft">
         {consulta ? '← Volver a fichas' : '← Perfil'}
       </Link>

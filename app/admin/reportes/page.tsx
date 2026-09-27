@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { atajosPeriodo, consultarResenas, periodoPorDefecto, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
@@ -30,6 +31,7 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
   }
 
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+  if (!aviso && pagina > paginas) redirect(hrefReporte(desde, hasta, paginas))
 
   return (
     <div className="contenedor space-y-5">
@@ -58,14 +60,14 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
           </label>
           <input id="hasta" name="hasta" type="date" defaultValue={hasta} required className="campo" />
         </div>
-        <button className="btn-primario">Ver</button>
+        <button className="btn-primario">Ver reporte</button>
       </form>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {!aviso && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-ink-soft">{total === 1 ? '1 reseña' : `${formatoNumero(total)} reseñas`}</p>
-          <a className="text-sm font-medium" href={`/admin/reportes/csv?desde=${desde}&hasta=${hasta}`}>
-            Descargar
+          <a className="enlace-texto" href={`/admin/reportes/csv?desde=${desde}&hasta=${hasta}`}>
+            Descargar CSV
           </a>
         </div>
       )}

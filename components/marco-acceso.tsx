@@ -1,3 +1,6 @@
+import Link from 'next/link'
+import { Icono } from '@/components/icono'
+
 export function MarcoAcceso({
   titulo,
   texto,
@@ -8,20 +11,21 @@ export function MarcoAcceso({
   children: React.ReactNode
 }) {
   return (
-    <div className="contenedor">
-      <div className="grid items-start gap-10 lg:grid-cols-2 lg:items-center">
-        <aside className="order-2 space-y-4 lg:order-1">
-          <p className="eyebrow">Costa Rica</p>
-          <p className="font-display text-4xl leading-none tracking-tight text-ink sm:text-5xl">{titulo}</p>
-          <p className="max-w-md text-lg text-ink-soft">{texto}</p>
-          <ul className="space-y-2 text-sm text-ink-soft">
-            <li>Consulte una ficha antes de entregar las llaves.</li>
-            <li>Escriba solo lo que vivió y puede respaldar.</li>
-            <li>La cédula completa no se muestra al público.</li>
-          </ul>
-        </aside>
-        <div className="expediente order-1 lg:order-2">{children}</div>
-      </div>
+    <div className="acceso">
+      <Link href="/" className="enlace-atras">
+        ← Volver al inicio
+      </Link>
+      <section className="acceso-panel">
+        <span className="icono-estado mb-5">
+          <Icono nombre="escudo" />
+        </span>
+        <h1 className="text-3xl">{titulo}</h1>
+        <p className="mb-7 mt-3 text-sm leading-relaxed text-ink-soft">{texto}</p>
+        {children}
+      </section>
+      <p className="mt-5 text-center text-xs leading-relaxed text-ink-soft">
+        Experiencias compartidas. Una comunidad más informada.
+      </p>
     </div>
   )
 }

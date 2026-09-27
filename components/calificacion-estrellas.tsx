@@ -12,7 +12,7 @@ export function CalificacionEstrellas({
   const etiqueta = texto ? `${valor.toFixed(1)} de 5, ${texto}` : `${valor.toFixed(1)} de 5`
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm ${tono}`} aria-label={etiqueta}>
+    <span className={`inline-flex flex-wrap items-center gap-1.5 text-sm ${tono}`} role="img" aria-label={etiqueta}>
       <span aria-hidden className="estrellas text-base leading-none">
         {'★'.repeat(llena)}
         <span className="opacity-30">{'★'.repeat(5 - llena)}</span>

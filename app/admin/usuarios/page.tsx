@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { buscarUsuarios, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { FormUsuario } from '@/components/admin-formularios'
 import { Paginacion } from '@/components/paginacion'
@@ -30,6 +31,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
   }
 
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+  if (!aviso && pagina > paginas) redirect(hrefLista({ q, pagina: paginas }))
 
   return (
     <div className="contenedor space-y-5">
@@ -39,7 +41,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
           Nombre, correo, cédula o teléfono
         </label>
         <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre, correo, cédula o teléfono" />
-        <button type="submit" className="mr-1.5 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink">
+        <button type="submit" className="boton-buscar">
           Buscar
         </button>
       </form>

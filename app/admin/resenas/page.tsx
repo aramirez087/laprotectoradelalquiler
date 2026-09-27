@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
@@ -33,10 +34,11 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
   }
 
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+  if (!aviso && pagina > paginas) redirect(hrefLista({ q, estado, pagina: paginas }))
 
   return (
     <div className="contenedor space-y-5">
-      <h1 className="text-3xl">Consultar</h1>
+      <h1 className="text-3xl">Consultar reseñas</h1>
       <form method="GET" className="buscador" role="search">
         <label className="sr-only" htmlFor="q">
           Nombre, cédula o comentario
@@ -51,7 +53,7 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
           <option value="borrador">En revisión</option>
           <option value="oculta">Rechazadas</option>
         </select>
-        <button type="submit" className="mr-1.5 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink">
+        <button type="submit" className="boton-buscar">
           Buscar
         </button>
       </form>

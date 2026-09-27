@@ -1,3 +1,4 @@
+import { MarcoAcceso } from '@/components/marco-acceso'
 import { RecuperarForm } from '@/components/recuperar-form'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
@@ -11,11 +12,9 @@ export default async function RecuperarPage(props: {
   const enlaceVencido = primer((await props.searchParams).error) === 'enlace'
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-2 text-2xl">Recuperar clave</h1>
-      <p className="mb-6 text-sm text-ink-soft">Escriba su correo. Si tiene cuenta, le llega un enlace.</p>
+    <MarcoAcceso titulo="Recupere su acceso" texto="Escriba el correo de su cuenta. Le enviaremos un enlace para crear una clave nueva.">
       {enlaceVencido && <p className="aviso aviso-error mb-4">El enlace venció o ya se usó. Pida otro.</p>}
       {sinSupabase() ? <AvisoConfiguracion /> : <RecuperarForm />}
-    </div>
+    </MarcoAcceso>
   )
 }

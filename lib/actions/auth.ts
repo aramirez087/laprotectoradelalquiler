@@ -10,6 +10,7 @@ import type { Rol } from '@/lib/tipos'
 
 export type EstadoForm = {
   error?: string
+  campos?: Record<string, string>
   mensaje?: string
 } | undefined
 

@@ -1,14 +1,18 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { denunciar } from '@/lib/actions/denuncias'
 import { MensajeForm } from '@/components/mensaje-form'
 
 export function FormDenuncia({ resenaId }: { resenaId: number }) {
-  const [estado, action, pendiente] = useActionState(denunciar, undefined)
+  const { estado, pendiente, formProps } = useFormAction(denunciar)
+
+  if (estado?.mensaje) return (
+    <form {...formProps}><MensajeForm mensaje={estado.mensaje} /></form>
+  )
 
   return (
-    <form action={action} className="max-w-md space-y-3">
+    <form {...formProps} className="max-w-md space-y-3">
       <input type="hidden" name="resenaId" value={resenaId} />
       <div>
         <label className="etiqueta-campo" htmlFor={`motivo-${resenaId}`}>

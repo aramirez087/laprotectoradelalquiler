@@ -24,7 +24,7 @@ export default async function AdminPage() {
 
   return (
     <div className="contenedor space-y-6">
-      <h1 className="text-3xl">Principal</h1>
+      <header><p className="eyebrow mb-3">Administración</p><h1 className="text-3xl">Resumen del registro</h1><p className="mt-3 text-sm text-ink-soft">Revise la actividad y atienda lo que está pendiente.</p></header>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {resumen && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

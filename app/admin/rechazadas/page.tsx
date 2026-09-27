@@ -1,9 +1,10 @@
+import { redirect } from 'next/navigation'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
 import { paginaSegura, primer } from '@/lib/util'
 
-export const metadata = { title: 'Rechazados' }
+export const metadata = { title: 'Reseñas rechazadas' }
 
 export default async function RechazadasPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const pagina = paginaSegura(primer((await props.searchParams).pagina))
@@ -20,10 +21,11 @@ export default async function RechazadasPage(props: { searchParams: Promise<Reco
   }
 
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+  if (!aviso && pagina > paginas) redirect(paginas > 1 ? `/admin/rechazadas?pagina=${paginas}` : '/admin/rechazadas')
 
   return (
     <div className="contenedor space-y-5">
-      <h1 className="text-3xl">Rechazados</h1>
+      <h1 className="text-3xl">Reseñas rechazadas</h1>
       {aviso && <p className="aviso aviso-error">{aviso}</p>}
       {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas rechazadas.</p>}
       <div className="space-y-3">

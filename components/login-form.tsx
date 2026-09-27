@@ -1,16 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { iniciarSesion } from '@/lib/actions/auth'
 import { CampoClave } from '@/components/campo-clave'
 import { MensajeForm } from '@/components/mensaje-form'
 
 export function LoginForm({ siguiente }: { siguiente: string }) {
-  const [estado, action, pendiente] = useActionState(iniciarSesion, undefined)
+  const { estado, pendiente, formProps } = useFormAction(iniciarSesion)
 
   return (
-    <form action={action} className="space-y-4">
+    <form {...formProps} className="space-y-4">
       <input type="hidden" name="siguiente" value={siguiente} />
       <div>
         <label className="etiqueta-campo" htmlFor="email">
@@ -44,8 +44,8 @@ export function LoginForm({ siguiente }: { siguiente: string }) {
       </p>
       <p className="text-center text-sm text-ink-soft">
         ¿No tiene cuenta?{' '}
-        <Link href="/registro" className="font-semibold text-seal underline-offset-2 hover:underline">
-          Registrarse
+        <Link href={`/registro?${new URLSearchParams({ siguiente })}`} className="font-semibold text-seal underline-offset-2 hover:underline">
+          Crear una cuenta
         </Link>
       </p>
     </form>

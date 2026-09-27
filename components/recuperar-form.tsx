@@ -1,15 +1,28 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { solicitarRecuperacion } from '@/lib/actions/auth'
 import { MensajeForm } from '@/components/mensaje-form'
 
 export function RecuperarForm() {
-  const [estado, action, pendiente] = useActionState(solicitarRecuperacion, undefined)
+  const { estado, pendiente, formProps } = useFormAction(solicitarRecuperacion)
+
+  if (estado?.mensaje)
+    return (
+      <form {...formProps} className="space-y-5">
+        <MensajeForm mensaje={estado.mensaje} />
+        <p className="text-sm text-ink-soft">
+          Revise también el correo no deseado. Puede cerrar esta página cuando reciba el enlace.
+        </p>
+        <Link href="/login" className="btn-secundario w-full">
+          Volver a iniciar sesión
+        </Link>
+      </form>
+    )
 
   return (
-    <form action={action} className="space-y-4">
+    <form {...formProps} className="space-y-4">
       <div>
         <label className="etiqueta-campo" htmlFor="email">
           Correo electrónico

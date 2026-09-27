@@ -40,14 +40,24 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
   const personaId = Number.isInteger(personaIdRaw) && personaIdRaw > 0 ? personaIdRaw : null
 
   const parsed = SchemaResena.safeParse(Object.fromEntries(formData))
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise los datos de la reseña.' }
+  if (!parsed.success)
+    return {
+      error: 'Revise los campos indicados. Sus datos se conservan.',
+      campos: Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])),
+    }
   const f = parsed.data
 
   if (!personaId && !esCedulaValida(f.identificacion)) {
-    return { error: 'Escriba una cédula o documento válido.' }
+    return {
+      error: 'Revise el documento. Sus datos se conservan.',
+      campos: { identificacion: 'Escriba un documento de 6 a 12 dígitos; puede incluir guiones.' },
+    }
   }
   if (f.fechaInicio && f.fechaFin && f.fechaFin < f.fechaInicio) {
-    return { error: 'La fecha de fin no puede ser anterior al inicio.' }
+    return {
+      error: 'Revise las fechas del alquiler. Sus datos se conservan.',
+      campos: { fechaFin: 'La fecha de fin no puede ser anterior al inicio.' },
+    }
   }
 
   const etiquetas = (f.etiquetas ?? '')

@@ -3,9 +3,10 @@ import { redirect } from 'next/navigation'
 import { Paginacion } from '@/components/paginacion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { requireUsuario, obtenerLookups, buscarFichas, puedeConsultar } from '@/lib/dal'
-import { fechaCorta, nombreCompleto, paginaSegura, primer } from '@/lib/util'
-import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
-import { Avatar } from '@/components/avatar'
+import { formatoNumero, paginaSegura, primer } from '@/lib/util'
+import { BuscadorFichas } from '@/components/buscador-fichas'
+import { TarjetaFicha } from '@/components/tarjeta-ficha'
+import { EstadoVacio } from '@/components/estado-vacio'
 import type { VistaFicha } from '@/lib/tipos'
 
 export const metadata = { title: 'Fichas' }
@@ -66,68 +67,63 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
 
   return (
     <div className="contenedor space-y-5">
-      <h1 className="sr-only">Fichas</h1>
-      <form action="/fichas" method="GET" className="buscador" role="search">
-        <label className="sr-only" htmlFor="q">
-          Nombre o cédula
-        </label>
-        <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre o cédula" maxLength={150} />
-        <label className="sr-only" htmlFor="provincia">
-          Provincia
-        </label>
-        <select id="provincia" name="provincia" defaultValue={provincia} aria-label="Provincia">
-          <option value="">Costa Rica</option>
-          {provincias.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className="mr-1.5 rounded-full px-4 py-2 text-sm font-medium text-ink-soft hover:text-ink">
-          Buscar
-        </button>
-      </form>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow mb-3">Registro de la comunidad</p>
+          <h1 className="text-3xl sm:text-4xl">Consultar fichas</h1>
+          <p className="mt-3 text-sm text-ink-soft">
+            Busque una persona para conocer las experiencias compartidas.
+          </p>
+        </div>
+        <Link href="/resenas/nueva" className="btn-secundario">
+          Escribir reseña
+        </Link>
+      </header>
+      <BuscadorFichas q={q} provincia={provincia} provincias={provincias} />
+      {(q || provincia) && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="text-ink-soft">Filtros:</span>
+          {q && <span className="chip max-w-full break-words">“{q}”</span>}
+          {provincia && (
+            <span className="chip">
+              {provincias.find((p) => String(p.id) === provincia)?.nombre ?? 'Provincia seleccionada'}
+            </span>
+          )}
+          <Link href="/fichas" className="enlace-texto">
+            Quitar filtros
+          </Link>
+        </div>
+      )}
 
       {aviso && <p className="aviso aviso-atencion">{aviso}</p>}
 
       {!aviso && total > 0 && (
         <p className="text-sm text-ink-soft">
-          {desde}–{hasta} de {total}
+          {desde}–{hasta} de {formatoNumero(total)} {total === 1 ? 'ficha' : 'fichas'}
         </p>
       )}
 
       {fichas.length === 0 && !aviso ? (
-        <div className="expediente py-10 text-center">
-          <h2 className="text-xl">No encontramos fichas</h2>
-          <p className="mt-2 text-sm text-ink-soft">Pruebe con otro nombre o cédula, o cambie la provincia.</p>
-          {(q || provincia) && <Link href="/fichas" className="btn-secundario mt-5">Quitar filtros</Link>}
-        </div>
+        <EstadoVacio
+          titulo="No encontramos fichas"
+          texto="Pruebe con un apellido, revise el documento o busque en todas las provincias."
+        >
+          {(q || provincia) && (
+            <Link href="/fichas" className="btn-secundario">
+              Quitar filtros
+            </Link>
+          )}
+          <Link href="/resenas/nueva" className="enlace-texto">
+            Compartir una experiencia
+          </Link>
+        </EstadoVacio>
       ) : fichas.length === 0 ? null : (
-        <ul className="space-y-3">
-          {fichas.map((ficha) => {
-            const persona = ficha.persona
-            const nombre = nombreCompleto(persona)
-            return (
-              <li key={persona.id}>
-                <Link href={hrefFicha(persona.id, { ...filtros, pagina })} className="expediente flex items-center gap-4">
-                  <Avatar nombre={nombre} fotoUrl={persona.foto_url} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-xl">{nombre}</p>
-                    <p className="text-xs text-ink-soft">
-                      {[
-                        ficha.provincia,
-                        ficha.resenas === 0 ? null : ficha.resenas === 1 ? '1 reseña' : `${ficha.resenas} reseñas`,
-                        fechaCorta(ficha.ultima),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <CalificacionEstrellas valor={ficha.promedio} />
-                </Link>
-              </li>
-            )
-          })}
+        <ul className="space-y-3" aria-label="Resultados de la búsqueda">
+          {fichas.map((ficha) => (
+            <li key={ficha.persona.id}>
+              <TarjetaFicha ficha={ficha} href={hrefFicha(ficha.persona.id, { ...filtros, pagina })} />
+            </li>
+          ))}
         </ul>
       )}
 

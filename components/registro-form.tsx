@@ -1,27 +1,58 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { registrarse } from '@/lib/actions/auth'
 import { CampoClave } from '@/components/campo-clave'
 import { MensajeForm } from '@/components/mensaje-form'
 
 const ROLES = [
-  { value: 'propietario', titulo: 'Propietario', defecto: true },
-  { value: 'agencia', titulo: 'Agencia', defecto: false },
-  { value: 'inquilino', titulo: 'Inquilino', defecto: false },
+  {
+    value: 'propietario',
+    titulo: 'Propietario',
+    descripcion: 'Alquilo una propiedad propia.',
+    defecto: true,
+  },
+  {
+    value: 'agencia',
+    titulo: 'Agencia',
+    descripcion: 'Gestiono alquileres para otras personas.',
+    defecto: false,
+  },
+  { value: 'inquilino', titulo: 'Inquilino', descripcion: 'Alquilo una vivienda o local.', defecto: false },
 ]
 
-export function RegistroForm() {
-  const [estado, action, pendiente] = useActionState(registrarse, undefined)
+export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) {
+  const { estado, pendiente, formProps } = useFormAction(registrarse)
+
+  if (estado?.mensaje)
+    return (
+      <form {...formProps} className="space-y-5">
+        <MensajeForm mensaje={estado.mensaje} />
+        <p className="text-sm text-ink-soft">
+          Si no encuentra el mensaje, revise la carpeta de correo no deseado.
+        </p>
+        <Link href={`/login?${new URLSearchParams({ siguiente })}`} className="btn-primario w-full">
+          Ir a iniciar sesión
+        </Link>
+      </form>
+    )
 
   return (
-    <form action={action} className="space-y-4">
+    <form {...formProps} className="space-y-4">
       <div>
         <label className="etiqueta-campo" htmlFor="nombre">
           Nombre completo
         </label>
-        <input id="nombre" name="nombre" required className="campo" placeholder="María Solís Rodríguez" autoComplete="name" />
+        <input
+          id="nombre"
+          name="nombre"
+          required
+          minLength={3}
+          className="campo"
+          placeholder="María Solís Rodríguez"
+          autoComplete="name"
+        />
       </div>
       <div>
         <label className="etiqueta-campo" htmlFor="email">
@@ -51,9 +82,18 @@ export function RegistroForm() {
         <legend className="etiqueta-campo">Soy…</legend>
         <div className="grid gap-2">
           {ROLES.map((rol) => (
-            <label key={rol.value} className="opcion-rol">
-              <input type="radio" name="rol" value={rol.value} defaultChecked={rol.defecto} className="sr-only" />
-              <span className="block text-sm font-medium">{rol.titulo}</span>
+            <label key={rol.value} className="opcion-rol flex items-start gap-3">
+              <input
+                type="radio"
+                name="rol"
+                value={rol.value}
+                defaultChecked={rol.defecto}
+                className="mt-1 h-4 w-4 shrink-0 accent-[var(--seal)]"
+              />
+              <span>
+                <span className="block text-sm font-medium">{rol.titulo}</span>
+                <span className="mt-0.5 block text-xs text-ink-soft">{rol.descripcion}</span>
+              </span>
             </label>
           ))}
         </div>
@@ -64,7 +104,10 @@ export function RegistroForm() {
       </button>
       <p className="text-center text-sm text-ink-soft">
         ¿Ya tiene cuenta?{' '}
-        <Link href="/login" className="font-semibold text-seal underline-offset-2 hover:underline">
+        <Link
+          href={`/login?${new URLSearchParams({ siguiente })}`}
+          className="font-semibold text-seal underline-offset-2 hover:underline"
+        >
           Iniciar sesión
         </Link>
       </p>

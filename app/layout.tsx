@@ -36,7 +36,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
   const tema = guardado === 'light' || guardado === 'dark' ? guardado : 'system'
 
   return (
-    <html lang="es" data-theme={tema} className={`${instrumentSans.variable} h-full antialiased`}>
+    <html lang="es" data-scroll-behavior="smooth" data-theme={tema} className={`${instrumentSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <a href="#contenido" className="skip">
           Saltar al contenido

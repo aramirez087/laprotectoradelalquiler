@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { destinoInterno, paginaSegura } from '../lib/util.ts'
+import { destinoInterno, paginaSegura, mascararCedula } from '../lib/util.ts'
 
 test('preserves internal search destinations through sign-in', () => {
   const destino = '/fichas?q=Jos%C3%A9+Sol%C3%ADs&provincia=1&pagina=2'
@@ -21,4 +21,13 @@ test('normalizes page numbers and rejects offsets that could stall pagination', 
   }
   assert.equal(paginaSegura('2'), 2)
   assert.equal(paginaSegura('3.8'), 3)
+})
+
+
+test('search-card documents never reveal a complete identifier, including short or missing values', () => {
+  for (const documento of [null, undefined, '', '123', '1234']) {
+    assert.equal(mascararCedula(documento), '••••')
+  }
+  assert.equal(mascararCedula('1-0234-0567'), '102····7')
+  assert.equal(mascararCedula('123456789012'), '123····2')
 })

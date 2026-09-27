@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { consultarResenas, listarDenunciasPendientes, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { FormDenunciaAdmin } from '@/components/admin-formularios'
@@ -27,6 +28,7 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
   }
 
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
+  if (!aviso && pagina > paginas) redirect(paginas > 1 ? `/admin/revision?pagina=${paginas}` : '/admin/revision')
 
   return (
     <div className="contenedor space-y-8">

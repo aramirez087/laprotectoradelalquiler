@@ -1,3 +1,4 @@
+import { MarcoAcceso } from '@/components/marco-acceso'
 import Link from 'next/link'
 import { FormClave } from '@/components/form-clave'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
@@ -9,9 +10,9 @@ export const metadata = { title: 'Nueva clave' }
 export default async function RestablecerPage() {
   if (sinSupabase()) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col justify-center px-4">
+      <MarcoAcceso titulo="Elija una clave nueva" texto="Use al menos 8 caracteres, con letras y números.">
         <AvisoConfiguracion />
-      </div>
+      </MarcoAcceso>
     )
   }
 
@@ -19,8 +20,7 @@ export default async function RestablecerPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col justify-center px-4">
-      <h1 className="mb-6 text-2xl">Nueva clave</h1>
+    <MarcoAcceso titulo="Elija una clave nueva" texto="Use al menos 8 caracteres, con letras y números.">
       {user ? (
         <FormClave accion={establecerClave} etiqueta="Guardar clave" />
       ) : (
@@ -31,6 +31,6 @@ export default async function RestablecerPage() {
           </Link>
         </div>
       )}
-    </div>
+    </MarcoAcceso>
   )
 }

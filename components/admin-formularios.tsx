@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { decidirResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
 import { MensajeForm } from '@/components/mensaje-form'
 import { etiquetaRol } from '@/lib/util'
@@ -19,22 +19,22 @@ export function FormDecision({
   id: number
   decisiones: Array<keyof typeof DECISIONES>
 }) {
-  const [estado, action, pendiente] = useActionState(decidirResenaAction, undefined)
+  const { estado, pendiente, formProps } = useFormAction(decidirResenaAction)
 
   return (
-    <form action={action} className="space-y-3">
+    <form {...formProps} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <div>
         <label className="etiqueta-campo" htmlFor={`nota-${id}`}>
-          Nota
+          Motivo o nota para el autor · opcional
         </label>
-        <input id={`nota-${id}`} name="nota" maxLength={2000} className="campo" placeholder="Opcional" />
+        <input id={`nota-${id}`} name="nota" maxLength={2000} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer." />
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <div className="flex flex-wrap gap-2">
         {decisiones.map((decision) => (
-          <button key={decision} name="decision" value={decision} disabled={pendiente} className="btn-secundario">
-            {DECISIONES[decision]}
+          <button key={decision} name="decision" value={decision} disabled={pendiente} className={decision === 'publicar' ? 'btn-primario' : decision === 'rechazar' ? 'btn-secundario btn-peligro' : 'btn-secundario'}>
+            {pendiente ? 'Guardando…' : DECISIONES[decision]}
           </button>
         ))}
       </div>
@@ -51,11 +51,11 @@ export function FormUsuario({
   rol: Rol
   activo: boolean
 }) {
-  const [estado, action, pendiente] = useActionState(guardarUsuarioAction, undefined)
+  const { estado, pendiente, formProps } = useFormAction(guardarUsuarioAction)
   const roles: Rol[] = ['propietario', 'agencia', 'inquilino', 'admin']
 
   return (
-    <form action={action} className="flex flex-wrap items-end gap-3">
+    <form {...formProps} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="id" value={id} />
       <div>
         <label className="etiqueta-campo" htmlFor={`rol-${id}`}>
@@ -84,10 +84,10 @@ export function FormUsuario({
 }
 
 export function FormDenunciaAdmin({ id }: { id: number }) {
-  const [estado, action, pendiente] = useActionState(resolverDenunciaAction, undefined)
+  const { estado, pendiente, formProps } = useFormAction(resolverDenunciaAction)
 
   return (
-    <form action={action} className="space-y-3">
+    <form {...formProps} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <div className="flex flex-wrap gap-2">

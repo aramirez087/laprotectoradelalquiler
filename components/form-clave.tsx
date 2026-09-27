@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormAction } from '@/components/use-form-action'
 import { cambiarClave, type EstadoForm } from '@/lib/actions/auth'
 import { CampoClave } from '@/components/campo-clave'
 import { MensajeForm } from '@/components/mensaje-form'
@@ -14,10 +14,10 @@ export function FormClave({
   accion?: AccionClave
   etiqueta?: string
 }) {
-  const [estado, action, pendiente] = useActionState(accion, undefined)
+  const { estado, pendiente, formProps } = useFormAction(accion, { resetOnSuccess: true })
 
   return (
-    <form action={action} className="max-w-md space-y-4">
+    <form {...formProps} className="max-w-md space-y-4">
       <div>
         <label className="etiqueta-campo" htmlFor="clave">
           Clave nueva

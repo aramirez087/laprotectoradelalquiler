@@ -7,6 +7,10 @@ Plataforma comunitaria de confianza para el alquiler en Costa Rica:
 - Las reseñas pueden **denunciarse** para moderación.
 - PII protegida: la cédula se muestra enmascarada salvo para su autor o admin.
 
+## Diseño y experiencia
+
+La dirección visual y las reglas de interacción están en [design.md](design.md). El alcance, los cambios y las verificaciones de la revisión de UX están en [docs/ux-review.md](docs/ux-review.md).
+
 ## Stack
 
 - [Next.js 16](https://nextjs.org) (App Router, TypeScript, Tailwind v4)
