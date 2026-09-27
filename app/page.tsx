@@ -1,3 +1,5 @@
+import Image from 'next/image'
+import Link from 'next/link'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
@@ -38,5 +40,3 @@ export default async function HomePage() {
     </div>
   )
 }
-import Image from 'next/image'
-import Link from 'next/link'

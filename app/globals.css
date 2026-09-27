@@ -420,6 +420,11 @@ button.chip {
   flex: 1;
 }
 
+.buscador input::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
 .buscador select {
   max-width: 9.5rem;
   padding-right: 0.4rem;

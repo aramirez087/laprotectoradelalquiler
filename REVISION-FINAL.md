@@ -25,8 +25,10 @@ en `schema.sql` coincide con este comportamiento. Se preparó
 anónimos sobre las tablas con datos personales, sin borrar registros. No se ha
 ejecutado contra la base de datos. Hay que aplicar la restricción con acceso de
 administración y comprobar que las consultas anónimas quedan denegadas y que
-los flujos autenticados siguen funcionando. La conexión SQL configurada no
-permitió inspeccionar las políticas vigentes.
+los flujos autenticados siguen funcionando. La conexión SQL exige TLS y la
+validación del certificado falla con `SELF_SIGNED_CERT_IN_CHAIN`; se necesita
+la CA del proyecto o ejecutar la corrección desde el SQL Editor de Supabase.
+No se desactivó la verificación TLS para cambiar permisos.
 
 La contención anónima no es una revisión completa de autorización. El esquema
 incluido también permite lectura amplia a usuarios autenticados y la creación
@@ -52,3 +54,9 @@ npm run build
 Las pruebas de utilidades requieren Node.js 22.18 o posterior (o Node.js 24).
 La verificación de navegador usa los flujos públicos; no crea cuentas ni reseñas
 en la base de datos real.
+
+Resultados: lint, TypeScript, las tres pruebas de regresión y la compilación de
+producción pasan. En navegador se verificaron los temas tras recargar, cambios
+del tema del sistema, preferencia de movimiento reducido, navegación móvil con
+Escape, anchos de 320/375/768/1280 px y conservación de la búsqueda al ir al login.
+Los flujos que requieren una cuenta aprobada no se verificaron de extremo a extremo.
