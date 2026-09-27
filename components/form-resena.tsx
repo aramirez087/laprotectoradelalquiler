@@ -194,27 +194,22 @@ export function FormResena({ personaInicial, lookups }: PropsFormResena) {
               Faltan las calificaciones del registro. Ejecute <code>npm run db:aplicar</code>.
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Calificación">
+            <div className="flex flex-wrap gap-2">
               {calificaciones.map((c) => {
                 const activa = califId === c.id
                 return (
-                  <button
+                  <label
                     key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={activa}
-                    onClick={() => setCalifId(c.id)}
-                    className={`estrellas h-11 w-11 rounded-full border text-lg ${activa ? 'border-transparent bg-[var(--boton)] text-[var(--boton-ink)]' : 'border-line'}`}
-                    aria-label={`${c.valor}: ${c.texto}`}
+                    className={`calificacion-opcion estrellas inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border text-lg ${activa ? 'border-transparent bg-[var(--boton)] text-[var(--boton-ink)]' : 'border-line'}`}
                     title={c.texto}
                   >
-                    {c.valor}
-                  </button>
+                    <input type="radio" name="calificacionId" value={c.id} checked={activa} onChange={() => setCalifId(c.id)} required className="sr-only" aria-label={`${c.valor}: ${c.texto}`} />
+                    <span aria-hidden="true">{c.valor}</span>
+                  </label>
                 )
               })}
             </div>
           )}
-          <input type="hidden" name="calificacionId" value={califId ?? ''} />
           {calif && <p className="mt-2 text-sm text-ink-soft">{calif.texto}</p>}
         </fieldset>
 

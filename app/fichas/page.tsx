@@ -1,16 +1,14 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { Paginacion } from '@/components/paginacion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { requireUsuario, obtenerLookups, buscarFichas, puedeConsultar } from '@/lib/dal'
-import { fechaCorta, nombreCompleto } from '@/lib/util'
+import { fechaCorta, nombreCompleto, paginaSegura, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import type { VistaFicha } from '@/lib/tipos'
 
 export const metadata = { title: 'Fichas' }
-
-function primer(v: string | string[] | undefined) {
-  return (Array.isArray(v) ? v[0] : v) ?? ''
-}
 
 function hrefLista(opts: { q?: string; provincia?: string; pagina?: number }) {
   const p = new URLSearchParams()
@@ -30,23 +28,15 @@ function hrefFicha(id: number, opts: { q?: string; provincia?: string; pagina?: 
   return s ? `/fichas/${id}?${s}` : `/fichas/${id}`
 }
 
-function ventana(actual: number, total: number) {
-  const nums = new Set<number>([1, total])
-  for (let n = actual - 2; n <= actual + 2; n += 1) nums.add(n)
-  return [...nums].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b)
-}
-
 export default async function FichasPage(props: PageProps<'/fichas'>) {
-  const usuario = await requireUsuario()
-  if (!(await puedeConsultar(usuario))) {
-    return <EsperaAprobacion usuario={usuario} />
-  }
-
   const searchParams = await props.searchParams
   const q = primer(searchParams.q).trim()
   const provincia = primer(searchParams.provincia)
-  const paginaRaw = Number(primer(searchParams.pagina) || 1)
-  const pagina = Number.isFinite(paginaRaw) && paginaRaw > 0 ? Math.floor(paginaRaw) : 1
+  const pagina = paginaSegura(primer(searchParams.pagina))
+  const usuario = await requireUsuario(hrefLista({ q, provincia, pagina }))
+  if (!(await puedeConsultar(usuario))) {
+    return <EsperaAprobacion usuario={usuario} />
+  }
 
   let fichas: VistaFicha[] = []
   let total = 0
@@ -69,6 +59,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
 
   const porPagina = 20
   const paginas = Math.max(1, Math.ceil(total / porPagina))
+  if (!aviso && pagina > paginas) redirect(hrefLista({ q, provincia, pagina: paginas }))
   const desde = fichas.length === 0 ? 0 : (pagina - 1) * porPagina + 1
   const hasta = (pagina - 1) * porPagina + fichas.length
   const filtros = { q, provincia }
@@ -76,11 +67,11 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   return (
     <div className="contenedor space-y-5">
       <h1 className="sr-only">Fichas</h1>
-      <form method="GET" className="buscador" role="search">
+      <form action="/fichas" method="GET" className="buscador" role="search">
         <label className="sr-only" htmlFor="q">
           Nombre o cédula
         </label>
-        <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre o cédula" />
+        <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre o cédula" maxLength={150} />
         <label className="sr-only" htmlFor="provincia">
           Provincia
         </label>
@@ -106,7 +97,11 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
       )}
 
       {fichas.length === 0 && !aviso ? (
-        <p className="text-sm text-ink-soft">Sin resultados.</p>
+        <div className="expediente py-10 text-center">
+          <h2 className="text-xl">No encontramos fichas</h2>
+          <p className="mt-2 text-sm text-ink-soft">Pruebe con otro nombre o cédula, o cambie la provincia.</p>
+          {(q || provincia) && <Link href="/fichas" className="btn-secundario mt-5">Quitar filtros</Link>}
+        </div>
       ) : fichas.length === 0 ? null : (
         <ul className="space-y-3">
           {fichas.map((ficha) => {
@@ -136,40 +131,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
         </ul>
       )}
 
-      {paginas > 1 && (
-        <nav className="flex flex-wrap items-center justify-center gap-2" aria-label="Páginas">
-          {pagina > 1 ? (
-            <Link href={hrefLista({ ...filtros, pagina: pagina - 1 })} className="btn-secundario">
-              Anterior
-            </Link>
-          ) : (
-            <span className="px-3 text-sm text-ink-soft">Anterior</span>
-          )}
-          {ventana(pagina, paginas).map((n, i, lista) => {
-            const previo = lista[i - 1]
-            const salto = previo != null && n - previo > 1
-            return (
-              <span key={n} className="contents">
-                {salto && <span className="px-1 text-ink-soft">…</span>}
-                <Link
-                  href={hrefLista({ ...filtros, pagina: n })}
-                  aria-current={n === pagina ? 'page' : undefined}
-                  className={n === pagina ? 'btn-primario' : 'btn-secundario'}
-                >
-                  {n}
-                </Link>
-              </span>
-            )
-          })}
-          {pagina < paginas ? (
-            <Link href={hrefLista({ ...filtros, pagina: pagina + 1 })} className="btn-secundario">
-              Siguiente
-            </Link>
-          ) : (
-            <span className="px-3 text-sm text-ink-soft">Siguiente</span>
-          )}
-        </nav>
-      )}
+      <Paginacion pagina={pagina} paginas={paginas} href={(n) => hrefLista({ ...filtros, pagina: n })} />
     </div>
   )
 }

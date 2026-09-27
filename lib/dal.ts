@@ -4,7 +4,7 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
-import { palabrasBusqueda, variantesAcento } from '@/lib/util'
+import { destinoInterno, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type {
   Calificacion,
   Denuncia,
@@ -67,9 +67,9 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
 })
 
 /** Requiere sesión; redirige a /login si no hay. */
-export async function requireUsuario(): Promise<Usuario> {
+export async function requireUsuario(siguiente = '/fichas'): Promise<Usuario> {
   const u = await obtenerUsuario()
-  if (!u) redirect('/login')
+  if (!u) redirect(`/login?${new URLSearchParams({ siguiente: destinoInterno(siguiente) })}`)
   return u
 }
 

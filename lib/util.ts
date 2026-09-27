@@ -95,8 +95,8 @@ export function primer(v: string | string[] | undefined) {
 }
 
 export function paginaSegura(valor: string) {
-  const n = Number(valor)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1
+  const n = Math.floor(Number(valor))
+  return Number.isSafeInteger(n) && n > 0 && Number.isSafeInteger(n * 20) ? n : 1
 }
 
 export function esMencionNeutra(nombre: string, tipo: 'dano' | 'proceso') {
@@ -113,7 +113,8 @@ export function formatoNumero(n: number) {
 export function destinoInterno(valor: unknown, porDefecto = '/fichas') {
   if (typeof valor !== 'string') return porDefecto
   if (valor.length === 0 || valor.length > 500) return porDefecto
-  if (!valor.startsWith('/') || valor.startsWith('//') || valor.includes('\\') || valor.includes('://')) {
+  const contieneControl = [...valor].some((c) => c.charCodeAt(0) <= 32 || c.charCodeAt(0) === 127)
+  if (!valor.startsWith('/') || valor.startsWith('//') || valor.includes('\\') || valor.includes('://') || contieneControl) {
     return porDefecto
   }
   return valor
