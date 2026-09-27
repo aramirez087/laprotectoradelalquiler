@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { destinoInterno, paginaSegura, mascararCedula } from '../lib/util.ts'
+import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida } from '../lib/util.ts'
 
 test('preserves internal search destinations through sign-in', () => {
   const destino = '/fichas?q=Jos%C3%A9+Sol%C3%ADs&provincia=1&pagina=2'
@@ -23,6 +23,30 @@ test('normalizes page numbers and rejects offsets that could stall pagination', 
   assert.equal(paginaSegura('3.8'), 3)
 })
 
+
+test('accepts a cédula with or without hyphens and rejects documents outside 6 to 12 digits', () => {
+  assert.equal(normalizarCedula(' 1-0234-0567 '), '1-0234-0567')
+  assert.equal(esCedulaValida('1-0234-0567'), true)
+  assert.equal(esCedulaValida('102340567'), true)
+  assert.equal(esCedulaValida('12345'), false)
+  assert.equal(esCedulaValida('1234567890123'), false)
+})
+
+test('turns a Facebook profile link or username into a canonical profile URL', () => {
+  assert.equal(normalizarPerfilFacebook('maria.solis'), 'https://www.facebook.com/maria.solis')
+  assert.equal(
+    normalizarPerfilFacebook('https://m.facebook.com/maria.solis?fbclid=abc'),
+    'https://www.facebook.com/maria.solis',
+  )
+  assert.equal(
+    normalizarPerfilFacebook('facebook.com/profile.php?id=100012345'),
+    'https://www.facebook.com/profile.php?id=100012345',
+  )
+  assert.equal(normalizarPerfilFacebook('https://www.facebook.com/groups/299591643850909'), null)
+  assert.equal(normalizarPerfilFacebook('https://example.com/maria.solis'), null)
+  assert.equal(normalizarPerfilFacebook('https://facebook.com'), null)
+  assert.equal(normalizarPerfilFacebook(''), null)
+})
 
 test('search-card documents never reveal a complete identifier, including short or missing values', () => {
   for (const documento of [null, undefined, '', '123', '1234']) {

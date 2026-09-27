@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { FormClave } from '@/components/form-clave'
-import { requireUsuario, listarResenasDe, puedeConsultar } from '@/lib/dal'
+import { requireUsuario, listarResenasDe, puedeConsultar, perfilFacebookDe } from '@/lib/dal'
 import { cerrarSesion } from '@/lib/actions/auth'
 import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
@@ -15,6 +15,7 @@ export default async function PerfilPage(props: {
   const enviada = primer((await props.searchParams).enviada) === '1'
   const usuario = await requireUsuario('/perfil')
   const consulta = await puedeConsultar(usuario)
+  const facebook = await perfilFacebookDe(usuario.id)
   const sinBackend = sinSupabase()
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
   let aviso: string | null = null
@@ -38,6 +39,18 @@ export default async function PerfilPage(props: {
             {usuario.email}
             {usuario.creado_en ? ` · desde ${fechaCorta(usuario.creado_en)}` : ''}
           </p>
+          {(usuario.identificacion || facebook) && (
+            <p className="mt-1 break-words text-sm text-ink-soft">
+              {usuario.identificacion ? `Cédula ${usuario.identificacion}` : null}
+              {usuario.identificacion && facebook ? ' · ' : null}
+              {facebook && (
+                <a href={facebook} target="_blank" rel="noopener noreferrer" className="font-semibold text-seal underline-offset-2 hover:underline">
+                  Facebook
+                  <span className="sr-only"> (se abre en una pestaña nueva)</span>
+                </a>
+              )}
+            </p>
+          )}
         </div>
         <form action={cerrarSesion}>
           <button className="btn-secundario">Cerrar sesión</button>
@@ -66,7 +79,7 @@ export default async function PerfilPage(props: {
         {!aviso && misResenas.length === 0 ? (
           <div className="expediente space-y-3">
             <p className="text-ink-soft">Todavía no ha escrito reseñas.</p>
-            <Link href="/resenas/nueva" className="btn-primario">
+            <Link href="/registro/resena" className="btn-primario">
               Escribir la primera
             </Link>
           </div>

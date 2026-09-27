@@ -25,19 +25,6 @@ const ROLES = [
 export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) {
   const { estado, pendiente, formProps } = useFormAction(registrarse)
 
-  if (estado?.mensaje)
-    return (
-      <form {...formProps} className="space-y-5">
-        <MensajeForm mensaje={estado.mensaje} />
-        <p className="text-sm text-ink-soft">
-          Si no encuentra el mensaje, revise la carpeta de correo no deseado.
-        </p>
-        <Link href={`/login?${new URLSearchParams({ siguiente })}`} className="btn-primario w-full">
-          Ir a iniciar sesión
-        </Link>
-      </form>
-    )
-
   return (
     <form {...formProps} className="space-y-4">
       <div>
@@ -55,6 +42,25 @@ export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) 
         />
       </div>
       <div>
+        <label className="etiqueta-campo" htmlFor="cedula">
+          Número de cédula
+        </label>
+        <input
+          id="cedula"
+          name="cedula"
+          required
+          className="campo"
+          placeholder="1-0234-0567"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={30}
+          aria-describedby="ayuda-cedula"
+        />
+        <p id="ayuda-cedula" className="mt-1 text-xs text-ink-soft">
+          Identifica su cuenta. La cédula completa no se muestra al público.
+        </p>
+      </div>
+      <div>
         <label className="etiqueta-campo" htmlFor="email">
           Correo electrónico
         </label>
@@ -68,6 +74,25 @@ export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) 
           autoComplete="email"
           autoCapitalize="none"
         />
+      </div>
+      <div>
+        <label className="etiqueta-campo" htmlFor="facebook">
+          Perfil de Facebook
+        </label>
+        <input
+          id="facebook"
+          name="facebook"
+          required
+          className="campo"
+          placeholder="facebook.com/su.perfil"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={300}
+          aria-describedby="ayuda-facebook"
+        />
+        <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">
+          El enlace de su perfil, o solo el usuario.
+        </p>
       </div>
       <div>
         <label className="etiqueta-campo" htmlFor="clave">
@@ -100,7 +125,7 @@ export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) 
       </fieldset>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <button disabled={pendiente} className="btn-primario w-full">
-        {pendiente ? 'Creando cuenta…' : 'Crear cuenta'}
+        {pendiente ? 'Creando cuenta…' : 'Continuar a la reseña'}
       </button>
       <p className="text-center text-sm text-ink-soft">
         ¿Ya tiene cuenta?{' '}

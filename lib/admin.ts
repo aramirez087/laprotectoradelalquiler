@@ -3,7 +3,7 @@ import 'server-only'
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
-import { etiquetaMotivo, palabrasBusqueda, variantesAcento } from '@/lib/util'
+import { etiquetaMotivo, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -27,7 +27,7 @@ const SELECT_RESENA = `
   id, estado, comentario, detalle_verificacion, creado_en,
   calificacion:calificaciones(valor, texto),
   persona:personas(id, nombre, nombre2, apellido1, apellido2, identificacion),
-  autor:usuarios(id, nombre, email)
+  autor:usuarios(id, nombre, email, identificacion)
 `
 
 export interface FilaAdminResena {
@@ -45,7 +45,7 @@ export interface FilaAdminResena {
     apellido2: string | null
     identificacion: string
   }
-  autor: { id: number; nombre: string; email: string } | null
+  autor: { id: number; nombre: string; email: string; identificacion: string | null; facebook: string | null } | null
 }
 
 export interface FilaAdminUsuario {
@@ -58,6 +58,7 @@ export interface FilaAdminUsuario {
   activo: boolean
   ultimo_acceso: string | null
   creado_en: string
+  facebook: string | null
 }
 
 export interface FilaConteo {
@@ -115,6 +116,23 @@ function patron(valor: string) {
   return `"%${valor.replace(/"/g, '')}%"`
 }
 
+async function facebookPorUsuario(db: Cliente, ids: number[]) {
+  const mapa = new Map<number, string>()
+  const unicos = [...new Set(ids)]
+  if (!unicos.length) return mapa
+  const { data, error } = await db
+    .from('autenticaciones')
+    .select('usuario_id, proveedor_id')
+    .eq('proveedor', 'facebook')
+    .in('usuario_id', unicos)
+  if (error) throw error
+  for (const fila of data ?? []) {
+    const url = normalizarPerfilFacebook(String(fila.proveedor_id ?? ''))
+    if (url) mapa.set(fila.usuario_id as number, url)
+  }
+  return mapa
+}
+
 type CrudoResena = {
   id: number
   estado: EstadoResena
@@ -137,7 +155,10 @@ function aFila(row: CrudoResena): FilaAdminResena | null {
     creado_en: row.creado_en,
     calificacion: uno(row.calificacion),
     persona,
-    autor: uno(row.autor),
+    autor: (() => {
+      const autor = uno(row.autor)
+      return autor ? { ...autor, facebook: null } : null
+    })(),
   }
 }
 
@@ -201,11 +222,18 @@ export async function consultarResenas(opts: {
     .range(desdeFila, desdeFila + limite - 1)
   if (error) throw error
 
+  const filas = ((data ?? []) as CrudoResena[]).flatMap((row) => {
+    const fila = aFila(row)
+    return fila ? [fila] : []
+  })
+  const perfiles = await facebookPorUsuario(
+    db,
+    filas.flatMap((fila) => (fila.autor ? [fila.autor.id] : [])),
+  )
   return {
-    filas: ((data ?? []) as CrudoResena[]).flatMap((row) => {
-      const fila = aFila(row)
-      return fila ? [fila] : []
-    }),
+    filas: filas.map((fila) =>
+      fila.autor ? { ...fila, autor: { ...fila.autor, facebook: perfiles.get(fila.autor.id) ?? null } } : fila,
+    ),
     total: count ?? 0,
   }
 }
@@ -320,7 +348,12 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   const desde = (pagina - 1) * POR_PAGINA
   const { data, error, count } = await consulta.order('nombre', { ascending: true }).range(desde, desde + POR_PAGINA - 1)
   if (error) throw error
-  return { filas: (data ?? []) as FilaAdminUsuario[], total: count ?? 0 }
+  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook'>>
+  const perfiles = await facebookPorUsuario(db, base.map((fila) => fila.id))
+  return {
+    filas: base.map((fila) => ({ ...fila, facebook: perfiles.get(fila.id) ?? null })),
+    total: count ?? 0,
+  }
 }
 
 export async function actualizarUsuario(input: { id: number; rol: Rol; activo: boolean }) {

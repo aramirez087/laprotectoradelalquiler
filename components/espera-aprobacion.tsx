@@ -35,7 +35,7 @@ export function EstadoAcceso({ motivo, activo }: { motivo: MotivoEspera; activo:
       <h1 className="mt-3 text-3xl sm:text-4xl">{titulo}</h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">{texto}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <Link href={revision || rechazada || !activo ? '/perfil' : '/resenas/nueva'} className="btn-primario">
+        <Link href={revision || rechazada || !activo ? '/perfil' : '/registro/resena'} className="btn-primario">
           {revision || rechazada || !activo ? 'Ver mis reseñas' : 'Escribir mi primera reseña'}
         </Link>
         {activo && !revision && (

@@ -62,6 +62,17 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
                   .filter(Boolean)
                   .join(' · ')}
               </p>
+              {usuario.facebook && (
+                <a
+                  href={usuario.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-seal underline-offset-2 hover:underline"
+                >
+                  Perfil de Facebook
+                  <span className="sr-only"> (se abre en una pestaña nueva)</span>
+                </a>
+              )}
             </div>
             <FormUsuario id={usuario.id} rol={usuario.rol} activo={usuario.activo} />
           </li>

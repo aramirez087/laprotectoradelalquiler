@@ -4,7 +4,14 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
-import { destinoInterno, palabrasBusqueda, variantesAcento } from '@/lib/util'
+import {
+  destinoInterno,
+  esCedulaValida,
+  normalizarCedula,
+  normalizarPerfilFacebook,
+  palabrasBusqueda,
+  variantesAcento,
+} from '@/lib/util'
 import type {
   Calificacion,
   Denuncia,
@@ -42,6 +49,8 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
 
   if (!data) {
     // Self-healing: existe en Auth pero aún no tiene perfil en la BD
+    const cedulaMeta =
+      typeof user.user_metadata?.identificacion === 'string' ? normalizarCedula(user.user_metadata.identificacion) : ''
     const { data: creado } = await supabase
       .from('usuarios')
       .insert({
@@ -49,6 +58,7 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
         email: user.email ?? '',
         nombre: (user.user_metadata?.nombre as string) ?? 'Usuario',
         rol: (user.user_metadata?.rol as Rol) ?? 'propietario',
+        identificacion: esCedulaValida(cedulaMeta) ? cedulaMeta : null,
       })
       .select()
       .single()
@@ -65,6 +75,62 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
   }
   return data as Usuario
 })
+
+/** Completa cédula y Facebook si el alta los guardó en la sesión y faltan en el perfil. */
+export async function completarPerfilRegistro(usuario: Usuario) {
+  const admin = createAdmin()
+  if (!admin) return usuario
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return usuario
+
+  let actual = usuario
+  const cedulaMeta =
+    typeof user.user_metadata?.identificacion === 'string' ? normalizarCedula(user.user_metadata.identificacion) : ''
+  if (!actual.identificacion && esCedulaValida(cedulaMeta)) {
+    const { data } = await admin
+      .from('usuarios')
+      .update({ identificacion: cedulaMeta })
+      .eq('id', actual.id)
+      .select('*')
+      .maybeSingle()
+    if (data) actual = data as Usuario
+  }
+
+  const facebook =
+    typeof user.user_metadata?.facebook === 'string' ? normalizarPerfilFacebook(user.user_metadata.facebook) : null
+  if (facebook) {
+    const { data: ya } = await admin
+      .from('autenticaciones')
+      .select('id')
+      .eq('usuario_id', actual.id)
+      .eq('proveedor', 'facebook')
+      .maybeSingle()
+    if (!ya) {
+      await admin.from('autenticaciones').insert({
+        usuario_id: actual.id,
+        proveedor: 'facebook',
+        proveedor_id: facebook,
+      })
+    }
+  }
+  return actual
+}
+
+export async function perfilFacebookDe(usuarioId: number) {
+  const admin = createAdmin()
+  if (!admin) return null
+  const { data, error } = await admin
+    .from('autenticaciones')
+    .select('proveedor_id')
+    .eq('usuario_id', usuarioId)
+    .eq('proveedor', 'facebook')
+    .maybeSingle()
+  if (error || !data?.proveedor_id) return null
+  return normalizarPerfilFacebook(String(data.proveedor_id))
+}
 
 /** Requiere sesión; redirige a /login si no hay. */
 export async function requireUsuario(siguiente = '/fichas'): Promise<Usuario> {

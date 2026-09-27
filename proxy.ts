@@ -10,7 +10,8 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/fichas') ||
     path.startsWith('/resenas') ||
     path.startsWith('/perfil') ||
-    path.startsWith('/admin')
+    path.startsWith('/admin') ||
+    path.startsWith('/registro/resena')
 
   if (protegida) {
     const supabase = await createClient()
@@ -29,5 +30,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/fichas/:path*', '/resenas/:path*', '/perfil/:path*', '/admin/:path*'],
+  matcher: ['/fichas/:path*', '/resenas/:path*', '/perfil/:path*', '/admin/:path*', '/registro/resena/:path*'],
 }

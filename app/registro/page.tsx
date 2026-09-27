@@ -1,17 +1,23 @@
+import { redirect } from 'next/navigation'
 import { MarcoAcceso } from '@/components/marco-acceso'
 import { destinoInterno, primer } from '@/lib/util'
 import { RegistroForm } from '@/components/registro-form'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
+import { obtenerUsuario } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
 
 export const metadata = { title: 'Crear cuenta' }
 
 export default async function RegistroPage(props: PageProps<'/registro'>) {
+  if (!sinSupabase()) {
+    const usuario = await obtenerUsuario()
+    if (usuario) redirect('/registro/resena')
+  }
   const siguiente = destinoInterno(primer((await props.searchParams).siguiente))
   return (
     <MarcoAcceso
       titulo="Sea parte de la comunidad"
-      texto="Cree su cuenta, comparta una experiencia de alquiler y acceda a las fichas cuando su reseña sea aprobada."
+      texto="Paso 1 de 2. Indique su cédula y su perfil de Facebook. En el siguiente paso escribirá una reseña. Administración la aprueba antes de abrir la consulta."
     >
       {sinSupabase() ? <AvisoConfiguracion /> : <RegistroForm siguiente={siguiente} />}
     </MarcoAcceso>

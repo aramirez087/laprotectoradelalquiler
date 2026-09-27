@@ -1,11 +1,12 @@
+import { redirect } from 'next/navigation'
 import { crearResenaAction } from '@/lib/actions/resenas'
 import Link from 'next/link'
 import {
   requireUsuario,
-  obtenerLookups,
   obtenerFicha,
   puedeConsultar,
   resenasPrivadasVisibles,
+  listarResenasDe,
 } from '@/lib/dal'
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
@@ -36,6 +37,16 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
       </div>
     )
 
+  if (usuario.rol !== 'admin') {
+    let sinResenas = false
+    try {
+      sinResenas = (await listarResenasDe(usuario.id)).length === 0
+    } catch {
+      sinResenas = false
+    }
+    if (sinResenas) redirect('/registro/resena')
+  }
+
   if (sinSupabase()) {
     return (
       <div className="contenedor max-w-xl">
@@ -44,26 +55,16 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
     )
   }
 
-  let lookups: Awaited<ReturnType<typeof obtenerLookups>> | null = null
-  let aviso: string | null = null
-  try {
-    lookups = await obtenerLookups()
-  } catch {
-    aviso = 'No pudimos cargar las listas del formulario. Intente de nuevo en un momento.'
-  }
-
   let personaInicial: {
     personaId: number
     identificacion: string
-    cedulaCompleta: boolean
     nombre: string
     nombre2: string | null
     apellido1: string
     apellido2: string | null
-    provinciaId: number | null
   } | null = null
 
-  if (personaId && lookups && consulta) {
+  if (personaId && consulta) {
     const p = await obtenerFicha(personaId).catch(() => null)
     if (p) {
       const privadas = await resenasPrivadasVisibles(p.id, usuario).catch(() => [])
@@ -75,12 +76,10 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
       personaInicial = {
         personaId: p.id,
         identificacion: puedeVer ? p.identificacion : mascararCedula(p.identificacion),
-        cedulaCompleta: puedeVer,
         nombre: p.nombre,
         nombre2: p.nombre2,
         apellido1: p.apellido1,
         apellido2: p.apellido2,
-        provinciaId: p.provincia_id,
       }
     }
   }
@@ -91,8 +90,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         <p className="eyebrow mb-3">Una experiencia que ayuda</p>
         <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          Cuente lo que vivió durante el alquiler. Los detalles concretos ayudan a otras personas a entender
-          su experiencia.
+          Identifique a la persona y cuente qué ocurrió.
         </p>
         {usuario.rol !== 'admin' && createAdmin() && (
           <p className="mt-2 text-sm text-ink-soft">
@@ -101,15 +99,11 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
           </p>
         )}
       </div>
-      {aviso && <p className="aviso aviso-error">{aviso}</p>}
-      {lookups && (
-        <FormResena
-          accion={crearResenaAction}
-          personaInicial={personaInicial}
-          lookups={lookups}
-          enRevision={usuario.rol !== 'admin' && !!createAdmin()}
-        />
-      )}
+      <FormResena
+        accion={crearResenaAction}
+        personaInicial={personaInicial}
+        enRevision={usuario.rol !== 'admin' && !!createAdmin()}
+      />
       <Link href={consulta ? '/fichas' : '/perfil'} className="text-sm font-semibold text-ink-soft">
         {consulta ? '← Volver a fichas' : '← Perfil'}
       </Link>

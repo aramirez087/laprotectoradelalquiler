@@ -21,6 +21,103 @@ export function esCedulaValida(c: string | null | undefined) {
   return d.length >= 6 && d.length <= 12
 }
 
+/** Conserva los guiones que escribió la persona y quita espacios sobrantes. */
+export function normalizarCedula(valor: string | null | undefined) {
+  return (valor ?? '').trim().replace(/\s+/g, '')
+}
+
+const PAGINAS_FACEBOOK = new Set([
+  'share',
+  'sharer',
+  'sharer.php',
+  'login',
+  'login.php',
+  'watch',
+  'groups',
+  'help',
+  'privacy',
+  'settings',
+  'recover',
+  'marketplace',
+  'events',
+  'pages',
+  'stories',
+  'reel',
+  'reels',
+  'photo.php',
+  'dialog',
+  'plugins',
+  'l.php',
+  'home.php',
+  'gaming',
+  'messages',
+  'friends',
+  'saved',
+  'ads',
+  'business',
+  'legal',
+  'policy',
+  'policies',
+])
+
+function usuarioFacebook(valor: string) {
+  if (!/^[A-Za-z0-9.]{5,50}$/.test(valor)) return null
+  if (valor.startsWith('.') || valor.endsWith('.') || valor.includes('..')) return null
+  if (PAGINAS_FACEBOOK.has(valor.toLowerCase())) return null
+  return valor
+}
+
+/**
+ * Acepta un enlace de Facebook o un usuario suelto y devuelve un perfil https,
+ * o null si no parece un perfil.
+ */
+export function normalizarPerfilFacebook(valor: string | null | undefined): string | null {
+  const crudo = (valor ?? '').trim()
+  if (!crudo || crudo.length > 300 || /[\s<>]/.test(crudo)) return null
+
+  const pareceUrl = /facebook\.com|fb\.com/i.test(crudo) || /^https?:\/\//i.test(crudo)
+  if (!pareceUrl) {
+    const usuario = usuarioFacebook(crudo)
+    return usuario ? `https://www.facebook.com/${usuario}` : null
+  }
+
+  const conProtocolo = /^https?:\/\//i.test(crudo) ? crudo : `https://${crudo.replace(/^\/+/, '')}`
+  let url: URL
+  try {
+    url = new URL(conProtocolo)
+  } catch {
+    return null
+  }
+  if (url.username || url.password || (url.protocol !== 'http:' && url.protocol !== 'https:')) return null
+  const host = url.hostname.toLowerCase().replace(/^www\./, '')
+  const hostOk =
+    host === 'facebook.com' ||
+    host === 'm.facebook.com' ||
+    host === 'web.facebook.com' ||
+    host === 'fb.com' ||
+    host === 'm.fb.com'
+  if (!hostOk) return null
+
+  const partes = url.pathname.split('/').filter(Boolean).map((parte) => {
+    try {
+      return decodeURIComponent(parte)
+    } catch {
+      return parte
+    }
+  })
+  if (partes[0]?.toLowerCase() === 'profile.php' || url.pathname === '/profile.php') {
+    const id = (url.searchParams.get('id') ?? '').replace(/\D/g, '')
+    if (id.length < 5 || id.length > 20) return null
+    return `https://www.facebook.com/profile.php?id=${id}`
+  }
+  if (partes[0]?.toLowerCase() === 'people') {
+    if (partes.length < 2) return null
+    return `https://www.facebook.com/${partes.map((parte) => encodeURIComponent(parte)).join('/')}`
+  }
+  const usuario = partes[0] ? usuarioFacebook(partes[0]) : null
+  return usuario ? `https://www.facebook.com/${usuario}` : null
+}
+
 export function fechaCorta(iso: string | null | undefined) {
   if (!iso) return null
   const dia = iso.slice(0, 10)
