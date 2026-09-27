@@ -55,6 +55,16 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         <footer className="pie-pagina">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 sm:px-6">
             <p>La Protectora del Alquiler</p>
+            <a
+              href="https://www.facebook.com/groups/299591643850909"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 text-seal underline-offset-4 hover:underline"
+            >
+              Comunidad en Facebook
+              <span aria-hidden="true">↗</span>
+              <span className="sr-only"> (se abre en una pestaña nueva)</span>
+            </a>
             <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-moss" aria-hidden="true" />Comunidad de alquiler · Costa Rica</p>
           </div>
         </footer>
