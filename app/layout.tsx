@@ -65,7 +65,6 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
               <span aria-hidden="true">↗</span>
               <span className="sr-only"> (se abre en una pestaña nueva)</span>
             </a>
-            <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-moss" aria-hidden="true" />Comunidad de alquiler · Costa Rica</p>
           </div>
         </footer>
       </body>
