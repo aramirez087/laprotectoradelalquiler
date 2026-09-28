@@ -86,7 +86,6 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
   return (
     <div className="contenedor max-w-3xl space-y-6">
       <div>
-        <p className="eyebrow mb-3">Una experiencia que ayuda</p>
         <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
           Identifique al inquilino y cuente qué ocurrió.
