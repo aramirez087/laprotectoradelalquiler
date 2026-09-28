@@ -9,6 +9,7 @@ import {
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
+import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 
 export const metadata = { title: 'Su primera reseña' }
 
@@ -55,6 +56,7 @@ export default async function RegistroResenaPage() {
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
           Identifique al inquilino y cuente qué ocurrió. La reseña se envía a revisión antes de publicarse.
         </p>
+        <p className="mt-2 text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>
       </div>
       <FormResena
         primera

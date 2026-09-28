@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
+import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol } from '@/lib/tipos'
@@ -401,11 +402,7 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   const pagina = Math.max(1, opts.pagina ?? 1)
   let consulta = db
     .from('usuarios')
-    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en, resenas(id), aprobadas:resenas(id), pendientes:resenas(id)', { count: 'exact' })
-    .eq('aprobadas.estado', 'publicada').eq('pendientes.estado', 'borrador')
-    .limit(1, { referencedTable: 'resenas' })
-    .limit(1, { referencedTable: 'aprobadas' })
-    .limit(1, { referencedTable: 'pendientes' })
+    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en', { count: 'exact' })
 
   const q = textoPlano(opts.q ?? '')
   if (q.length >= 2) {
@@ -418,15 +415,21 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   const desde = (pagina - 1) * POR_PAGINA
   const { data, error, count } = await consulta.order('nombre', { ascending: true }).range(desde, desde + POR_PAGINA - 1)
   if (error) throw error
-  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook'> & { resenas: { id: number }[]; aprobadas: { id: number }[]; pendientes: { id: number }[] }>
-  const perfiles = await facebookPorUsuario(db, base.map((fila) => fila.id))
+  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook' | 'registro'>>
+  const ids = base.map((fila) => fila.id)
+  const [perfiles, resultadoAccesos] = await Promise.all([
+    facebookPorUsuario(db, ids),
+    db.rpc('accesos_consulta', { p_usuario_ids: ids }),
+  ])
+  if (resultadoAccesos.error) throw resultadoAccesos.error
+  const accesos = new Map((resultadoAccesos.data as AccesoConsulta[] ?? []).map((a) => [a.usuario_id, a]))
   return {
-    filas: base.map((fila) => ({ ...fila, facebook: perfiles.get(fila.id) ?? null,
-      registro: !fila.activo ? 'Cuenta inactiva' : fila.rol === 'admin' ? 'Administración: reseña no requerida'
-        : fila.aprobadas.length ? 'Consulta habilitada: reseña aprobada'
-        : fila.pendientes.length ? 'Reseña pendiente de aprobación'
-        : fila.resenas.length ? 'Sin reseñas aprobadas' : 'Registro incompleto: falta la primera reseña',
-    })),
+    filas: base.map((fila) => {
+      const acceso = accesos.get(fila.id)
+      return { ...fila, facebook: perfiles.get(fila.id) ?? null,
+        registro: acceso ? mensajeAcceso(acceso) : 'No se pudo verificar el permiso de consulta',
+      }
+    }),
     total: count ?? 0,
   }
 }

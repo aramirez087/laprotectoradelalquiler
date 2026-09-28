@@ -12,6 +12,7 @@ import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
 import { mascararCedula, primer } from '@/lib/util'
+import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 
 export const metadata = { title: 'Escribir reseña' }
 
@@ -93,7 +94,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         {usuario.rol !== 'admin' && (
           <p className="mt-2 text-sm text-ink-soft">
             La reseña se envía a revisión. Se publica cuando administración la aprueba.
-            {!consulta && ' Con una reseña aprobada puede consultar reseñas.'}
+            {' '}{REGLAS_CONSULTA}
           </p>
         )}
       </div>

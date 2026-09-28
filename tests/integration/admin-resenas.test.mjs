@@ -31,7 +31,7 @@ test('admin review mutations are atomic and restricted to active admins', { time
   }
   const patch = await readFile('db/administrar-resenas.sql', 'utf8')
   const schema = await readFile('schema.sql', 'utf8')
-  assert.ok(schema.endsWith(patch), 'fresh installations must include the same migration')
+  assert.ok(schema.includes(patch), 'fresh installations must include the same migration')
   await db.query(schema)
   await db.query(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
     GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;

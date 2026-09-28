@@ -36,12 +36,14 @@ function aviso(e: unknown) {
 }
 
 function revalidarResena(personaId?: number | Array<number | null | undefined>) {
+  revalidatePath('/', 'layout')
   revalidatePath('/admin')
   revalidatePath('/admin/resenas')
   revalidatePath('/admin/revision')
   revalidatePath('/admin/rechazadas')
   revalidatePath('/admin/conteo')
   revalidatePath('/admin/reportes')
+  revalidatePath('/admin/usuarios')
   revalidatePath('/fichas')
   revalidatePath('/perfil')
   const ids = Array.isArray(personaId) ? personaId : [personaId]

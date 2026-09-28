@@ -3,7 +3,7 @@
 Plataforma comunitaria de confianza para el alquiler en Costa Rica:
 
 - **Propietarios y agencias** publican reseñas de inquilinos (calificación, etiquetas, daños, procesos, comentario, fotos).
-- **Cualquier usuario** busca e inspecciona fichas antes de alquilar.
+- **Usuarios con permiso vigente** buscan e inspeccionan fichas antes de alquilar.
 - Las reseñas pueden **denunciarse** para moderación.
 - PII protegida: la cédula se muestra enmascarada salvo para su autor o admin.
 
@@ -31,6 +31,42 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
 | `app/` | Páginas (landing, login, registro, fichas, reseñas, perfil) |
 
 ## Puesta en marcha
+
+### Permiso temporal de consulta
+
+Antes de desplegar esta versión sobre una base existente, ejecute
+`npm run db:acceso-consultas`. Aplica solamente
+`db/acceso-temporal-consultas.sql`, en una transacción y sin borrar datos.
+Requiere las políticas de seguridad del esquema actual
+(`db/seguridad-acceso.sql` en instalaciones antiguas). En bases nuevas,
+`schema.sql` ya incluye la misma migración.
+
+Solo cuentan las reseñas actualmente publicadas: ninguna impide consultar;
+1 concede 1 mes; 2 o 3 conceden 6 meses; 4 o más conceden 1 año. El plazo
+se calcula desde la **aprobación inicial más reciente** entre esas reseñas,
+en meses naturales UTC, sin sumar períodos al vencimiento anterior. Al llegar
+al instante de vencimiento se deniega la consulta. Una nueva reseña aprobada
+renueva el plazo según el total publicado. Administración activa está exenta;
+las cuentas inactivas no consultan.
+
+El trigger registra la primera aprobación y no permite modificarla. Editar
+una reseña o rechazarla y aprobarla otra vez no reinicia su plazo. Rechazar o
+eliminar reseñas recalcula inmediatamente el total y la fecha de referencia.
+Las reseñas publicadas existentes y las importaciones legacy usan su fecha
+de creación, porque no existe un historial anterior de aprobación. La
+migración no concede un período nuevo a reseñas antiguas.
+
+El mismo cálculo SQL sirve a RLS, al DAL y a la interfaz. El servidor consulta
+el estado por petición; no se guarda autorización en cookies ni cachés
+persistentes y no hace falta una tarea programada. Los fallos de consulta
+deniegan acceso. Los usuarios sin permiso pueden seguir viendo sus reseñas
+en el perfil y enviar nuevas experiencias a revisión.
+
+Validación: `npm run test:acceso-consultas` usa Postgres desechable en Docker
+para probar migración, todos los tramos, fin de mes, años bisiestos,
+moderación, renovación, cuentas inactivas y acceso directo con RLS.
+
+### Edición administrativa de reseñas
 
 Para actualizar una base existente con la edición y eliminación administrativa
 de reseñas, ejecute `npm run db:admin-resenas` antes de desplegar estos cambios.

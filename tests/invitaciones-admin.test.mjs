@@ -132,7 +132,7 @@ test('role activation happens after setting password and revoking older sessions
   }
 })
 
-function dal({ rol = 'propietario', activo = true, reviews = 0, error = null } = {}) {
+function dal({ rol = 'propietario', activo = true, reviews = 0, error = null, expired = false, service = true, thrown = false, missing = false } = {}) {
   const calls = []
   const db = { from: (table) => {
     calls.push(table)
@@ -141,26 +141,55 @@ function dal({ rol = 'propietario', activo = true, reviews = 0, error = null } =
       then: (resolve) => resolve({ count: reviews, error }),
     }
     return q
+  }, auth: { getUser: async () => ({ data: { user: { id: 'auth-user' } } }) }, rpc: async (name, params) => {
+    calls.push([name, params])
+    if (thrown) throw new Error('Database unavailable')
+    return { error, data: missing ? [] : [{
+      usuario_id: 3, puede_consultar: activo && (rol === 'admin' || (reviews > 0 && !expired)),
+      aprobadas: reviews, pendientes: 0, rechazadas: 0,
+      ultima_aprobacion_en: null, vence_en: null,
+      motivo: expired ? 'vencida' : reviews ? 'vigente' : 'ninguna',
+    }] }
   } }
   const api = load('lib/dal.ts', {
     'server-only': {}, react: { cache: (fn) => fn }, 'next/navigation': {},
-    '@/lib/facebook-alta': {}, '@/lib/facebook-auth': {}, '@/lib/util': {},
-    '@/lib/supabase/admin': { createAdmin: () => db },
+    '@/lib/facebook-alta': {}, '@/lib/facebook-auth': { cuentaCreadaConFacebook: () => false }, '@/lib/util': {},
+    '@/lib/supabase/admin': { createAdmin: () => service ? db : null },
     '@/lib/supabase/server': { createClient: async () => db, sinSupabase: () => false },
   })
   return { ...api, calls, usuario: { id: 3, rol, activo } }
 }
 test('unapproved users and inactive accounts cannot consult; active admins need no review', async () => {
-  for (const config of [{}, { reviews: 0 }, { error: {} }, { reviews: 1, activo: false }, { rol: 'admin', activo: false }]) {
+  for (const config of [{}, { reviews: 0 }, { error: {} }, { thrown: true }, { missing: true }, { reviews: 1, expired: true }, { reviews: 4, expired: true }, { reviews: 1, activo: false }, { rol: 'admin', activo: false }]) {
     const d = dal(config)
     assert.equal(await d.puedeConsultar(d.usuario), false)
   }
   const approved = dal({ reviews: 1 })
   assert.equal(await approved.puedeConsultar(approved.usuario), true)
-  assert.ok(approved.calls.includes('publicada'))
+  assert.equal(approved.calls[0][0], 'accesos_consulta')
+  assert.equal(approved.calls[0][1].p_usuario_ids[0], approved.usuario.id)
   const admin = dal({ rol: 'admin' })
   assert.equal(await admin.puedeConsultar(admin.usuario), true)
-  assert.equal(admin.calls.length, 0)
+  assert.equal(admin.calls[0][0], 'accesos_consulta')
+})
+test('session-only access uses the self-scoped RPC and errors stay distinct from missing reviews', async () => {
+  const session = dal({ service: false, reviews: 2 })
+  assert.equal(await session.puedeConsultar(session.usuario), true)
+  assert.equal(session.calls[0][0], 'mi_acceso_consulta')
+  assert.equal(session.calls[0][1], undefined)
+  const failure = dal({ error: {} })
+  assert.equal((await failure.accesoConsulta(failure.usuario)).motivo, 'error')
+})
+test('expired access blocks all registry reads before the service client reads tenant data', async () => {
+  for (const config of [{ reviews: 4, expired: true }, { reviews: 0 }, { error: {} }]) {
+    const d = dal(config)
+    assert.equal((await d.buscarFichas({ q: 'Ana' })).total, 0)
+    assert.equal(await d.obtenerFicha(1), null)
+    assert.equal(await d.resumenRegistro(), null)
+    assert.equal((await d.buscarPersonasParaResena('Ana')).length, 0)
+    assert.equal(d.calls.includes('personas'), false)
+    assert.equal(d.calls.includes('resenas'), false)
+  }
 })
 test('login resumes missing first review but exempts admins and does not repeat pending submissions', async () => {
   assert.equal(await dal().destinoTrasLogin('auth-user', '/fichas'), '/registro/resena')

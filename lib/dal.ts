@@ -2,6 +2,7 @@ import 'server-only'
 
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
+import type { AccesoConsulta } from '@/lib/acceso-consulta'
 import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
 import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
@@ -154,39 +155,33 @@ export async function destinoTrasLogin(authUserId: string, siguiente: string): P
   return !errorResenas && count === 0 ? '/registro/resena' : siguiente
 }
 
-/**
- * Consultar el registro (buscar fichas y leer reseñas ajenas) exige al menos
- * una reseña propia ya publicada. Administración entra siempre.
- * Si la consulta falla, se niega el acceso.
+/** Solo memoiza dentro de la petición; Postgres decide la vigencia con su reloj.
+ * Nunca persistir este resultado en cookies, JWT ni cachés entre peticiones.
  */
-export const puedeConsultar = cache(async (usuario: Usuario): Promise<boolean> => {
-  if (!usuario.activo) return false
-  if (usuario.rol === 'admin') return true
-  if (sinSupabase()) return false
-  const admin = createAdmin()
-  const supabase = admin ?? (await createClient())
-  const { count, error } = await supabase
-    .from('resenas')
-    .select('id', { count: 'exact', head: true })
-    .eq('autor_id', usuario.id)
-    .eq('estado', 'publicada')
-  if (error) return false
-  return (count ?? 0) > 0
+export const accesoConsulta = cache(async (usuario: Usuario): Promise<AccesoConsulta> => {
+  const cerrado: AccesoConsulta = {
+    usuario_id: usuario.id, puede_consultar: false, aprobadas: 0, pendientes: 0,
+    rechazadas: 0, ultima_aprobacion_en: null, vence_en: null, motivo: 'error',
+  }
+  if (!usuario.activo) return { ...cerrado, motivo: 'inactiva' }
+  if (sinSupabase()) return cerrado
+  try {
+    const admin = createAdmin()
+    const { data, error } = admin
+      ? await admin.rpc('accesos_consulta', { p_usuario_ids: [usuario.id] })
+      : await (await createClient()).rpc('mi_acceso_consulta')
+    const acceso = data?.[0] as AccesoConsulta | undefined
+    if (error || acceso?.usuario_id !== usuario.id || typeof acceso.puede_consultar !== 'boolean') return cerrado
+    return acceso
+  } catch {
+    return cerrado
+  }
 })
 
-export type MotivoEspera = 'ninguna' | 'revision' | 'rechazada'
-
-/** Por qué alguien aún no consulta: no ha escrito, está en revisión, o solo tiene rechazos. */
-export const motivoEspera = cache(async (usuario: Usuario): Promise<MotivoEspera> => {
-  const admin = createAdmin()
-  if (!admin) return 'ninguna'
-  const { data, error } = await admin.from('resenas').select('estado').eq('autor_id', usuario.id)
-  if (error || !data?.length) return 'ninguna'
-  const estados = data.map((fila) => String(fila.estado))
-  if (estados.includes('borrador')) return 'revision'
-  if (estados.includes('oculta')) return 'rechazada'
-  return 'ninguna'
-})
+/** Todas las lecturas del registro, incluidos metadatos y acciones, pasan aquí. */
+export async function puedeConsultar(usuario: Usuario): Promise<boolean> {
+  return (await accesoConsulta(usuario)).puede_consultar
+}
 
 // ============================================================================
 // Fichas (personas reseñadas)

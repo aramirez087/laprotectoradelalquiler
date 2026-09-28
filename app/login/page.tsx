@@ -23,7 +23,7 @@ export default async function LoginPage(props: PageProps<'/login'>) {
       texto={
         siguiente.startsWith('/resenas/nueva')
           ? 'Inicie sesión para compartir su experiencia de alquiler.'
-          : 'Inicie sesión para continuar. Para consultar reseñas necesita una reseña aprobada.'
+          : 'Inicie sesión para continuar. Para consultar reseñas necesita un permiso vigente por sus reseñas aprobadas.'
       }
     >
       {sinSupabase() ? (

@@ -23,12 +23,16 @@ if (!process.env.DATABASE_URL) {
 const soloSchema = process.argv.includes('--solo-schema');
 const soloInvitaciones = process.argv.includes('--solo-invitaciones-admin');
 const soloAdminResenas = process.argv.includes('--solo-admin-resenas');
+const soloAccesoConsultas = process.argv.includes('--solo-acceso-consultas');
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
 const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
-  if (soloInvitaciones) {
+  if (soloAccesoConsultas) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'acceso-temporal-consultas.sql'), 'utf8'));
+    console.log('✓ Acceso temporal a consultas actualizado; los datos se conservan.');
+  } else if (soloInvitaciones) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'invitaciones-admin.sql'), 'utf8'));
     console.log('✓ Invitaciones de administración actualizadas; los datos se conservan.');
   } else if (soloAdminResenas) {

@@ -29,6 +29,7 @@ function admin({ rol = 'admin', activo = true, error = null } = {}) {
       return { single: async () => ({ error, data: error ? null : { persona_id: 4, persona_anterior_id: 2, movida: true, autor_email: 'author@example.test', autor_nombre: 'Author' } }) }
     } }) },
     '@/lib/periodo': {},
+    '@/lib/acceso-consulta': {},
     '@/lib/util': { normalizarCedula: (s) => s.trim().replace(/\s+/g, '') },
   })
   return { ...api, calls }

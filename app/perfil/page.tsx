@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { FormClave } from '@/components/form-clave'
-import { requireUsuario, listarResenasDe, puedeConsultar, perfilFacebookDe } from '@/lib/dal'
+import { requireUsuario, listarResenasDe, accesoConsulta, perfilFacebookDe } from '@/lib/dal'
+import { mensajeAcceso, REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 import { cerrarSesion } from '@/lib/actions/auth'
 import {
   authFacebookHabilitado,
@@ -21,7 +22,8 @@ export default async function PerfilPage(props: {
   const params = await props.searchParams
   const enviada = primer(params.enviada) === '1'
   const usuario = await requireUsuario('/perfil')
-  const consulta = await puedeConsultar(usuario)
+  const acceso = await accesoConsulta(usuario)
+  const consulta = acceso.puede_consultar
   const facebook = await perfilFacebookDe(usuario.id)
   const sinBackend = sinSupabase()
   const facebookAuth = authFacebookHabilitado()
@@ -98,14 +100,19 @@ export default async function PerfilPage(props: {
           Recibimos su reseña. Puede seguir su estado en «Mis reseñas».
         </p>
       )}
-      {usuario.rol === 'admin' && usuario.activo && (
-        <p className="aviso aviso-ok">Su cuenta de administración no necesita una reseña para acceder.</p>
-      )}
-      {!consulta && usuario.activo && (
-        <p className="text-sm text-ink-soft">
-          Cuando administración apruebe una reseña, puede consultar reseñas.
-        </p>
-      )}
+      <section className="expediente space-y-3" aria-labelledby="acceso-consultas">
+        <h2 id="acceso-consultas" className="text-2xl">Su permiso de consulta</h2>
+        <p className="text-sm text-ink-soft">{mensajeAcceso(acceso)}</p>
+        {usuario.activo && usuario.rol !== 'admin' && acceso.motivo !== 'error' && (
+          <>
+            <p className="text-sm">{acceso.aprobadas === 1 ? '1 reseña aprobada' : `${acceso.aprobadas} reseñas aprobadas`}</p>
+            <p className="text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>
+          </>
+        )}
+        {acceso.motivo === 'vencida' && acceso.pendientes === 0 && (
+          <Link href="/resenas/nueva" className="btn-primario">Escribir otra reseña</Link>
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

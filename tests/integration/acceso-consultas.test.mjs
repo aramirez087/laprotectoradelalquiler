@@ -1,0 +1,216 @@
+import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
+import test from 'node:test'
+import pg from 'pg'
+
+const exec = promisify(execFile)
+const docker = async (...args) => (await exec('docker', args)).stdout.trim()
+
+// A disposable database only; never loads .env or the application's DATABASE_URL.
+test('temporary consultation access: migration, calendar tiers, moderation and RLS', { timeout: 120_000 }, async (t) => {
+  const container = `consulta-test-${process.pid}-${Date.now()}`
+  let db
+  t.after(async () => { await db?.end(); await docker('rm', '-f', container) })
+  await docker('run', '--rm', '-d', '--name', container, '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_DB=consulta_test', '-p', '127.0.0.1::5432', 'postgres:16-alpine')
+  const port = Number((await docker('port', container, '5432')).split(':').pop())
+  const deadline = Date.now() + 30_000
+  while (!db) {
+    const candidate = new pg.Client({ connectionString: `postgres://postgres@127.0.0.1:${port}/consulta_test` })
+    try { await candidate.connect(); db = candidate }
+    catch (error) {
+      await candidate.end()
+      if (Date.now() > deadline) throw error
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+  const uid = 'a1111111-1111-4111-8111-111111111111'
+  const adminUid = 'b2222222-2222-4222-8222-222222222222'
+  const schema = await readFile('schema.sql', 'utf8')
+  const migration = await readFile('db/acceso-temporal-consultas.sql', 'utf8')
+  assert.ok(schema.endsWith(migration), 'fresh installations use exactly the upgrade migration')
+  await db.query(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
+    CREATE SCHEMA auth;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+    CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.role', true), '') $$;
+    GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;`)
+  // Start with the previous schema to exercise a real populated upgrade.
+  await db.query(schema.slice(0, schema.lastIndexOf(migration)))
+  await db.query('GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;')
+  const seed = async () => {
+    await db.query(`RESET ROLE; RESET request.jwt.claim.role; RESET request.jwt.claim.sub;
+      TRUNCATE usuarios, personas, resenas RESTART IDENTITY CASCADE;
+      INSERT INTO usuarios(nombre,email,rol,auth_user_id) VALUES
+        ('Author','author@example.test','propietario','${uid}'),
+        ('Admin','admin@example.test','admin','${adminUid}');
+      INSERT INTO personas(identificacion,nombre,apellido1) VALUES ('102340567','Ana','Solís');`)
+  }
+  const access = async (id = 1) => (await db.query('SELECT * FROM accesos_consulta(ARRAY[$1::integer])', [id])).rows[0]
+  const review = async (date = new Date().toISOString(), state = 'publicada', count = 1) => {
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en)
+      SELECT 1,1,$1,'legacy',$2::timestamptz FROM generate_series(1,$3::integer)`, [state, date, count])
+  }
+  const asUser = async (id, callback) => {
+    await db.query("SELECT set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claim.role','authenticated',false)", [id])
+    await db.query('SET ROLE authenticated')
+    try { return await callback() }
+    finally { await db.query('RESET ROLE; RESET request.jwt.claim.sub; RESET request.jwt.claim.role;') }
+  }
+  const visible = async () => (await db.query('SELECT id FROM personas')).rowCount
+
+  await t.test('upgrade preserves historical dates and remains idempotent', async () => {
+    await seed()
+    await review('2020-01-31T12:00:00Z')
+    await review('2020-01-01T12:00:00Z', 'borrador')
+    await db.query(migration)
+    const before = await access()
+    assert.equal(before.vence_en.toISOString(), '2020-02-29T12:00:00.000Z')
+    assert.equal(before.motivo, 'vencida')
+    assert.equal(before.puede_consultar, false)
+    await db.query(migration)
+    assert.deepEqual(await access(), before)
+    assert.equal((await db.query("SELECT primera_aprobacion_en FROM resenas WHERE estado='borrador'")).rows[0].primera_aprobacion_en, null)
+  })
+  await t.test('zero, pending and rejected reviews never unlock consultation', async () => {
+    await seed()
+    assert.equal((await access()).motivo, 'ninguna')
+    await review(undefined, 'oculta', 4)
+    assert.equal((await access()).motivo, 'rechazada')
+    await review(undefined, 'borrador', 4)
+    const result = await access()
+    assert.equal(result.motivo, 'revision')
+    assert.equal(result.aprobadas, 0)
+    assert.equal(result.puede_consultar, false)
+    assert.equal(result.vence_en, null)
+    await asUser(uid, async () => {
+      assert.equal(await visible(), 0)
+      assert.equal((await db.query('SELECT id FROM resenas')).rowCount, 0)
+    })
+  })
+  await t.test('all tiers use calendar months, including month ends and leap years', async () => {
+    for (const [count, start, end] of [
+      [1, '2024-01-31T18:42:00Z', '2024-02-29T18:42:00.000Z'],
+      [1, '2025-01-31T18:42:00Z', '2025-02-28T18:42:00.000Z'],
+      [2, '2024-08-31T18:42:00Z', '2025-02-28T18:42:00.000Z'],
+      [3, '2024-02-29T18:42:00Z', '2024-08-29T18:42:00.000Z'],
+      [4, '2024-02-29T18:42:00Z', '2025-02-28T18:42:00.000Z'],
+      [1001, '2024-01-31T18:42:00Z', '2025-01-31T18:42:00.000Z'],
+    ]) {
+      await seed()
+      await review(start, 'publicada', count)
+      // Connection timezone must not change the policy's calendar arithmetic.
+      await db.query("SET timezone='Pacific/Auckland'")
+      const result = await access()
+      assert.equal(result.aprobadas, count)
+      assert.equal(result.vence_en.toISOString(), end)
+      assert.equal(result.puede_consultar, false)
+    }
+    await db.query("SET timezone='UTC'")
+  })
+  await t.test('fresh approvals unlock each tier; most recent approval anchors the full period', async () => {
+    for (const [count, months] of [[1, 1], [2, 6], [3, 6], [4, 12]]) {
+      await seed()
+      if (count > 1) await review('2020-01-01T00:00:00Z', 'publicada', count - 1)
+      await db.query("INSERT INTO resenas(persona_id,autor_id,estado,creado_en) VALUES(1,1,'borrador','2020-01-01')")
+      await db.query("UPDATE resenas SET estado='publicada' WHERE estado='borrador'")
+      const result = await access()
+      assert.equal(result.puede_consultar, true)
+      assert.equal(result.aprobadas, count)
+      assert.ok(Date.now() - result.ultima_aprobacion_en.getTime() < 10_000)
+      const expected = (await db.query("SELECT $1::timestamptz + make_interval(months => $2) AS fecha", [result.ultima_aprobacion_en, months])).rows[0].fecha
+      assert.deepEqual(result.vence_en, expected)
+      await asUser(uid, async () => {
+        assert.equal(await visible(), 1)
+        assert.equal((await db.query('SELECT id FROM resenas')).rowCount, count)
+        const own = (await db.query('SELECT * FROM mi_acceso_consulta()')).rows[0]
+        assert.deepEqual(own, result)
+      })
+    }
+  })
+  await t.test('expiry denies access at the cutoff and every later request', async () => {
+    await seed()
+    await db.query('BEGIN')
+    try {
+      // Keep PostgreSQL's microsecond precision and a fixed transaction clock.
+      // If subtracting a month clamps the date, use the yearly tier instead.
+      for (const delta of [1, 0, -1]) {
+        await db.query(`WITH tier AS (
+          SELECT CASE WHEN now()-interval '1 month'+interval '1 month'=now() THEN 1 ELSE 4 END AS n
+        ) INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en)
+          SELECT 1,1,'publicada','legacy',now()-(CASE WHEN n=1 THEN interval '1 month' ELSE interval '1 year' END)+$1*interval '1 microsecond'
+          FROM tier, generate_series(1,tier.n)`, [delta])
+        assert.equal((await access()).puede_consultar, delta > 0)
+        await asUser(uid, async () => {
+          assert.equal(await visible(), delta > 0 ? 1 : 0)
+          assert.equal((await db.query('SELECT privado.puede_leer_registro() AS allowed')).rows[0].allowed, delta > 0)
+        })
+        await db.query('DELETE FROM resenas')
+      }
+    } finally { await db.query('ROLLBACK') }
+  })
+  await t.test('content edits, supplied timestamps and repeated moderation cannot renew a review', async () => {
+    await seed()
+    await review('2020-01-01T00:00:00Z')
+    const original = await access()
+    await db.query("UPDATE resenas SET comentario='Edited', primera_aprobacion_en=now(), creado_en=now(), actualizado_en=now()")
+    assert.deepEqual(await access(), original)
+    await db.query("UPDATE resenas SET estado='oculta'")
+    assert.equal((await access()).puede_consultar, false)
+    await db.query("UPDATE resenas SET estado='publicada'")
+    assert.deepEqual(await access(), original)
+    await db.query(migration)
+    assert.deepEqual(await access(), original)
+  })
+  await t.test('rejection and deletion immediately downgrade or revoke permission', async () => {
+    await seed()
+    const threeMonthsAgo = (await db.query("SELECT now()-interval '3 months' AS fecha")).rows[0].fecha
+    await review(threeMonthsAgo, 'publicada', 2)
+    assert.equal((await access()).puede_consultar, true)
+    await db.query("UPDATE resenas SET estado='oculta' WHERE id=2")
+    assert.equal((await access()).motivo, 'vencida')
+    await asUser(uid, async () => assert.equal(await visible(), 0))
+    await db.query('DELETE FROM resenas WHERE id=1')
+    assert.equal((await access()).aprobadas, 0)
+    assert.equal((await access()).puede_consultar, false)
+    await review()
+    assert.equal((await access()).puede_consultar, true)
+    await db.query('UPDATE usuarios SET activo=false WHERE id=1')
+    assert.equal((await access()).motivo, 'inactiva')
+    await asUser(uid, async () => assert.equal(await visible(), 0))
+  })
+  await t.test('active admins are exempt; inactive admins and missing sessions are denied', async () => {
+    await seed()
+    assert.equal((await access(2)).motivo, 'administracion')
+    assert.equal((await access(2)).vence_en, null)
+    await asUser(adminUid, async () => assert.equal(await visible(), 1))
+    await db.query('UPDATE usuarios SET activo=false WHERE id=2')
+    await asUser(adminUid, async () => assert.equal(await visible(), 0))
+    await asUser('', async () => {
+      assert.equal(await visible(), 0)
+      assert.equal((await db.query('SELECT * FROM mi_acceso_consulta()')).rowCount, 0)
+    })
+  })
+  await t.test('expired users can submit pending reviews but cannot forge approval or query other accounts', async () => {
+    await seed()
+    await review('2020-01-01T00:00:00Z')
+    await asUser(uid, async () => {
+      await db.query("INSERT INTO resenas(persona_id,autor_id,estado,primera_aprobacion_en) VALUES(1,1,'borrador',now())")
+      await assert.rejects(db.query("INSERT INTO resenas(persona_id,autor_id,estado) VALUES(1,1,'publicada')"), /row-level security/)
+      await assert.rejects(db.query("UPDATE resenas SET primera_aprobacion_en=now()"), /permission denied/)
+      await assert.rejects(db.query('SELECT * FROM accesos_consulta(ARRAY[2])'), /permission denied/)
+      assert.equal((await db.query('SELECT * FROM mi_acceso_consulta()')).rows[0].usuario_id, 1)
+      await assert.rejects(db.query("INSERT INTO denuncias(resena_id,denunciante_id,motivo) VALUES(1,1,'otro')"), /row-level security/)
+    })
+    assert.equal((await db.query("SELECT primera_aprobacion_en FROM resenas WHERE estado='borrador'")).rows[0].primera_aprobacion_en, null)
+    await db.query('SET ROLE anon')
+    try {
+      await assert.rejects(db.query('SELECT * FROM accesos_consulta(ARRAY[1])'), /permission denied/)
+      await assert.rejects(db.query('SELECT * FROM mi_acceso_consulta()'), /permission denied/)
+      await assert.rejects(db.query('SELECT id FROM personas'), /permission denied/)
+    } finally { await db.query('RESET ROLE') }
+    await db.query('SET ROLE service_role')
+    try { assert.equal((await access()).motivo, 'vencida') }
+    finally { await db.query('RESET ROLE') }
+  })
+})

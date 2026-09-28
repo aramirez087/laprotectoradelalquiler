@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Paginacion } from '@/components/paginacion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
-import { requireUsuario, buscarFichas, puedeConsultar } from '@/lib/dal'
+import { requireUsuario, buscarFichas, accesoConsulta } from '@/lib/dal'
+import { mensajeAcceso } from '@/lib/acceso-consulta'
 import { formatoNumero, paginaSegura, primer } from '@/lib/util'
 import { BuscadorFichas } from '@/components/buscador-fichas'
 import { TarjetaFicha } from '@/components/tarjeta-ficha'
@@ -32,7 +33,8 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   const q = primer(searchParams.q).trim()
   const pagina = paginaSegura(primer(searchParams.pagina))
   const usuario = await requireUsuario(hrefLista({ q, pagina }))
-  if (!(await puedeConsultar(usuario))) {
+  const acceso = await accesoConsulta(usuario)
+  if (!acceso.puede_consultar) {
     return <EsperaAprobacion usuario={usuario} />
   }
 
@@ -69,6 +71,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
           Escribir reseña
         </Link>
       </header>
+      {acceso.vence_en && <p className="text-xs text-ink-soft">{mensajeAcceso(acceso)}</p>}
       <BuscadorFichas q={q} />
       {q && (
         <div className="flex flex-wrap items-center gap-3 text-sm">

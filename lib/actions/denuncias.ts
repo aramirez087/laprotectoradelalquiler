@@ -16,7 +16,7 @@ export async function denunciar(_prev: EstadoForm, formData: FormData): Promise<
   const usuario = await requireUsuario()
   if (!usuario.activo) return { error: 'Su cuenta está inactiva y no puede denunciar.' }
   if (!(await puedeConsultar(usuario))) {
-    return { error: 'Puede denunciar cuando administración apruebe una reseña suya.' }
+    return { error: 'Necesita un permiso de consulta vigente para denunciar una reseña.' }
   }
 
   const parsed = SchemaDenuncia.safeParse({
