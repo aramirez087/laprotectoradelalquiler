@@ -21,6 +21,7 @@ export function Nav({
   const [rutaAbierta, setRutaAbierta] = useState<string | null>(null)
   const abierto = rutaAbierta === path
   const menu = useRef<HTMLButtonElement>(null)
+  const cabecera = useRef<HTMLElement>(null)
 
   useEffect(() => {
     function alTeclado(e: KeyboardEvent) {
@@ -29,8 +30,17 @@ export function Nav({
         menu.current?.focus()
       }
     }
+    function alPulsarFuera(e: PointerEvent) {
+      if (abierto && e.target instanceof Node && !cabecera.current?.contains(e.target)) {
+        setRutaAbierta(null)
+      }
+    }
     window.addEventListener('keydown', alTeclado)
-    return () => window.removeEventListener('keydown', alTeclado)
+    window.addEventListener('pointerdown', alPulsarFuera)
+    return () => {
+      window.removeEventListener('keydown', alTeclado)
+      window.removeEventListener('pointerdown', alPulsarFuera)
+    }
   }, [abierto])
 
   function clase(href: string) {
@@ -67,7 +77,7 @@ export function Nav({
           </form>
         </>
       ) : (
-        <Link href="/login" aria-current={actual('/login')} className={clase('/login')}>
+        <Link href="/login" aria-current={actual('/login')} className={`${clase('/login')} acceso-nav`}>
           Iniciar sesión
         </Link>
       )}
@@ -75,7 +85,15 @@ export function Nav({
   )
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur-md">
+    <header
+      ref={cabecera}
+      className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-md"
+      onBlur={(e) => {
+        if (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) {
+          setRutaAbierta(null)
+        }
+      }}
+    >
       <div className="cabecera-nav">
         <Link
           href="/"
@@ -94,6 +112,7 @@ export function Nav({
           aria-controls="menu-principal"
           onClick={() => setRutaAbierta(abierto ? null : path)}
         >
+          <span className="text-sm font-medium">{abierto ? 'Cerrar' : 'Menú'}</span>
           <svg
             width="20"
             height="20"

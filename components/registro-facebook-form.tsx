@@ -28,6 +28,7 @@ export function RegistroFacebookForm({
   return (
     <div className="space-y-4">
       <form {...formProps} className="space-y-4">
+        <p className="text-xs text-ink-soft">Todos los campos son obligatorios.</p>
         <div>
           <label className="etiqueta-campo" htmlFor="nombre">
             Nombre completo
@@ -42,10 +43,10 @@ export function RegistroFacebookForm({
             autoComplete="name"
           />
         </div>
-        <div>
-          <p className="etiqueta-campo">Correo electrónico</p>
-          <p className="text-sm">{email}</p>
-        </div>
+        <dl className="rounded-xl border border-line bg-paper p-3">
+          <dt className="text-xs text-ink-soft">Correo confirmado por Facebook</dt>
+          <dd className="mt-1 break-all text-sm font-medium">{email}</dd>
+        </dl>
         <div>
           <label className="etiqueta-campo" htmlFor="cedula">
             Número de cédula
@@ -58,9 +59,14 @@ export function RegistroFacebookForm({
             defaultValue={cedula}
             placeholder="1-0234-0567"
             autoComplete="off"
+            inputMode="numeric"
             spellCheck={false}
             maxLength={30}
+            aria-describedby="ayuda-cedula"
           />
+          <p id="ayuda-cedula" className="mt-1 text-xs text-ink-soft">
+            Identifica su cuenta. La cédula completa no se muestra al público.
+          </p>
         </div>
         <div>
           <label className="etiqueta-campo" htmlFor="facebook">
@@ -74,6 +80,8 @@ export function RegistroFacebookForm({
             defaultValue={facebook}
             placeholder="facebook.com/su.perfil"
             autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
             spellCheck={false}
             maxLength={300}
             aria-describedby="ayuda-facebook"
@@ -84,7 +92,7 @@ export function RegistroFacebookForm({
         </div>
         {pedirRol && (
           <fieldset>
-            <legend className="etiqueta-campo">Soy…</legend>
+            <legend className="etiqueta-campo">Su relación con el alquiler</legend>
             <div className="grid gap-2">
               {ROLES.map((rol) => (
                 <label key={rol.value} className="opcion-rol flex items-start gap-3">
@@ -110,8 +118,8 @@ export function RegistroFacebookForm({
         </button>
       </form>
       <form action={cerrarSesion}>
-        <button type="submit" className="btn-secundario w-full">
-          Cancelar
+        <button type="submit" disabled={pendiente} className="btn-secundario w-full">
+          Cerrar sesión y salir
         </button>
       </form>
     </div>

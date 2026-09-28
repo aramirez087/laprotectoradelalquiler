@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import Link from 'next/link'
 import { consultarResenas, listarDenunciasPendientes, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { FormDenunciaAdmin } from '@/components/admin-formularios'
@@ -32,16 +33,18 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
 
   return (
     <div className="contenedor space-y-8">
-      <section className="space-y-4">
-        <h1 className="text-3xl">Revisión</h1>
-        <p className="text-sm text-ink-soft">
-          Revise la cédula, el perfil de Facebook y el relato. Confirme que sea una experiencia de alquiler distinta: cada primera aprobación suma 3 meses al permiso vigente, hasta acumular 12 meses.
-        </p>
-        {aviso && <p className="aviso aviso-error">{aviso}</p>}
-        {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas en revisión.</p>}
-        <div className="space-y-3">
+      <CabeceraAdmin titulo="Revisión" descripcion="Revise la identidad y el relato de cada experiencia antes de decidir. Las reseñas y denuncias pendientes están reunidas aquí." accion={<a href="#denuncias" className="btn-secundario">Ver denuncias{!aviso ? ` (${denuncias.length})` : ''}</a>} />
+      <section className="space-y-5" aria-labelledby="resenas-pendientes">
+        <div>
+          <h2 id="resenas-pendientes" className="text-xl">Reseñas pendientes</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft">Compruebe la cédula, el perfil de Facebook y que sea una experiencia distinta. Cada primera aprobación suma 3 meses al permiso vigente, hasta acumular 12 meses.</p>
+        </div>
+        {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
+        {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />}
+        {!aviso && filas.length === 0 && <VacioAdmin titulo="La revisión está al día" descripcion="No hay reseñas pendientes. Las nuevas contribuciones que necesiten aprobación aparecerán aquí." />}
+        <div className="space-y-5">
           {filas.map((fila) => (
-            <ResenaAdmin key={fila.id} fila={fila} />
+            <ResenaAdmin key={fila.id} fila={fila} nivelTitulo={3} />
           ))}
         </div>
         <Paginacion
@@ -51,9 +54,9 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
         />
       </section>
 
-      <section id="denuncias" className="space-y-4">
-        <h2 className="text-2xl">Denuncias</h2>
-        {!aviso && denuncias.length === 0 && <p className="text-sm text-ink-soft">No hay denuncias pendientes.</p>}
+      <section id="denuncias" className="space-y-5 border-t border-line pt-8" aria-labelledby="denuncias-titulo">
+        <div><h2 id="denuncias-titulo" className="text-2xl">Denuncias pendientes</h2><p className="mt-2 text-sm text-ink-soft">Lea el motivo y la reseña antes de resolver cada denuncia.</p></div>
+        {!aviso && denuncias.length === 0 && <VacioAdmin titulo="No hay denuncias pendientes" descripcion="Las solicitudes de revisión de la comunidad aparecerán aquí." />}
         <div className="space-y-3">
           {denuncias.map((denuncia) => (
             <article key={denuncia.id} className="expediente space-y-3">
@@ -62,15 +65,15 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
                   {etiquetaMotivo(denuncia.motivo)} · {denuncia.denunciante} · {fechaCorta(denuncia.creado_en)}
                 </p>
                 {denuncia.personaId ? (
-                  <Link href={`/fichas/${denuncia.personaId}`} className="text-xl">
+                  <Link href={`/fichas/${denuncia.personaId}`} className="text-xl font-medium text-seal underline-offset-4 hover:underline">
                     {denuncia.persona}
                   </Link>
                 ) : (
                   <p className="text-xl">{denuncia.persona}</p>
                 )}
               </div>
-              {denuncia.detalle && <p className="text-sm">{denuncia.detalle}</p>}
-              {denuncia.comentario && <p className="text-sm text-ink-soft">{denuncia.comentario}</p>}
+              {denuncia.detalle && <div><p className="etiqueta-campo">Motivo de la denuncia</p><p className="whitespace-pre-wrap text-sm leading-6">{denuncia.detalle}</p></div>}
+              {denuncia.comentario && <div className="rounded-lg bg-paper p-4"><p className="eyebrow mb-2">Reseña denunciada</p><p className="whitespace-pre-wrap text-sm leading-6">{denuncia.comentario}</p></div>}
               <FormDenunciaAdmin id={denuncia.id} />
             </article>
           ))}

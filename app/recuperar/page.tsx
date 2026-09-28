@@ -13,7 +13,7 @@ export default async function RecuperarPage(props: {
 
   return (
     <MarcoAcceso titulo="Recupere su acceso" texto="Escriba el correo de su cuenta. Le enviaremos un enlace para crear una clave nueva.">
-      {enlaceVencido && <p className="aviso aviso-error mb-4">El enlace venció o ya se usó. Pida otro.</p>}
+      {enlaceVencido && <p role="alert" className="aviso aviso-error mb-4">El enlace venció o ya se usó. Escriba su correo para solicitar uno nuevo.</p>}
       {sinSupabase() ? <AvisoConfiguracion /> : <RecuperarForm />}
     </MarcoAcceso>
   )

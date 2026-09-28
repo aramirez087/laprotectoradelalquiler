@@ -48,9 +48,9 @@ test('expired members see the expiry and a renewal link instead of restarting re
 test('pending renewals keep users informed and link to their existing reviews', () => {
   const html = render({ pendientes: 1 })
   assert.match(html, /Tiene una reseña en revisión/)
-  assert.match(html, /href="\/perfil"/)
+  assert.match(html, /href="\/perfil#mis-resenas"/)
   assert.match(html, /href="\/resenas\/nueva"/)
-  assert.match(html, /Reenviar la misma experiencia no suma/)
+  assert.match(html, /No necesita reenviar la misma experiencia/)
   assert.doesNotMatch(html, /href="\/registro\/resena"/)
 })
 test('database errors and inactive accounts do not encourage unnecessary submissions', () => {
@@ -87,10 +87,19 @@ test('profile shows time left, expiry, distinct contributions and the approval r
 })
 test('soon-to-expire access has a warning and expired snapshots stop promising access', () => {
   assert.match(panel({ vence_en: '2025-01-16T12:00:00Z' }), /vence pronto/)
-  const html = panel({ vence_en: '2025-01-15T12:00:00Z' })
+  const html = panel({ vence_en: '2025-01-15T12:00:00Z', pendientes: 0 })
   assert.match(html, /Acceso vencido/)
   assert.doesNotMatch(html, /Tiempo disponible|href="\/fichas"/)
   assert.match(html, /Compartir otra experiencia/)
+})
+test('a pending review leads to the existing contribution instead of another submission', () => {
+  for (const motivo of ['revision', 'vencida']) {
+    const html = panel({ motivo, puede_consultar: false, pendientes: 1 })
+    assert.match(html, /href="#mis-resenas"/)
+    assert.match(html, /no necesita enviarla otra vez/)
+    assert.doesNotMatch(html, /href="\/resenas\/nueva"|href="\/registro\/resena"/)
+  }
+  assert.match(readFileSync('app/perfil/page.tsx', 'utf8'), /id="mis-resenas"/)
 })
 test('error, inactive and admin states do not show misleading reward balances', () => {
   for (const motivo of ['error', 'inactiva', 'administracion']) {

@@ -14,11 +14,13 @@ export function FormDenuncia({ resenaId }: { resenaId: number }) {
   return (
     <form {...formProps} className="max-w-md space-y-3">
       <input type="hidden" name="resenaId" value={resenaId} />
+      <p className="text-sm text-ink-soft">Indique qué debe revisar administración sobre esta reseña.</p>
       <div>
         <label className="etiqueta-campo" htmlFor={`motivo-${resenaId}`}>
-          Motivo
+          Motivo de la denuncia *
         </label>
-        <select id={`motivo-${resenaId}`} name="motivo" className="campo" required>
+        <select id={`motivo-${resenaId}`} name="motivo" className="campo" required defaultValue="">
+          <option value="" disabled>Seleccione un motivo</option>
           <option value="informacion_falsa">Información falsa</option>
           <option value="difamacion">Difamación</option>
           <option value="datos_incorrectos">Datos incorrectos</option>
@@ -27,7 +29,7 @@ export function FormDenuncia({ resenaId }: { resenaId: number }) {
       </div>
       <div>
         <label className="etiqueta-campo" htmlFor={`detalle-${resenaId}`}>
-          Detalle, si quiere explicarlo
+          Más información (opcional)
         </label>
         <textarea
           id={`detalle-${resenaId}`}
@@ -35,11 +37,13 @@ export function FormDenuncia({ resenaId }: { resenaId: number }) {
           rows={3}
           maxLength={2000}
           className="campo"
-          placeholder="Qué está mal y cómo lo sabe."
+          placeholder="Explique qué información considera incorrecta y por qué."
+          aria-describedby={`ayuda-denuncia-${resenaId}`}
         />
+        <p id={`ayuda-denuncia-${resenaId}`} className="mt-2 text-xs text-ink-soft">Hasta 2.000 caracteres. Evite incluir datos personales innecesarios.</p>
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
-      <button disabled={pendiente} className="btn-secundario">
+      <button type="submit" disabled={pendiente} className="btn-secundario w-full sm:w-auto">
         {pendiente ? 'Enviando…' : 'Enviar denuncia'}
       </button>
     </form>

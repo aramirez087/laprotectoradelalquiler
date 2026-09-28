@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
-import { esEstadoResena, paginaSegura, primer } from '@/lib/util'
+import { esEstadoResena, etiquetaEstado, paginaSegura, primer } from '@/lib/util'
 
 export const metadata = { title: 'Consultar reseñas' }
 
@@ -37,34 +39,29 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
   if (!aviso && pagina > paginas) redirect(hrefLista({ q, estado, pagina: paginas }))
 
   return (
-    <div className="contenedor space-y-5">
-      <h1 className="text-3xl">Consultar reseñas</h1>
-      <form method="GET" className="buscador" role="search">
-        <label className="sr-only" htmlFor="q">
-          Nombre, cédula o comentario
-        </label>
-        <input id="q" type="search" name="q" defaultValue={q} placeholder="Nombre, cédula o comentario" />
-        <label className="sr-only" htmlFor="estado">
-          Estado
-        </label>
-        <select id="estado" name="estado" defaultValue={estado} aria-label="Estado">
-          <option value="">Todas</option>
-          <option value="publicada">Publicadas</option>
-          <option value="borrador">En revisión</option>
-          <option value="oculta">Rechazadas</option>
-        </select>
-        <button type="submit" className="boton-buscar">
-          Buscar
-        </button>
+    <div className="contenedor space-y-7">
+      <CabeceraAdmin titulo="Reseñas" descripcion="Encuentre una experiencia, consulte su estado o gestione su publicación." accion={<Link href="/resenas/nueva" className="btn-primario">Escribir reseña</Link>} />
+      <form method="GET" className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem_auto] sm:items-end" role="search" aria-label="Buscar reseñas">
+        <div className="min-w-0">
+          <label className="etiqueta-campo" htmlFor="q">Nombre, cédula o comentario</label>
+          <input id="q" type="search" name="q" defaultValue={q} placeholder="Escriba lo que quiere encontrar" className="campo" />
+        </div>
+        <div>
+          <label className="etiqueta-campo" htmlFor="estado">Estado de la reseña</label>
+          <select id="estado" name="estado" defaultValue={estado} className="campo">
+            <option value="">Todos los estados</option>
+            <option value="publicada">Publicadas</option>
+            <option value="borrador">En revisión</option>
+            <option value="oculta">Rechazadas</option>
+          </select>
+        </div>
+        <button type="submit" className="btn-primario">Buscar</button>
+        {(q || estado) && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:col-span-3"><p className="min-w-0 break-words text-ink-soft">{q && <>Búsqueda: «{q}»</>}{q && estado && ' · '}{estado && etiquetaEstado(estado)}</p><Link href="/admin/resenas" className="enlace-texto">Limpiar filtros</Link></div>}
       </form>
-      {aviso && <p className="aviso aviso-error">{aviso}</p>}
-      {!aviso && total > 0 && (
-        <p className="text-sm text-ink-soft">
-          {total === 1 ? '1 reseña' : `${total} reseñas`}
-        </p>
-      )}
-      {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">Sin resultados.</p>}
-      <div className="space-y-3">
+      {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
+      {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />}
+      {!aviso && filas.length === 0 && <VacioAdmin titulo={q || estado ? 'No encontramos reseñas con estos filtros' : 'Todavía no hay reseñas'} descripcion={q || estado ? 'Pruebe otro nombre, una parte del comentario o consulte todos los estados.' : 'Las experiencias de la comunidad aparecerán aquí, con su estado y las opciones de moderación.'} href={q || estado ? '/admin/resenas' : '/resenas/nueva'} accion={q || estado ? 'Ver todas las reseñas' : 'Escribir una reseña'} />}
+      <div className="space-y-5">
         {filas.map((fila) => (
           <ResenaAdmin key={fila.id} fila={fila} />
         ))}

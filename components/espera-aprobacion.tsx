@@ -33,23 +33,23 @@ export function EstadoAcceso({ acceso }: { acceso: AccesoConsulta }) {
   return (
     <div className="pantalla-estado">
       <span className="icono-estado">
-        <Icono nombre={revision ? 'reloj' : rechazada ? 'revisar' : 'documento'} />
+        <Icono nombre={revision || vencida ? 'reloj' : rechazada || error || !activo ? 'revisar' : 'documento'} />
       </span>
       <p className="eyebrow mt-6">Acceso al registro</p>
       <h1 className="mt-3 text-3xl sm:text-4xl">{titulo}</h1>
       <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">{texto}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <Link href={verPerfil ? '/perfil' : vencida ? '/resenas/nueva' : '/registro/resena'} className="btn-primario">
-          {verPerfil ? 'Ver mis reseñas' : vencida ? 'Escribir otra reseña' : 'Escribir mi primera reseña'}
+        <Link href={verPerfil ? revision || rechazada ? '/perfil#mis-resenas' : '/perfil' : vencida ? '/resenas/nueva' : '/registro/resena'} className="btn-primario w-full sm:w-auto">
+          {verPerfil ? revision || rechazada ? 'Ver mis reseñas' : 'Ver mi perfil' : vencida ? 'Escribir otra reseña' : 'Escribir mi primera reseña'}
         </Link>
         {activo && !revision && !error && (
-          <Link href={rechazada ? '/resenas/nueva' : '/perfil'} className="btn-secundario">
+          <Link href={rechazada ? '/resenas/nueva' : '/perfil'} className="btn-secundario w-full sm:w-auto">
             {rechazada ? 'Escribir otra reseña' : 'Ver mi perfil'}
           </Link>
         )}
       </div>
-      {revision && <p className="mt-5 text-xs text-ink-soft">Reenviar la misma experiencia no suma tiempo de consulta.</p>}
-      {vencida && revision && <Link href="/resenas/nueva" className="mt-5 text-sm font-semibold text-seal">Compartir una experiencia distinta</Link>}
+      {revision && <p className="mt-5 text-xs leading-relaxed text-ink-soft">Puede seguir el resultado en su perfil. No necesita reenviar la misma experiencia.</p>}
+      {vencida && revision && <Link href="/resenas/nueva" className="enlace-texto mt-3 font-semibold">Compartir una experiencia distinta</Link>}
       {activo && !error && <p className="mt-5 max-w-md text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>}
     </div>
   )

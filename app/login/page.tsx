@@ -9,7 +9,7 @@ import { COOKIE_CORREO, correoRecordado } from '@/lib/correo-recordado'
 import { sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, primer } from '@/lib/util'
 
-export const metadata = { title: 'Entrar' }
+export const metadata = { title: 'Iniciar sesión' }
 
 export default async function LoginPage(props: PageProps<'/login'>) {
   const searchParams = await props.searchParams
@@ -23,7 +23,7 @@ export default async function LoginPage(props: PageProps<'/login'>) {
       texto={
         siguiente.startsWith('/resenas/nueva')
           ? 'Inicie sesión para compartir su experiencia de alquiler.'
-          : 'Inicie sesión para continuar. Para consultar reseñas necesita un permiso vigente por sus reseñas aprobadas.'
+          : 'Entre a su cuenta para ver sus aportes y su permiso de consulta.'
       }
     >
       {sinSupabase() ? (

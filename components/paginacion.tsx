@@ -18,18 +18,18 @@ export function Paginacion({
   if (paginas <= 1) return null
 
   return (
-    <nav className="flex flex-wrap items-center justify-center gap-2" aria-label="Páginas">
+    <nav className="flex flex-wrap items-center justify-center gap-2 border-t border-line pt-6" aria-label="Páginas de resultados">
       {pagina > 1 ? (
-        <Link href={href(pagina - 1)} className="btn-secundario">
+        <Link href={href(pagina - 1)} className="btn-secundario" rel="prev">
           Anterior
         </Link>
       ) : (
-        <span className="px-3 text-sm text-ink-soft">Anterior</span>
+        <span aria-disabled="true" className="px-3 text-sm text-ink-soft">Anterior</span>
       )}
-      <span className="text-sm text-ink-soft sm:hidden">
+      <span className="text-sm tabular-nums text-ink-soft md:hidden" aria-label={`Página ${pagina} de ${paginas}`}>
         {pagina} de {paginas}
       </span>
-      <div className="hidden items-center gap-2 sm:flex">
+      <div className="hidden items-center gap-2 md:flex">
         {ventana(pagina, paginas).map((n, i, lista) => {
           const previo = lista[i - 1]
           const salto = previo != null && n - previo > 1
@@ -49,11 +49,11 @@ export function Paginacion({
         })}
       </div>
       {pagina < paginas ? (
-        <Link href={href(pagina + 1)} className="btn-secundario">
+        <Link href={href(pagina + 1)} className="btn-secundario" rel="next">
           Siguiente
         </Link>
       ) : (
-        <span className="px-3 text-sm text-ink-soft">Siguiente</span>
+        <span aria-disabled="true" className="px-3 text-sm text-ink-soft">Siguiente</span>
       )}
     </nav>
   )

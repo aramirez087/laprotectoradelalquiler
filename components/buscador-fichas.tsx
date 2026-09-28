@@ -16,18 +16,20 @@ export function BuscadorFichas({ q }: { q: string }) {
         <div className="relative">
           <Icono nombre="buscar" className="pointer-events-none absolute left-3.5 top-3.5 text-ink-soft" />
           <input
+            key={q}
             id="q"
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Nombre o cédula del inquilino"
+            placeholder="Nombre o cédula"
             maxLength={150}
             className="campo pl-11"
+            autoComplete="off"
           />
         </div>
       </div>
       <button type="submit" className="btn-primario">
-        Buscar
+        Buscar reseñas
       </button>
     </form>
   )

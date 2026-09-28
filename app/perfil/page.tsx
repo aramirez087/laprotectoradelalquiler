@@ -13,6 +13,7 @@ import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
+import { Icono } from '@/components/icono'
 
 export const metadata = { title: 'Mi perfil' }
 
@@ -53,7 +54,7 @@ export default async function PerfilPage(props: {
       <header className="expediente flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar nombre={usuario.nombre} fotoUrl={usuario.avatar_url} tamano="lg" />
         <div className="min-w-0 flex-1">
-          <p className="eyebrow">{etiquetaRol(usuario.rol)}</p>
+          <p className="eyebrow">Mi perfil · {etiquetaRol(usuario.rol)}</p>
           <h1 className="mt-1 break-words text-3xl sm:text-4xl">{usuario.nombre}</h1>
           <p className="mt-1 break-words text-sm text-ink-soft">
             {usuario.email}
@@ -72,17 +73,16 @@ export default async function PerfilPage(props: {
             </p>
           )}
         </div>
-        <div className="flex flex-col gap-2">
-          {ofrecerFacebook && (
-            <a href={RUTA_VINCULAR_FACEBOOK} className="btn-secundario">
-              Conectar Facebook
-            </a>
-          )}
-          <form action={cerrarSesion}>
-            <button className="btn-secundario">Cerrar sesión</button>
-          </form>
-        </div>
+        <form action={cerrarSesion}>
+          <button className="btn-secundario w-full sm:w-auto">Cerrar sesión</button>
+        </form>
       </header>
+
+      <nav aria-label="Secciones de mi perfil" className="flex flex-wrap gap-x-5 gap-y-1 border-b border-line pb-3">
+        <Link href="#acceso-consultas" className="enlace-texto font-medium">Mi permiso</Link>
+        <Link href="#mis-resenas" className="enlace-texto font-medium">Mis reseñas</Link>
+        <Link href="#seguridad" className="enlace-texto font-medium">Seguridad</Link>
+      </nav>
 
       {avisoFacebook && (
         <p role="alert" className="aviso aviso-error">
@@ -103,48 +103,64 @@ export default async function PerfilPage(props: {
       )}
       <PanelPermiso acceso={acceso} ahoraServidor={horaServidor()} />
 
-      <section className="space-y-3">
+      <section id="mis-resenas" aria-labelledby="titulo-mis-resenas" className="scroll-mt-36 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl">Mis reseñas</h2>
-          <Link href="/resenas/nueva" className="btn-primario">
-            Escribir reseña
-          </Link>
-        </div>
-        {aviso && <p className="aviso aviso-error">{aviso}</p>}
-        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. El contador de experiencias aprobadas agrupa las reseñas del mismo alquiler.</p>
-        {!aviso && misResenas.length === 0 ? (
-          <div className="expediente space-y-3">
-            <p className="text-ink-soft">Todavía no ha escrito reseñas.</p>
-            <Link href={usuario.rol === 'admin' ? '/admin' : '/registro/resena'} className="btn-primario">
-              {usuario.rol === 'admin' ? 'Ir a administración' : 'Escribir la primera'}
+          <h2 id="titulo-mis-resenas" className="text-2xl">Mis reseñas{!aviso && misResenas.length > 0 && <span className="ml-2 text-base text-ink-soft">({misResenas.length})</span>}</h2>
+          {usuario.activo && misResenas.length > 0 && (
+            <Link href="/resenas/nueva" className="btn-secundario w-full sm:w-auto">
+              Escribir otra reseña
             </Link>
+          )}
+        </div>
+        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. El contador de experiencias aprobadas agrupa las reseñas del mismo alquiler.</p>
+        {aviso ? (
+          <div className="expediente space-y-4">
+            <p role="alert" className="aviso aviso-error">{aviso} Sus aportes siguen guardados. Intente cargar esta página de nuevo.</p>
+            <a href="/perfil#mis-resenas" className="btn-secundario">Volver a cargar mis reseñas</a>
+          </div>
+        ) : misResenas.length === 0 ? (
+          <div className="expediente flex flex-col items-start gap-4 p-6">
+            <span className="icono-estado"><Icono nombre="documento" /></span>
+            <div>
+              <h3 className="text-xl">Su primera experiencia empieza aquí</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                {usuario.activo ? 'Todavía no ha escrito reseñas. Sus aportes y el resultado de cada revisión aparecerán en este espacio.' : 'Todavía no hay reseñas en su cuenta. Mientras esté inactiva, no puede enviar nuevos aportes.'}
+              </p>
+            </div>
+            {usuario.activo && (
+              <Link href={usuario.rol === 'admin' ? '/admin' : '/registro/resena'} className="btn-primario w-full sm:w-auto">
+                {usuario.rol === 'admin' ? 'Ir a administración' : 'Escribir mi primera reseña'}
+              </Link>
+            )}
           </div>
         ) : (
           <ul className="space-y-3">
             {misResenas.map((r) => (
               <li key={r.id} className="expediente space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-start gap-3">
                   <Avatar nombre={nombreCompleto(r.persona)} tamano="sm" />
-                  <div className="min-w-[55%] flex-1">
-                    <p className="break-words font-display text-lg">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words font-display text-lg">
                       {consulta ? <Link href={`/fichas/${r.persona.id}`} className="underline-offset-4 hover:underline">{nombreCompleto(r.persona)}</Link> : nombreCompleto(r.persona)}
-                    </p>
-                    <p className="text-xs text-ink-soft">
+                    </h3>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-soft">
                       Enviada el {fechaCorta(r.creado_en)}
                       {r.fecha_inicio_alquiler ? ` · Inicio del alquiler: ${r.fecha_inicio_alquiler.split('-').reverse().join('/')}` : ''}
                     </p>
                   </div>
-                  <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
-                  {r.anonima && <span className="chip">Anónima</span>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <span className={`chip ${r.estado === 'publicada' ? 'chip-ok' : 'chip-alerta'}`}>{r.estado === 'publicada' ? 'Aprobada' : etiquetaEstado(r.estado)}</span>
+                  {r.anonima && <span className="chip">Anónima</span>}
+                  <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
                 </div>
                 <p className="text-xs leading-relaxed text-ink-soft">
                   {r.estado === 'borrador' ? 'En revisión. Todavía no suma tiempo de consulta.' : r.estado === 'oculta' ? 'No aporta tiempo de consulta.' : 'Publicada. Cada experiencia distinta cuenta una sola vez para su permiso.'}
                 </p>
-                {r.estado === 'oculta' && r.detalle_verificacion && <p className="text-sm text-alerta">Motivo: {r.detalle_verificacion}</p>}
+                {r.estado === 'oculta' && r.detalle_verificacion && <p className="rounded-lg bg-alerta-soft p-3 text-sm leading-relaxed text-alerta"><strong className="font-semibold">Motivo de la revisión:</strong> {r.detalle_verificacion}</p>}
                 <details className="border-t border-line pt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-seal">Ver mi reseña</summary>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{r.comentario?.trim() || 'Sin comentario.'}</p>
+                  <summary className="min-h-8 cursor-pointer text-sm font-medium text-seal">Leer mi reseña</summary>
+                  <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed">{r.comentario?.trim() || 'Sin comentario.'}</p>
                 </details>
               </li>
             ))}
@@ -152,8 +168,18 @@ export default async function PerfilPage(props: {
         )}
       </section>
 
-      <section id="clave" className="space-y-3">
-        <details className="expediente detalles-cuenta">
+      <section id="seguridad" aria-labelledby="titulo-seguridad" className="scroll-mt-36 space-y-4">
+        <h2 id="titulo-seguridad" className="text-2xl">Seguridad de su cuenta</h2>
+        {ofrecerFacebook && (
+          <div className="expediente flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-medium">Entre también con Facebook</h3>
+              <p className="mt-1 text-sm leading-relaxed text-ink-soft">Conéctelo para usarlo al iniciar sesión en esta misma cuenta.</p>
+            </div>
+            <a href={RUTA_VINCULAR_FACEBOOK} className="btn-secundario w-full sm:w-auto">Conectar Facebook</a>
+          </div>
+        )}
+        <details id="clave" className="expediente detalles-cuenta scroll-mt-36">
           <summary className="flex cursor-pointer items-center justify-between gap-4">
             <span className="text-lg font-medium">Cambiar clave</span>
             <span aria-hidden="true" className="indicador-detalle">

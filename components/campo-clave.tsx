@@ -26,12 +26,15 @@ export function CampoClave({
         pattern={autoComplete === 'new-password' ? '(?=.*[a-zA-Z])(?=.*[0-9]).{8,}' : undefined}
         title={autoComplete === 'new-password' ? 'Al menos 8 caracteres, con letras y números.' : undefined}
         autoComplete={autoComplete}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         aria-describedby={describedBy}
         className="campo pr-24"
       />
       <button
         type="button"
-        className="absolute inset-y-0 right-1 min-w-16 rounded-lg px-3 text-xs font-semibold text-ink-soft"
+        className="absolute inset-y-0 right-1 min-w-16 rounded-lg px-3 text-xs font-semibold text-seal hover:bg-seal-soft"
         aria-label={`${visible ? 'Ocultar' : 'Mostrar'} ${id === 'confirmacion' ? 'confirmación de clave' : 'clave'}`}
         aria-controls={id}
         aria-pressed={visible}

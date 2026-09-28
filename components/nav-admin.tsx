@@ -5,11 +5,10 @@ import { usePathname } from 'next/navigation'
 
 const ENLACES = [
   { href: '/admin', etiqueta: 'Resumen', exacto: true },
-  { href: '/admin/resenas', etiqueta: 'Reseñas' },
-  { href: '/resenas/nueva', etiqueta: 'Escribir reseña' },
   { href: '/admin/revision', etiqueta: 'Revisión' },
+  { href: '/admin/resenas', etiqueta: 'Reseñas' },
   { href: '/admin/rechazadas', etiqueta: 'Rechazadas' },
-  { href: '/admin/conteo', etiqueta: 'Conteo' },
+  { href: '/admin/conteo', etiqueta: 'Por usuario' },
   { href: '/admin/usuarios', etiqueta: 'Usuarios' },
   { href: '/admin/reportes', etiqueta: 'Reportes' },
   { href: '/admin/migracion', etiqueta: 'Importar datos' },
@@ -20,7 +19,7 @@ export function NavAdmin() {
   const path = usePathname()
 
   return (
-    <nav className="nav-admin" aria-label="Administración">
+    <nav className="nav-admin min-w-0 py-1" aria-label="Administración">
       {ENLACES.map((enlace) => {
         const activo = enlace.exacto ? path === enlace.href : path === enlace.href || path.startsWith(`${enlace.href}/`)
         return (

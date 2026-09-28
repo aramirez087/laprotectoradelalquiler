@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useEffect, useRef, type FormEvent } from 'react'
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react'
 import { migrarLegacyAction } from '@/lib/actions/migracion-legacy'
 import { formatoNumero } from '@/lib/util'
 
@@ -13,10 +13,11 @@ function DatoDiagnostico({ etiqueta, valor }: { etiqueta: string; valor: number 
   )
 }
 
-export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolean }) {
+export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }: { authDisponible: boolean; destinoDisponible?: boolean }) {
   const [estado, action, pendiente] = useActionState(migrarLegacyAction, undefined)
   const formRef = useRef<HTMLFormElement>(null)
   const resultadoRef = useRef<HTMLDivElement>(null)
+  const [modo, setModo] = useState('')
 
   useEffect(() => {
     if (!estado?.error && !estado?.mensaje) return
@@ -32,6 +33,7 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
     if (pendiente) return
     const submitter = (event.nativeEvent as SubmitEvent).submitter
     const datos = new FormData(event.currentTarget, submitter)
+    setModo(String(datos.get('modo') ?? ''))
     startTransition(() => action(datos))
   }
 
@@ -42,7 +44,8 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
-      <form ref={formRef} action={action} onSubmit={enviar} aria-busy={pendiente} className="expediente space-y-6">
+      <form ref={formRef} action={action} onSubmit={enviar} aria-busy={pendiente} className="expediente min-w-0 space-y-6">
+        <div><h2 className="text-xl">Conexión al origen</h2><p className="mt-2 text-sm leading-6 text-ink-soft">Complete la conexión, haga una prueba y revise la simulación antes de importar.</p></div>
         <fieldset disabled={pendiente} className="space-y-5">
           <legend className="sr-only">Conexión al sistema anterior</legend>
 
@@ -105,23 +108,25 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
           </label>
         </fieldset>
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button type="submit" name="modo" value="probar" disabled={pendiente} className="btn-secundario">
-            {pendiente ? 'Procesando…' : 'Probar conexión'}
+            {pendiente && modo === 'probar' ? 'Probando conexión…' : '1. Probar conexión'}
           </button>
-          <button type="submit" name="modo" value="simular" disabled={pendiente} className="btn-secundario">
-            {pendiente ? 'Procesando…' : 'Simular importación'}
+          <button type="submit" name="modo" value="simular" disabled={pendiente || !destinoDisponible} className="btn-secundario" aria-describedby={!destinoDisponible ? 'destino-no-disponible' : undefined}>
+            {pendiente && modo === 'simular' ? 'Simulando…' : '2. Simular importación'}
           </button>
-          <button type="submit" name="modo" value="importar" disabled={pendiente} className="btn-primario">
-            {pendiente ? 'Importando…' : 'Traer datos'}
+          <button type="submit" name="modo" value="importar" disabled={pendiente || !destinoDisponible} className="btn-primario" aria-describedby={!destinoDisponible ? 'destino-no-disponible' : undefined}>
+            {pendiente && modo === 'importar' ? 'Importando…' : '3. Importar datos'}
           </button>
         </div>
+        {!destinoDisponible && <p id="destino-no-disponible" className="text-sm text-ink-soft">Puede probar la conexión. La simulación y la importación estarán disponibles cuando se configure el destino.</p>}
+        {pendiente && <p role="status" className="aviso">{modo === 'probar' ? 'Comprobando la conexión al sistema anterior…' : modo === 'simular' ? 'Validando los datos y el destino. La simulación puede tardar unos minutos.' : 'Importando los datos. Mantenga esta página abierta hasta ver el resultado.'}</p>}
       </form>
 
-      <aside className="space-y-4 lg:sticky lg:top-24">
+      <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
         <div className="expediente overflow-hidden p-0">
           <div className="p-5">
-            <p className="eyebrow">Recorrido</p>
+            <h2 className="eyebrow">Recorrido de los datos</h2>
             <div className="mt-5 grid grid-cols-[1.25rem_1fr] gap-x-3 gap-y-1 text-sm">
               <span className="mt-1.5 size-2.5 rounded-full bg-ink" aria-hidden="true" />
               <div><p className="font-semibold">MySQL anterior</p><p className="mt-1 text-ink-soft">Solo lectura</p></div>

@@ -8,9 +8,9 @@ import { etiquetaRol } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
 
 const DECISIONES = {
-  publicar: 'Aprobar',
-  rechazar: 'Rechazar',
-  revisar: 'A revisión',
+  publicar: 'Aprobar y publicar',
+  rechazar: 'Rechazar reseña',
+  revisar: 'Devolver a revisión',
 } as const
 
 export function FormDecision({
@@ -20,7 +20,10 @@ export function FormDecision({
   id: number
   decisiones: Array<keyof typeof DECISIONES>
 }) {
-  const { estado, pendiente, formProps } = useFormAction(decidirResenaAction)
+  const onResultado = useAvisoAdmin()
+  const { estado, pendiente, formProps } = useFormAction(decidirResenaAction, {
+    onResultado: (resultado) => onResultado(resultado?.mensaje ? { ...resultado, mensaje: `Se guardó la decisión sobre la reseña #${id}.` } : resultado),
+  })
 
   return (
     <form {...formProps} className="space-y-3">
@@ -29,16 +32,17 @@ export function FormDecision({
         <label className="etiqueta-campo" htmlFor={`nota-${id}`}>
           Motivo o nota para el autor · opcional
         </label>
-        <input id={`nota-${id}`} name="nota" maxLength={2000} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer." />
+        <textarea id={`nota-${id}`} name="nota" rows={2} maxLength={2000} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer." />
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <div className="flex flex-wrap gap-2">
         {decisiones.map((decision) => (
           <button key={decision} name="decision" value={decision} disabled={pendiente} className={decision === 'publicar' ? 'btn-primario' : decision === 'rechazar' ? 'btn-secundario btn-peligro' : 'btn-secundario'}>
-            {pendiente ? 'Guardando…' : DECISIONES[decision]}
+            {DECISIONES[decision]}
           </button>
         ))}
       </div>
+      {pendiente && <p role="status" className="text-sm text-ink-soft">Guardando decisión…</p>}
     </form>
   )
 }
@@ -54,7 +58,7 @@ function ErrorCampo({ nombre, mensaje }: { nombre: string; mensaje?: string }) {
 function OpcionNotificar({ id, habilitada }: { id: string; habilitada: boolean }) {
   return (
     <div className={habilitada ? '' : 'text-ink-soft'}>
-      <label htmlFor={id} className={`flex items-start gap-3 text-sm ${habilitada ? '' : 'opacity-60'}`}>
+      <label htmlFor={id} className={`flex min-h-11 items-start gap-3 py-2 text-sm ${habilitada ? '' : 'opacity-60'}`}>
         <input id={id} name="notificar" type="checkbox" value="1" disabled={!habilitada}
           aria-describedby={`${id}-ayuda`} className="mt-1 h-4 w-4 shrink-0" />
         <span>Notificar por correo a quien escribió la reseña</span>
@@ -62,7 +66,7 @@ function OpcionNotificar({ id, habilitada }: { id: string; habilitada: boolean }
       <p id={`${id}-ayuda`} className="mt-2 text-xs text-ink-soft">
         {habilitada
           ? 'Se enviará un aviso después de guardar esta acción.'
-          : 'Resend aún no está configurado. Las notificaciones por correo están deshabilitadas.'}
+          : 'El envío de correos aún no está configurado. Puede guardar la acción sin enviar una notificación.'}
       </p>
     </div>
   )
@@ -131,6 +135,7 @@ export function FormEditarResena({
               minLength={2}
               defaultValue={persona.nombre}
               aria-invalid={!!errorCampo('nombre')}
+              aria-describedby={errorCampo('nombre') ? `error-nombre-${id}` : undefined}
               className="campo"
               autoComplete="off"
             />
@@ -153,6 +158,7 @@ export function FormEditarResena({
               minLength={2}
               defaultValue={persona.apellido1}
               aria-invalid={!!errorCampo('apellido1')}
+              aria-describedby={errorCampo('apellido1') ? `error-apellido1-${id}` : undefined}
               className="campo"
               autoComplete="off"
             />
@@ -177,11 +183,12 @@ export function FormEditarResena({
             maxLength={5000}
             defaultValue={comentario ?? ''}
             aria-invalid={!!errorCampo('comentario')}
+            aria-describedby={errorCampo('comentario') ? `error-comentario-${id}` : undefined}
             className="campo"
           />
           <ErrorCampo nombre={`comentario-${id}`} mensaje={errorCampo('comentario')} />
         </div>
-        <label htmlFor={`anonima-${id}`} className="flex items-start gap-3 text-sm">
+        <label htmlFor={`anonima-${id}`} className="flex min-h-11 items-start gap-3 py-2 text-sm">
           <input id={`anonima-${id}`} name="anonima" type="checkbox" value="1" defaultChecked={anonima} className="mt-1 h-4 w-4 shrink-0" />
           <span>Ocultar el nombre de quien escribió</span>
         </label>
@@ -228,9 +235,9 @@ export function FormUsuario({
   const roles: Rol[] = ['propietario', 'agencia', 'inquilino', 'admin']
 
   return (
-    <form {...formProps} className="flex flex-wrap items-end gap-3">
+    <form {...formProps} className="grid items-end gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(0,16rem)_auto_auto] sm:justify-start">
       <input type="hidden" name="id" value={id} />
-      <div>
+      <div className="min-w-0">
         <label className="etiqueta-campo" htmlFor={`rol-${id}`}>
           Rol
         </label>
@@ -244,12 +251,12 @@ export function FormUsuario({
       </div>
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input type="checkbox" name="activo" defaultChecked={activo} />
-        Activa
+        Cuenta activa
       </label>
       <button disabled={pendiente} className="btn-secundario">
-        {pendiente ? 'Guardando…' : 'Guardar'}
+        {pendiente ? 'Guardando…' : 'Guardar permisos'}
       </button>
-      <div className="basis-full">
+      <div className="sm:col-span-3">
         <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       </div>
     </form>
@@ -257,20 +264,24 @@ export function FormUsuario({
 }
 
 export function FormDenunciaAdmin({ id }: { id: number }) {
-  const { estado, pendiente, formProps } = useFormAction(resolverDenunciaAction)
+  const onResultado = useAvisoAdmin()
+  const { estado, pendiente, formProps } = useFormAction(resolverDenunciaAction, {
+    onResultado: (resultado) => onResultado(resultado?.mensaje ? { ...resultado, mensaje: `La denuncia #${id} se resolvió correctamente.` } : resultado),
+  })
 
   return (
     <form {...formProps} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <div className="flex flex-wrap gap-2">
-        <button name="decision" value="aceptar" disabled={pendiente} className="btn-secundario">
+        <button name="decision" value="aceptar" disabled={pendiente} className="btn-secundario btn-peligro">
           Aceptar y rechazar reseña
         </button>
         <button name="decision" value="rechazar" disabled={pendiente} className="btn-secundario">
-          Rechazar denuncia
+          Descartar denuncia
         </button>
       </div>
+      {pendiente && <p role="status" className="text-sm text-ink-soft">Guardando decisión…</p>}
     </form>
   )
 }

@@ -13,7 +13,7 @@ export function RecuperarForm() {
       <form {...formProps} className="space-y-5">
         <MensajeForm mensaje={estado.mensaje} />
         <p className="text-sm text-ink-soft">
-          Revise también el correo no deseado. Puede cerrar esta página cuando reciba el enlace.
+          Revise su bandeja de entrada y el correo no deseado. Abra el enlace del mensaje para elegir una clave nueva.
         </p>
         <Link href="/login" className="btn-secundario w-full">
           Volver a iniciar sesión
@@ -34,17 +34,20 @@ export function RecuperarForm() {
           required
           autoComplete="email"
           autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="email"
           className="campo"
           placeholder="usted@correo.com"
         />
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <button disabled={pendiente} className="btn-primario w-full">
-        {pendiente ? 'Enviando…' : 'Enviar enlace'}
+        {pendiente ? 'Enviando enlace…' : 'Enviar enlace de recuperación'}
       </button>
       <p className="text-center text-sm text-ink-soft">
-        <Link href="/login" className="font-semibold text-seal underline-offset-2 hover:underline">
-          Volver a entrar
+        <Link href="/login" className="enlace-texto font-semibold">
+          Volver a iniciar sesión
         </Link>
       </p>
     </form>

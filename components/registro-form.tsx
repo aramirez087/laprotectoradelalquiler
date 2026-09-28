@@ -34,10 +34,18 @@ export function RegistroForm({
   return (
     <form {...formProps} className="space-y-4">
       {enlaceFacebook && (
-        <a className="btn-secundario flex w-full" href={enlaceFacebook}>
-          Continuar con Facebook
-        </a>
+        <div className="space-y-5 pb-1">
+          <a className="btn-secundario flex w-full" href={enlaceFacebook}>
+            Continuar con Facebook
+          </a>
+          <div className="flex items-center gap-3 text-xs text-ink-soft">
+            <span aria-hidden="true" className="h-px flex-1 bg-line" />
+            <span>o cree su cuenta con correo</span>
+            <span aria-hidden="true" className="h-px flex-1 bg-line" />
+          </div>
+        </div>
       )}
+      <p className="text-xs text-ink-soft">Todos los campos son obligatorios.</p>
       <div>
         <label className="etiqueta-campo" htmlFor="nombre">
           Nombre completo
@@ -63,6 +71,7 @@ export function RegistroForm({
           className="campo"
           placeholder="1-0234-0567"
           autoComplete="off"
+          inputMode="numeric"
           spellCheck={false}
           maxLength={30}
           aria-describedby="ayuda-cedula"
@@ -84,6 +93,9 @@ export function RegistroForm({
           placeholder="usted@correo.com"
           autoComplete="email"
           autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="email"
         />
       </div>
       <div>
@@ -97,12 +109,14 @@ export function RegistroForm({
           className="campo"
           placeholder="facebook.com/su.perfil"
           autoComplete="off"
+          autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
           maxLength={300}
           aria-describedby="ayuda-facebook"
         />
         <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">
-          El enlace de su perfil, o solo el usuario.
+          Escriba el enlace de su perfil, o solo el usuario. Administración lo usa para revisar su experiencia.
         </p>
       </div>
       <div>
@@ -115,7 +129,7 @@ export function RegistroForm({
         </p>
       </div>
       <fieldset>
-        <legend className="etiqueta-campo">Soy…</legend>
+        <legend className="etiqueta-campo">Su relación con el alquiler</legend>
         <div className="grid gap-2">
           {ROLES.map((rol) => (
             <label key={rol.value} className="opcion-rol flex items-start gap-3">
@@ -138,11 +152,15 @@ export function RegistroForm({
       <button disabled={pendiente} className="btn-primario w-full">
         {pendiente ? 'Creando cuenta…' : 'Continuar a la reseña'}
       </button>
-      <p className="text-center text-sm text-ink-soft">
+      <p className="text-center text-xs leading-relaxed text-ink-soft">
+        Conozca cómo cuidamos sus datos en la{' '}
+        <Link href="/privacidad" className="text-seal underline underline-offset-4">política de privacidad</Link>.
+      </p>
+      <p className="border-t border-line pt-4 text-center text-sm text-ink-soft">
         ¿Ya tiene cuenta?{' '}
         <Link
           href={`/login?${new URLSearchParams({ siguiente })}`}
-          className="font-semibold text-seal underline-offset-2 hover:underline"
+          className="inline-flex min-h-8 items-center font-semibold text-seal underline underline-offset-4"
         >
           Iniciar sesión
         </Link>

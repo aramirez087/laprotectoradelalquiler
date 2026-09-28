@@ -31,13 +31,14 @@ export function TarjetaResena({
     rol: resena.autor?.rol,
   })
   const fotos = [...(resena.fotos ?? [])].sort((a, b) => a.orden - b.orden)
+  const tieneContexto = !!(resena.contrato || resena.tipoAlquiler || resena.tiempo || resena.recomienda != null || resena.fecha_inicio_alquiler)
 
   return (
     <article className="expediente space-y-4 break-words">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Avatar nombre={identidad.nombre} tamano="sm" />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold">{identidad.nombre}</p>
             <p className="text-xs text-ink-soft">
               {[identidad.rol ? etiquetaRol(identidad.rol) : null, resena.creado_en ? fechaCorta(resena.creado_en) : null]
@@ -50,6 +51,7 @@ export function TarjetaResena({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {resena.propia && <span className="chip">Su reseña</span>}
           {identidad.marcaAnonima && <span className="chip">Anónima</span>}
           {resena.estado !== 'publicada' && (
             <span className="chip chip-alerta">{etiquetaEstado(resena.estado)}</span>
@@ -58,6 +60,8 @@ export function TarjetaResena({
           <CalificacionEstrellas valor={resena.calificacion?.valor ?? null} texto={resena.calificacion?.texto} />
         </div>
       </div>
+
+      {resena.comentario && <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{resena.comentario}</p>}
 
       {(resena.etiquetas.length > 0 || resena.dano || resena.proceso || resena.drogas || (resena.conductas?.length ?? 0) > 0) && (
         <div className="flex flex-wrap gap-2">
@@ -87,7 +91,7 @@ export function TarjetaResena({
         </div>
       )}
 
-      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+      {tieneContexto && <dl className="grid grid-cols-1 gap-4 rounded-xl bg-paper p-4 text-sm min-[400px]:grid-cols-2 sm:grid-cols-3">
         {resena.contrato && (
           <div>
             <dt className="text-xs font-bold uppercase tracking-wide text-ink-soft">Contrato</dt>
@@ -121,9 +125,8 @@ export function TarjetaResena({
             </dd>
           </div>
         )}
-      </dl>
+      </dl>}
 
-      {resena.comentario && <p className="whitespace-pre-wrap break-words text-sm">{resena.comentario}</p>}
       {resena.detalle_dano && (
         <p className="text-sm text-ink-soft">
           <span className="font-semibold text-ink">Detalle del daño. </span>
@@ -153,8 +156,11 @@ export function TarjetaResena({
       )}
 
       {puedeDenunciar && (
-        <details className="denuncia">
-          <summary>Denunciar esta reseña</summary>
+        <details className="denuncia border-t border-line pt-2">
+          <summary className="flex gap-2">
+            <span>Denunciar esta reseña</span>
+            <span className="indicador-detalle" aria-hidden="true">+</span>
+          </summary>
           <FormDenuncia resenaId={resena.id} />
         </details>
       )}

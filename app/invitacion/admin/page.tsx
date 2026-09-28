@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { MarcoAcceso } from '@/components/marco-acceso'
 import { FormClave } from '@/components/form-clave'
 import { aceptarInvitacionAction } from '@/lib/actions/invitaciones'
@@ -12,8 +13,13 @@ export default async function InvitacionAdminPage(props: { searchParams: Promise
   return (
     <MarcoAcceso titulo="Le invitamos a administrar" texto="Elija una clave para aceptar la invitación. Las cuentas de administración no necesitan escribir una reseña.">
       {id && token ? (
-        <FormClave accion={aceptarInvitacionAction.bind(null, id, token)} etiqueta="Aceptar invitación" />
-      ) : <p className="aviso aviso-error">El enlace está incompleto. Pida a administración una nueva invitación.</p>}
+        <FormClave accion={aceptarInvitacionAction.bind(null, id, token)} etiqueta="Aceptar invitación" anchoCompleto />
+      ) : (
+        <div className="space-y-4">
+          <p role="alert" className="aviso aviso-error">El enlace está incompleto. Pida a administración una nueva invitación.</p>
+          <Link href="/login" className="btn-secundario w-full">Ir a iniciar sesión</Link>
+        </div>
+      )}
     </MarcoAcceso>
   )
 }

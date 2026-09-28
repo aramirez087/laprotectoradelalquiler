@@ -1,16 +1,17 @@
 import Link from 'next/link'
 import { resumenAdmin, SinClaveAdmin } from '@/lib/admin'
 import { formatoNumero } from '@/lib/util'
+import { CabeceraAdmin } from '@/components/admin-ui'
 
 export const metadata = { title: 'Administración' }
 
 const TARJETAS = [
-  { clave: 'hoy', etiqueta: 'Hoy', href: '/admin/reportes' },
-  { clave: 'revision', etiqueta: 'En revisión', href: '/admin/revision' },
-  { clave: 'rechazadas', etiqueta: 'Rechazadas', href: '/admin/rechazadas' },
-  { clave: 'publicadas', etiqueta: 'Publicadas', href: '/admin/resenas?estado=publicada' },
-  { clave: 'usuarios', etiqueta: 'Usuarios', href: '/admin/usuarios' },
-  { clave: 'denuncias', etiqueta: 'Denuncias', href: '/admin/revision#denuncias' },
+  { clave: 'revision', etiqueta: 'Reseñas en revisión', detalle: 'Pendientes de una decisión', href: '/admin/revision' },
+  { clave: 'denuncias', etiqueta: 'Denuncias pendientes', detalle: 'Experiencias que requieren atención', href: '/admin/revision#denuncias' },
+  { clave: 'hoy', etiqueta: 'Reseñas de hoy', detalle: 'Ver la actividad del día', href: '/admin/reportes' },
+  { clave: 'publicadas', etiqueta: 'Reseñas publicadas', detalle: 'Disponibles en el registro', href: '/admin/resenas?estado=publicada' },
+  { clave: 'rechazadas', etiqueta: 'Reseñas rechazadas', detalle: 'Consultar decisiones anteriores', href: '/admin/rechazadas' },
+  { clave: 'usuarios', etiqueta: 'Usuarios', detalle: 'Gestionar cuentas y permisos', href: '/admin/usuarios' },
 ] as const
 
 export default async function AdminPage() {
@@ -23,21 +24,23 @@ export default async function AdminPage() {
   }
 
   return (
-    <div className="contenedor space-y-6">
-      <header><p className="eyebrow mb-3">Administración</p><h1 className="text-3xl">Resumen del registro</h1><p className="mt-3 text-sm text-ink-soft">Revise la actividad y atienda lo que está pendiente.</p></header>
-      {aviso && <p className="aviso aviso-error">{aviso}</p>}
+    <div className="contenedor space-y-7">
+      <CabeceraAdmin titulo="Resumen del registro" descripcion="Un vistazo a la actividad de la comunidad. Empiece por las reseñas y denuncias pendientes." accion={<Link href="/admin/revision" className="btn-primario">Revisar pendientes</Link>} />
+      {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
       {resumen && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {TARJETAS.map((tarjeta) => (
-            <Link key={tarjeta.clave} href={tarjeta.href} className="metrico block">
-              <p className="text-sm text-ink-soft">{tarjeta.etiqueta}</p>
-              <p className="mt-1 text-[1.7rem] font-medium leading-none tracking-tight">
+            <Link key={tarjeta.clave} href={tarjeta.href} className="metrico group block">
+              <p className="flex items-center justify-between gap-3 text-sm text-ink-soft">{tarjeta.etiqueta}<span aria-hidden="true" className="text-seal">↗</span></p>
+              <p className="mt-4 text-4xl font-medium leading-none tracking-tight tabular-nums">
                 {formatoNumero(resumen[tarjeta.clave])}
               </p>
+              <p className="mt-3 text-xs leading-5 text-ink-soft">{tarjeta.detalle}</p>
             </Link>
           ))}
         </div>
       )}
+      {resumen && resumen.revision === 0 && resumen.denuncias === 0 && <p className="aviso aviso-ok">Todo al día: no hay reseñas ni denuncias pendientes de revisión.</p>}
     </div>
   )
 }

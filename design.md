@@ -40,8 +40,8 @@ Place reusable layout defaults in Tailwind's `components` layer when utilities m
 ## Navigation and responsive behavior
 
 - Desktop navigation uses explicit destination names and `aria-current`.
-- Below 1024px, the header contains the brand and menu button. The menu contains navigation and appearance preferences, in that order.
-- Escape closes the mobile menu and returns focus to its trigger. Changing routes closes it.
+- Below 1024px, the header contains the full brand and a labeled menu button. The menu contains navigation and appearance preferences, in that order, and scrolls within short viewports.
+- Escape closes the mobile menu and returns focus to its trigger. Changing routes, clicking outside, or moving keyboard focus out of the header also closes it.
 - Admin navigation scrolls horizontally within its own region on narrow screens; the page itself must not overflow.
 - Search filters stack below 640px. Results wrap long names and move ratings below the identity on small screens.
 - Pagination shows previous/next and the current page on mobile; numbered links appear on larger screens.
@@ -51,15 +51,15 @@ Place reusable layout defaults in Tailwind's `components` layer when utilities m
 
 ### Visitor → account → access
 
-The homepage keeps one illustration and one search. Put access requirements above the search, with the three-step explanation under “Cómo funciona”. Registration explains how access works and describes each account role. Sign-in explains the requested task when the destination is a new review. Registration's return-to-sign-in link keeps that destination.
+The homepage keeps one illustration and one visibly labeled search, led by “Alquile con más confianza”. Put access requirements above the search, with the three-step explanation under “Cómo funciona”. Registration explains how access works and describes each account role. A two-step progress indicator connects account creation and the first review. Sign-in explains the requested task when the destination is a new review. Registration's return-to-sign-in link keeps that destination.
 
 Use `MarcoAcceso` for sign-in, registration, recovery, and reset screens. Successful registration/recovery replaces the input form with confirmation and a next step. Do not imply that a recovery email identifies whether an account exists.
 
 ### Writing a review
 
-Use three numbered sections: person, experience, and comment. Mark required fields with `*`, and explain the notation before the form. Keep the rating scale and its endpoints visible. Tags use pressed states and comfortable touch targets.
+Use three numbered sections: person, rental start, and comment. Mark required fields with `*`, and explain the notation before the form. An existing person's identity is a compact read-only summary, with the same submitted values as the editable flow. Keep the comment's 30-character minimum and 5,000-character limit visible. The current new-review form does not ask for a rating or tags; imported reviews can still display those values.
 
-Contract details, dates, damages, and other optional context live in a native disclosure. If an error occurs there, open the section before focusing the field. The final action says “Enviar reseña a revisión” when moderation applies and “Publicar reseña” when publication is immediate; derive this from the same existing conditions as the server.
+The rental start is required and cannot be a future date. Keep the anonymity option next to the comment so users understand what is hidden. The final action says “Enviar reseña a revisión” when moderation applies and “Publicar reseña” when publication is immediate; derive this from the same existing conditions as the server.
 
 `useFormAction` keeps uncontrolled values through recoverable responses and includes the clicked submit button in `FormData`. Forms retain their action attribute for pre-hydration submission. Announce feedback and focus the first invalid field, falling back to the message. Password-change forms explicitly clear their fields on success. Do not reset a review on failure.
 
@@ -78,9 +78,13 @@ Use visible search/filter labels, a clear submit button, visible active filters,
 
 A record has a clear back-to-results link preserving filters and page. Its review action is explicit. Do not truncate the person's name at the point where someone needs to verify identity. Distinguish unavailable data from empty results.
 
+Separate the identity, published-review count and average rating on record details. Lead review cards with the contributor and their story, then any supporting rental context. Reporting starts with an unselected required reason; never preselect an allegation.
+
 ### Administration
 
 Use the same controls and spacing. Prefer “Resumen”, “Reseñas”, and “Rechazadas” over ambiguous labels. Style publication as the primary action and rejection as consequential. Label the moderation note by its purpose. Preserve selected roles, checkbox values, notes, and the clicked decision across submissions. Clamp out-of-range result pages. Label exports with their format.
+
+Use `CabeceraAdmin`, `ResultadosAdmin`, and `VacioAdmin` for consistent hierarchy and search feedback. User counts become cards on small screens and a table on desktop. Retain the original search and list page when opening an author's contributions. Keep invitations in a disclosure and explain destructive review controls where they are used. Successful moderation feedback must survive removal of its card.
 
 ## Accessibility contract
 

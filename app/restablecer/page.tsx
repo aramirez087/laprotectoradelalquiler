@@ -22,12 +22,12 @@ export default async function RestablecerPage() {
   return (
     <MarcoAcceso titulo="Elija una clave nueva" texto="Use al menos 8 caracteres, con letras y números.">
       {user ? (
-        <FormClave accion={establecerClave} etiqueta="Guardar clave" />
+        <FormClave accion={establecerClave} etiqueta="Guardar clave nueva" anchoCompleto />
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-ink-soft">El enlace venció o ya se usó.</p>
-          <Link href="/recuperar" className="btn-primario inline-flex">
-            Pedir otro
+          <p role="alert" className="aviso aviso-error">Este enlace venció o ya se usó. Solicite uno nuevo para continuar.</p>
+          <Link href="/recuperar" className="btn-primario flex w-full">
+            Solicitar un enlace nuevo
           </Link>
         </div>
       )}

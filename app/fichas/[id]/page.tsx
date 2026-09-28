@@ -8,6 +8,8 @@ import { requireUsuario, obtenerFicha, obtenerUsuario, puedeConsultar, resenasPr
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
+import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
+import { EstadoVacio } from '@/components/estado-vacio'
 import { sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, etiquetaEstado, fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
 import type { FilaResenaCompleta } from '@/lib/tipos'
@@ -54,8 +56,8 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   if (sinSupabase()) {
     return (
       <div className="contenedor max-w-xl space-y-4">
-        <Link href={volver} className="text-sm font-semibold text-ink-soft">
-          ← Volver a reseñas
+        <Link href={volver} className="enlace-atras">
+          ← Volver a los resultados
         </Link>
         <AvisoConfiguracion />
       </div>
@@ -68,10 +70,14 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   } catch {
     return (
       <div className="contenedor max-w-xl space-y-4">
-        <Link href={volver} className="text-sm font-semibold text-ink-soft">
-          ← Volver a reseñas
+        <Link href={volver} className="enlace-atras">
+          ← Volver a los resultados
         </Link>
-        <p className="aviso aviso-error">No pudimos abrir esta ficha. Intente de nuevo en un momento.</p>
+        <div className="expediente space-y-4">
+          <h1 className="text-2xl">No pudimos abrir esta ficha</h1>
+          <p className="text-sm text-ink-soft">Intente de nuevo en un momento. Su búsqueda se conserva al volver a los resultados.</p>
+          <a href={`/fichas/${personaId}${consulta}`} className="btn-secundario">Intentar de nuevo</a>
+        </div>
       </div>
     )
   }
@@ -79,10 +85,12 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
 
   const resenas = ((persona.resenas ?? []) as FilaResenaCompleta[]).filter((r) => r.estado === 'publicada')
   let privadas: Awaited<ReturnType<typeof resenasPrivadasVisibles>> = []
+  let avisoPrivadas = false
   try {
     privadas = await resenasPrivadasVisibles(persona.id, usuario)
   } catch {
     privadas = []
+    avisoPrivadas = true
   }
   const verCedulaCompleta =
     usuario.rol === 'admin' ||
@@ -100,29 +108,39 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
         ← Volver a los resultados
       </Link>
 
-      <header className="cabecera-ficha flex flex-col gap-4 sm:flex-row sm:items-center">
-        <Avatar nombre={nombre} fotoUrl={persona.foto_url} tamano="lg" />
-        <div className="min-w-0 flex-1">
-          <h1 className="break-words text-3xl">{nombre}</h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            {[
-              verCedulaCompleta ? persona.identificacion : mascararCedula(persona.identificacion),
-              persona.provincia?.nombre,
-              promedio ? `${promedio.toFixed(1)} de 5` : null,
-              resenas.length === 1 ? '1 reseña' : `${resenas.length} reseñas`,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
+      <header className="expediente space-y-6 sm:p-7">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <Avatar nombre={nombre} fotoUrl={persona.foto_url} tamano="lg" />
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow mb-2">Ficha del inquilino</p>
+            <h1 className="break-words text-3xl sm:text-4xl">{nombre}</h1>
+            <p className="mt-3 break-words text-sm text-ink-soft">
+              Documento {verCedulaCompleta ? persona.identificacion : mascararCedula(persona.identificacion)}
+              {persona.provincia?.nombre ? ` · ${persona.provincia.nombre}` : ''}
+            </p>
+          </div>
         </div>
-        <Link href={`/resenas/nueva?personaId=${persona.id}`} className="btn-primario">
-          Escribir reseña
-        </Link>
+        <div className="flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">{resenas.length === 1 ? '1 reseña publicada' : `${resenas.length} reseñas publicadas`}</p>
+            <CalificacionEstrellas valor={promedio} />
+          </div>
+          <Link href={`/resenas/nueva?personaId=${persona.id}`} className="btn-primario">
+            Escribir reseña
+          </Link>
+        </div>
       </header>
-      <h2 className="text-xl">Experiencias compartidas</h2>
-      {resenas.length === 0 && privadas.length === 0 ? (
-        <p className="text-sm text-ink-soft">Todavía no hay reseñas para este inquilino.</p>
-      ) : resenas.length === 0 ? null : (
+      <div>
+        <h2 className="text-xl">Experiencias compartidas</h2>
+        <p className="mt-2 text-sm text-ink-soft">Cada reseña refleja la experiencia de quien la escribió.</p>
+      </div>
+      {resenas.length === 0 ? (
+        <EstadoVacio
+          icono="documento"
+          titulo="Aún no hay reseñas publicadas"
+          texto="La ausencia de reseñas no indica un historial positivo o negativo."
+        />
+      ) : (
         <div className="space-y-4">
           {resenas.map((r) => (
             <TarjetaResena
@@ -135,11 +153,15 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
           ))}
         </div>
       )}
+      {avisoPrivadas && <p className="aviso aviso-atencion" role="status">No pudimos cargar las reseñas en revisión o rechazadas. Intente abrir la ficha de nuevo en un momento.</p>}
       {privadas.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg">En revisión o rechazadas</h2>
+          <div>
+            <h2 className="text-lg">En revisión o rechazadas</h2>
+            <p className="mt-1 text-sm text-ink-soft">Estas reseñas todavía no forman parte de las experiencias publicadas.</p>
+          </div>
           {privadas.map((r) => (
-            <article key={r.id} className="expediente space-y-2">
+            <article key={r.id} className="expediente space-y-2 break-words">
               <p className="text-sm text-ink-soft">
                 {etiquetaEstado(r.estado)}
                 {r.autor ? ` · ${r.autor}` : ''}

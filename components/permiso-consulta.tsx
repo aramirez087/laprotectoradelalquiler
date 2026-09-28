@@ -97,6 +97,8 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
   const normal = !['administracion', 'inactiva', 'error'].includes(actual.motivo)
   const dias = actual.vence_en ? (Date.parse(actual.vence_en) - ahora) / 86_400_000 : 0
   const porVencer = activo && dias <= 7
+  const esperandoRevision = actual.motivo === 'revision' || (actual.motivo === 'vencida' && actual.pendientes > 0)
+  const revisarAportes = esperandoRevision || actual.motivo === 'rechazada'
 
   return (
     <section id="acceso-consultas" className="expediente scroll-mt-36 space-y-6" aria-labelledby="titulo-permiso">
@@ -116,22 +118,22 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
       </div>
       {normal && (
         <>
-          <dl className="grid grid-cols-3 gap-3 border-y border-line py-5">
+          <dl className="grid gap-3 border-y border-line py-5 min-[400px]:grid-cols-3">
             {[
               ['Experiencias aprobadas', actual.aprobadas],
               ['Reseñas en revisión', actual.pendientes],
               ['Reseñas no aprobadas', actual.rechazadas],
             ].map(([label, valor]) => (
-              <div key={label} className="flex flex-col gap-1">
-                <dt className="order-2 text-xs leading-relaxed text-ink-soft">{label}</dt>
-                <dd className="font-display text-3xl">{valor}</dd>
+              <div key={label} className="flex items-center justify-between gap-3 min-[400px]:flex-col min-[400px]:items-start min-[400px]:gap-1">
+                <dt className="text-xs leading-relaxed text-ink-soft min-[400px]:order-2">{label}</dt>
+                <dd className="font-display text-2xl tabular-nums min-[400px]:text-3xl">{valor}</dd>
               </div>
             ))}
           </dl>
           <div className="space-y-3">
             <p className="text-sm leading-relaxed"><strong className="font-semibold">Una experiencia nueva aprobada = 3 meses.</strong> Puede acumular hasta 12 meses de acceso.</p>
             <details>
-              <summary className="cursor-pointer text-sm font-medium text-seal">Cómo gana tiempo de consulta</summary>
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-seal">Cómo gana tiempo de consulta</summary>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-soft">
               <li><strong className="font-semibold text-ink">3 meses por cada experiencia distinta aprobada.</strong> El tiempo empieza cuando se aprueba, no al enviar la reseña.</li>
               <li>Conserva el tiempo que le queda y puede acumular hasta <strong className="font-semibold text-ink">12 meses</strong> desde la nueva aprobación. Si ya venció, vuelve a empezar con 3 meses.</li>
@@ -144,11 +146,15 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
       )}
       <div className="flex flex-wrap items-center gap-3">
         {activo && <Link href="/fichas" className="btn-primario">Consultar reseñas</Link>}
-        {normal && (
+        {normal && revisarAportes && (
+          <Link href="#mis-resenas" className="btn-primario w-full sm:w-auto">Ver mis reseñas</Link>
+        )}
+        {normal && !revisarAportes && (
           <Link href={actual.motivo === 'ninguna' ? '/registro/resena' : '/resenas/nueva'} className={activo ? 'btn-secundario' : 'btn-primario'}>
             {actual.motivo === 'ninguna' ? 'Escribir mi primera reseña' : 'Compartir otra experiencia'}
           </Link>
         )}
+        {esperandoRevision && <p className="w-full text-xs leading-relaxed text-ink-soft">Su experiencia está en revisión. Puede seguir el resultado más abajo; no necesita enviarla otra vez.</p>}
         <button type="button" disabled={actualizando} onClick={() => startTransition(() => router.refresh())} className="btn-secundario">
           {actualizando ? 'Actualizando…' : 'Actualizar estado'}
         </button>

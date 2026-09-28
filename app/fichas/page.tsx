@@ -10,7 +10,7 @@ import { TarjetaFicha } from '@/components/tarjeta-ficha'
 import { EstadoVacio } from '@/components/estado-vacio'
 import type { VistaFicha } from '@/lib/tipos'
 
-export const metadata = { title: 'Reseñas' }
+export const metadata = { title: 'Consultar reseñas' }
 
 function hrefLista(opts: { q?: string; pagina?: number }) {
   const p = new URLSearchParams()
@@ -63,8 +63,8 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
         <div>
           <p className="eyebrow mb-3">Registro de la comunidad</p>
           <h1 className="text-3xl sm:text-4xl">Consultar reseñas</h1>
-          <p className="mt-3 text-sm text-ink-soft">
-            Busque a un inquilino por nombre o cédula para leer las reseñas.
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
+            Encuentre a un inquilino por nombre o cédula y conozca las experiencias compartidas por la comunidad.
           </p>
         </div>
         <Link href="/resenas/nueva" className="btn-secundario">
@@ -83,18 +83,26 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
         </div>
       )}
 
-      {aviso && <p className="aviso aviso-atencion">{aviso}</p>}
+      {aviso && (
+        <div className="aviso aviso-atencion space-y-3" role="alert">
+          <p>{aviso}</p>
+          <a href={hrefLista({ q, pagina })} className="btn-secundario">Intentar de nuevo</a>
+        </div>
+      )}
 
       {!aviso && total > 0 && (
-        <p className="text-sm text-ink-soft">
-          {desde}–{hasta} de {formatoNumero(total)} {total === 1 ? 'resultado' : 'resultados'}
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg">{q ? 'Resultados de la búsqueda' : 'Fichas de la comunidad'}</h2>
+          <p className="text-sm text-ink-soft">
+            {desde}–{hasta} de {formatoNumero(total)} {total === 1 ? 'resultado' : 'resultados'}
+          </p>
+        </div>
       )}
 
       {fichas.length === 0 && !aviso ? (
         <EstadoVacio
-          titulo="No encontramos a ese inquilino"
-          texto="Pruebe con el apellido o la cédula."
+          titulo={q ? 'No encontramos coincidencias' : 'Todavía no hay fichas disponibles'}
+          texto={q ? 'Revise la escritura o pruebe solo con un apellido o la cédula. Que no aparezca aquí no significa que tenga un historial positivo o negativo.' : 'Las fichas reúnen experiencias de la comunidad. Puede compartir la suya para contribuir al registro.'}
         >
           {q && (
             <Link href="/fichas" className="btn-secundario">

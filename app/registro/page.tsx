@@ -20,15 +20,21 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   return (
     <MarcoAcceso
       titulo="Sea parte de la comunidad"
-      texto="Paso 1 de 2. Indique su cédula y su perfil de Facebook. Después compartirá su primera experiencia. Cuando administración la apruebe, tendrá 3 meses para consultar reseñas."
+      texto="Cree su cuenta y después comparta su primera experiencia de alquiler."
+      pasoRegistro={1}
     >
       {sinSupabase() ? (
         <AvisoConfiguracion />
       ) : (
-        <RegistroForm
-          siguiente={siguiente}
-          enlaceFacebook={authFacebookHabilitado() ? rutaEntrarConFacebook(siguiente) : null}
-        />
+        <>
+          <p className="mb-6 rounded-xl border border-seal/20 bg-seal-soft px-4 py-3 text-sm leading-relaxed text-seal">
+            Su primera experiencia aprobada le da <strong className="font-semibold">3 meses para consultar reseñas</strong>. El acceso empieza cuando administración la aprueba.
+          </p>
+          <RegistroForm
+            siguiente={siguiente}
+            enlaceFacebook={authFacebookHabilitado() ? rutaEntrarConFacebook(siguiente) : null}
+          />
+        </>
       )}
     </MarcoAcceso>
   )

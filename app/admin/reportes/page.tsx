@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
+import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import Link from 'next/link'
 import { atajosPeriodo, consultarResenas, periodoPorDefecto, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
-import { formatoNumero, paginaSegura, primer } from '@/lib/util'
+import { paginaSegura, primer } from '@/lib/util'
 
 export const metadata = { title: 'Reportes' }
 
@@ -34,20 +35,21 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
   if (!aviso && pagina > paginas) redirect(hrefReporte(desde, hasta, paginas))
 
   return (
-    <div className="contenedor space-y-5">
-      <h1 className="text-3xl">Reportes</h1>
-      <div className="flex flex-wrap gap-2">
-        <Link href={hrefReporte(atajos.hoy.desde, atajos.hoy.hasta)} className="btn-secundario">
-          Hoy
-        </Link>
-        <Link href={hrefReporte(atajos.mes.desde, atajos.mes.hasta)} className="btn-secundario">
-          Este mes
-        </Link>
-        <Link href={hrefReporte(atajos.anio.desde, atajos.anio.hasta)} className="btn-secundario">
-          Este año
-        </Link>
-      </div>
-      <form method="GET" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+    <div className="contenedor space-y-7">
+      <CabeceraAdmin titulo="Reportes" descripcion="Consulte las reseñas recibidas en un período y descargue el resultado completo en formato CSV." />
+      <section className="expediente space-y-5" aria-label="Período del reporte">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-sm text-ink-soft">Períodos rápidos</span>
+          {([
+            ['Hoy', atajos.hoy],
+            ['Este mes', atajos.mes],
+            ['Este año', atajos.anio],
+          ] as const).map(([etiqueta, periodo]) => {
+            const activo = desde === periodo.desde && hasta === periodo.hasta
+            return <Link key={etiqueta} href={hrefReporte(periodo.desde, periodo.hasta)} className={activo ? 'btn-primario' : 'btn-secundario'} aria-current={activo ? 'true' : undefined}>{activo && <span aria-hidden="true">✓</span>}{etiqueta}</Link>
+          })}
+        </div>
+      <form method="GET" className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <div>
           <label className="etiqueta-campo" htmlFor="desde">
             Desde
@@ -62,17 +64,18 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
         </div>
         <button className="btn-primario">Ver reporte</button>
       </form>
-      {aviso && <p className="aviso aviso-error">{aviso}</p>}
+      </section>
+      {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
       {!aviso && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-ink-soft">{total === 1 ? '1 reseña' : `${formatoNumero(total)} reseñas`}</p>
-          <a className="enlace-texto" href={`/admin/reportes/csv?desde=${desde}&hasta=${hasta}`}>
+          <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />
+          {total > 0 && <a className="btn-secundario" href={`/admin/reportes/csv?desde=${desde}&hasta=${hasta}`}>
             Descargar CSV
-          </a>
+          </a>}
         </div>
       )}
-      {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas en esas fechas.</p>}
-      <div className="space-y-3">
+      {!aviso && filas.length === 0 && <VacioAdmin titulo="No hay reseñas en este período" descripcion="Amplíe el intervalo de fechas o elija otro período para consultar la actividad." />}
+      <div className="space-y-5">
         {filas.map((fila) => (
           <ResenaAdmin key={fila.id} fila={fila} />
         ))}

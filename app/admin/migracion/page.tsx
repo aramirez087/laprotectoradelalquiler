@@ -25,7 +25,7 @@ export default function MigracionLegacyPage() {
         </p>
       )}
 
-      <FormMigracionLegacy authDisponible={destino.auth} />
+      <FormMigracionLegacy authDisponible={destino.auth} destinoDisponible={destino.baseDatos} />
     </div>
   )
 }

@@ -83,10 +83,19 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <Paso
         numero="1"
         titulo="Identificación del inquilino"
-        texto="Escriba el nombre y la cédula para identificar al inquilino."
+        texto={bloqueada ? 'Esta reseña se agregará a la ficha que seleccionó.' : 'Revise el nombre y la cédula para que la reseña llegue a la persona correcta.'}
       >
-        {bloqueada && personaInicial && <p className="text-sm text-ink-soft">{nombreCompleto(personaInicial)}</p>}
-        <div className="grid gap-4 sm:grid-cols-2">
+        {bloqueada && personaInicial ? (
+          <div className="rounded-xl border border-line bg-paper p-4">
+            <p className="break-words text-lg font-medium">{nombreCompleto(personaInicial)}</p>
+            <p className="mt-1 break-words text-sm text-ink-soft">Documento {personaInicial.identificacion}</p>
+            <p className="mt-3 text-xs text-ink-soft">Los datos de esta ficha ya están registrados.</p>
+            <input type="hidden" name="nombre" value={personaInicial.nombre} />
+            <input type="hidden" name="nombre2" value={personaInicial.nombre2 ?? ''} />
+            <input type="hidden" name="apellido1" value={personaInicial.apellido1} />
+            <input type="hidden" name="apellido2" value={personaInicial.apellido2 ?? ''} />
+          </div>
+        ) : <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="etiqueta-campo" htmlFor="identificacion">
               Cédula del inquilino *
@@ -94,14 +103,13 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             <input
               {...atributosError('identificacion')}
               id="identificacion"
-              name={bloqueada ? undefined : 'identificacion'}
-              required={!bloqueada}
-              readOnly={bloqueada}
-              defaultValue={personaInicial?.identificacion ?? ''}
+              name="identificacion"
+              required
               className="campo"
               placeholder="1-0234-0567"
               autoComplete="off"
               spellCheck={false}
+              inputMode="numeric"
               maxLength={30}
               aria-describedby={
                 errorCampo('identificacion') ? 'error-identificacion ayuda-documento' : 'ayuda-documento'
@@ -109,7 +117,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             />
             <ErrorCampo nombre="identificacion" mensaje={errorCampo('identificacion')} />
             <p id="ayuda-documento" className="mt-2 text-xs text-ink-soft">
-              La cédula completa no se muestra al público.
+              Puede escribirla con o sin guiones. La cédula completa no se muestra al público.
             </p>
           </div>
           <div>
@@ -122,8 +130,6 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
               id="nombre"
               name="nombre"
               required
-              readOnly={bloqueada}
-              defaultValue={personaInicial?.nombre ?? ''}
               className="campo"
               autoComplete="off"
             />
@@ -134,14 +140,14 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
               Segundo nombre
             </label>
             <input
+              {...atributosError('nombre2')}
               maxLength={100}
               id="nombre2"
               name="nombre2"
-              readOnly={bloqueada}
-              defaultValue={personaInicial?.nombre2 ?? ''}
               className="campo"
               autoComplete="off"
             />
+            <ErrorCampo nombre="nombre2" mensaje={errorCampo('nombre2')} />
           </div>
           <div>
             <label className="etiqueta-campo" htmlFor="apellido1">
@@ -153,8 +159,6 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
               id="apellido1"
               name="apellido1"
               required
-              readOnly={bloqueada}
-              defaultValue={personaInicial?.apellido1 ?? ''}
               className="campo"
               autoComplete="off"
             />
@@ -165,22 +169,22 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
               Segundo apellido
             </label>
             <input
+              {...atributosError('apellido2')}
               maxLength={100}
               id="apellido2"
               name="apellido2"
-              readOnly={bloqueada}
-              defaultValue={personaInicial?.apellido2 ?? ''}
               className="campo"
               autoComplete="off"
             />
+            <ErrorCampo nombre="apellido2" mensaje={errorCampo('apellido2')} />
           </div>
-        </div>
+        </div>}
       </Paso>
 
       <Paso
         numero="2"
-        titulo="Cuéntenos un poco más"
-        texto="Describa hechos concretos y que pueda respaldar. Evite incluir teléfonos, direcciones u otros datos personales."
+        titulo="Ubique la experiencia"
+        texto="La fecha permite distinguir este alquiler de otras experiencias."
       >
         <div>
           <label htmlFor="fechaInicio" className="etiqueta-campo">Inicio del alquiler *</label>
@@ -190,14 +194,20 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             name="fechaInicio"
             type="date"
             required
-            className="campo"
+            className="campo sm:max-w-xs"
             aria-describedby={errorCampo('fechaInicio') ? 'error-fechaInicio ayuda-inicio' : 'ayuda-inicio'}
           />
           <ErrorCampo nombre="fechaInicio" mensaje={errorCampo('fechaInicio')} />
           <p id="ayuda-inicio" className="mt-2 text-xs text-ink-soft">
-            Use la fecha en que comenzó este alquiler. Varias reseñas sobre el mismo alquiler cuentan como una sola experiencia para su permiso.
+            Use la fecha en que comenzó este alquiler. No puede ser una fecha futura.
           </p>
         </div>
+      </Paso>
+      <Paso
+        numero="3"
+        titulo="Comparta lo que ocurrió"
+        texto="Describa hechos concretos y que pueda respaldar. Evite incluir teléfonos, direcciones u otros datos personales."
+      >
         <div>
           <label htmlFor="comentario" className="etiqueta-campo">
             Su experiencia *
@@ -217,13 +227,13 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             placeholder="Por ejemplo: cómo fue la comunicación, el cumplimiento de los pagos y la entrega de la propiedad."
           />
           <ErrorCampo nombre="comentario" mensaje={errorCampo('comentario')} />
-          <p id="ayuda-comentario" className="mt-2 text-right text-xs text-ink-soft">
-            {comentario.length.toLocaleString('es-CR')} / 5.000 caracteres
-          </p>
+          <div id="ayuda-comentario" className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-ink-soft">
+            <span>Mínimo 30 caracteres. Unas pocas frases bastan.</span>
+            <span className="tabular-nums">{comentario.length.toLocaleString('es-CR')} / 5.000</span>
+          </div>
         </div>
-      </Paso>
       <label htmlFor="anonima" className="opcion-rol flex items-start gap-3">
-        <input id="anonima" name="anonima" type="checkbox" value="1" className="mt-1 h-4 w-4 shrink-0" />
+        <input id="anonima" name="anonima" type="checkbox" value="1" className="mt-0.5 h-5 w-5 shrink-0" />
         <span>
           <span className="block text-sm font-medium">Ocultar mi nombre</span>
           <span className="mt-0.5 block text-xs text-ink-soft">
@@ -232,14 +242,15 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
           </span>
         </span>
       </label>
+      </Paso>
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
-            ? 'Se envía a revisión. Si corresponde a una experiencia distinta y se aprueba, suma 3 meses de consulta, hasta el máximo de 12 meses acumulados. Puede seguir el estado en su perfil.'
+            ? 'Puede seguir la revisión en su perfil. Cada experiencia distinta aprobada suma 3 meses de consulta, hasta 12 meses acumulados. Varias reseñas del mismo alquiler cuentan como una sola experiencia.'
             : 'Como administración, la reseña se publica de inmediato.'}
         </p>
-        <button disabled={pendiente} className="btn-primario shrink-0">
-          {pendiente ? 'Enviando…' : enRevision ? 'Enviar reseña a revisión' : 'Publicar ahora'}
+        <button type="submit" disabled={pendiente} className="btn-primario shrink-0">
+          {pendiente ? 'Enviando reseña…' : enRevision ? 'Enviar reseña a revisión' : 'Publicar reseña'}
         </button>
       </div>
     </form>

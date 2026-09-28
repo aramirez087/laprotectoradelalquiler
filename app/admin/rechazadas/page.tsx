@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
@@ -24,11 +25,12 @@ export default async function RechazadasPage(props: { searchParams: Promise<Reco
   if (!aviso && pagina > paginas) redirect(paginas > 1 ? `/admin/rechazadas?pagina=${paginas}` : '/admin/rechazadas')
 
   return (
-    <div className="contenedor space-y-5">
-      <h1 className="text-3xl">Reseñas rechazadas</h1>
-      {aviso && <p className="aviso aviso-error">{aviso}</p>}
-      {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas rechazadas.</p>}
-      <div className="space-y-3">
+    <div className="contenedor space-y-7">
+      <CabeceraAdmin titulo="Reseñas rechazadas" descripcion="Consulte las decisiones anteriores. Si corresponde, puede publicar una reseña o devolverla a revisión." />
+      {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
+      {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />}
+      {!aviso && filas.length === 0 && <VacioAdmin titulo="No hay reseñas rechazadas" descripcion="Cuando una reseña se rechace, podrá consultar aquí su contenido y el motivo de la decisión." href="/admin/revision" accion="Ir a revisión" />}
+      <div className="space-y-5">
         {filas.map((fila) => (
           <ResenaAdmin key={fila.id} fila={fila} />
         ))}

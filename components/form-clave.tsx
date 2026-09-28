@@ -10,9 +10,11 @@ type AccionClave = (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
 export function FormClave({
   accion = cambiarClave,
   etiqueta = 'Cambiar clave',
+  anchoCompleto = false,
 }: {
   accion?: AccionClave
   etiqueta?: string
+  anchoCompleto?: boolean
 }) {
   const { estado, pendiente, formProps } = useFormAction(accion, { resetOnSuccess: true })
 
@@ -29,12 +31,12 @@ export function FormClave({
       </div>
       <div>
         <label className="etiqueta-campo" htmlFor="confirmacion">
-          Repita la clave
+          Confirme la clave nueva
         </label>
         <CampoClave id="confirmacion" name="confirmacion" autoComplete="new-password" />
       </div>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
-      <button disabled={pendiente} className="btn-primario">
+      <button disabled={pendiente} className={`btn-primario ${anchoCompleto ? 'w-full' : 'w-full sm:w-auto'}`}>
         {pendiente ? 'Guardando…' : etiqueta}
       </button>
     </form>

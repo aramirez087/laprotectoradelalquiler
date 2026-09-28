@@ -10,15 +10,33 @@ export const metadata: Metadata = {
 export default function PrivacidadPage() {
   return (
     <article className="contenedor max-w-2xl space-y-8 py-10">
+      <Link href="/" className="enlace-atras">← Volver al inicio</Link>
       <header className="space-y-3">
-        <h1 className="text-3xl">Privacidad</h1>
+        <p className="eyebrow">Su información</p>
+        <h1 className="text-3xl sm:text-4xl">Privacidad</h1>
         <p className="text-sm leading-relaxed text-ink-soft">
           La Protectora del Alquiler es un registro de experiencias de alquiler en Costa Rica. Esta página describe
-          los datos que guarda el sitio y quién puede verlos. Texto del 27 de septiembre de 2026.
+          los datos que guarda el sitio y quién puede verlos.
         </p>
+        <p className="text-xs text-ink-soft">Actualizado el 27 de septiembre de 2026</p>
       </header>
 
-      <section className="space-y-2">
+      <nav aria-label="En esta página" className="rounded-2xl border border-line bg-card p-5">
+        <p className="mb-2 text-sm font-semibold">En esta página</p>
+        <ul className="grid gap-x-5 sm:grid-cols-2">
+          {[
+            ['cuenta', 'Su cuenta'],
+            ['facebook', 'Ingreso con Facebook'],
+            ['resenas', 'Reseñas y cédula'],
+            ['visibilidad', 'Quién ve sus datos'],
+            ['eliminacion', 'Eliminar el ingreso con Facebook'],
+          ].map(([id, texto]) => (
+            <li key={id}><a href={`#${id}`} className="enlace-texto">{texto}</a></li>
+          ))}
+        </ul>
+      </nav>
+
+      <section id="cuenta" className="space-y-3">
         <h2 className="text-xl">Cuenta</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           Para crear una cuenta pedimos el nombre, el correo, la cédula, el rol (propietario, agencia o inquilino) y
@@ -27,7 +45,7 @@ export default function PrivacidadPage() {
         </p>
       </section>
 
-      <section className="space-y-2">
+      <section id="facebook" className="space-y-3">
         <h2 className="text-xl">Facebook</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           Si entra con Facebook, recibimos el nombre y, cuando Facebook lo entrega, el correo. La cédula, el rol y el
@@ -37,7 +55,7 @@ export default function PrivacidadPage() {
         </p>
       </section>
 
-      <section className="space-y-2">
+      <section id="resenas" className="space-y-3">
         <h2 className="text-xl">Reseñas y cédula</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           La reseña guarda el relato y la persona de quien se habla. Si la marca anónima, el público no ve su nombre.
@@ -47,7 +65,7 @@ export default function PrivacidadPage() {
         </p>
       </section>
 
-      <section className="space-y-2">
+      <section id="visibilidad" className="space-y-3">
         <h2 className="text-xl">Quién más los ve</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           Los usa la administración del sitio para revisar reseñas y cuentas. No los vendemos ni los usamos para

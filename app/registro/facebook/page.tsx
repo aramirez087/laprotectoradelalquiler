@@ -37,7 +37,7 @@ export default async function RegistroFacebookPage(props: {
           Confirme un correo en Facebook y vuelva a intentar el ingreso. También puede crear una cuenta con correo y clave.
         </p>
         <form action={cerrarSesion}>
-          <button type="submit" className="btn-secundario mt-4 w-full">Salir</button>
+          <button type="submit" className="btn-secundario mt-4 w-full">Cerrar sesión para volver a empezar</button>
         </form>
       </MarcoAcceso>
     )
@@ -47,8 +47,12 @@ export default async function RegistroFacebookPage(props: {
   return (
     <MarcoAcceso
       titulo="Complete su cuenta"
-      texto="Facebook confirmó su entrada. Indique su cédula y el enlace público de su perfil. Después compartirá su primera experiencia; al aprobarse, tendrá 3 meses para consultar reseñas."
+      texto="Facebook confirmó su entrada. Revise sus datos para continuar a su primera experiencia."
+      pasoRegistro={1}
     >
+      <p className="mb-6 rounded-xl border border-seal/20 bg-seal-soft px-4 py-3 text-sm leading-relaxed text-seal">
+        Su primera experiencia aprobada le da <strong className="font-semibold">3 meses para consultar reseñas</strong>.
+      </p>
       <RegistroFacebookForm
         nombre={nombreDesdeFacebook(user.user_metadata)}
         email={email}

@@ -56,23 +56,26 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
           </main>
         </AvisosAdmin>
         <footer className="pie-pagina">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 sm:px-6">
-            <p className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span>La Protectora del Alquiler</span>
-              <Link href="/privacidad" className="underline-offset-4 hover:underline">
+          <div className="mx-auto flex max-w-6xl flex-col justify-between gap-x-6 gap-y-3 px-4 py-6 sm:flex-row sm:items-center sm:px-6">
+            <div>
+              <p className="font-medium text-ink">La Protectora del Alquiler</p>
+              <p className="mt-1">Experiencias compartidas. Decisiones informadas.</p>
+            </div>
+            <nav aria-label="Información y comunidad" className="flex flex-wrap items-center gap-x-5 gap-y-1">
+              <Link href="/privacidad" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
                 Privacidad
               </Link>
-            </p>
-            <a
-              href="https://www.facebook.com/groups/299591643850909"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 text-seal underline-offset-4 hover:underline"
-            >
-              Comunidad en Facebook
-              <span aria-hidden="true">↗</span>
-              <span className="sr-only"> (se abre en una pestaña nueva)</span>
-            </a>
+              <a
+                href="https://www.facebook.com/groups/299591643850909"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 text-seal underline-offset-4 hover:underline"
+              >
+                Comunidad en Facebook
+                <span aria-hidden="true">↗</span>
+                <span className="sr-only"> (se abre en una pestaña nueva)</span>
+              </a>
+            </nav>
           </div>
         </footer>
       </body>

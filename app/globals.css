@@ -29,7 +29,9 @@
   --color-line: var(--line);
   --color-card: var(--card);
   --color-seal: var(--seal);
+  --color-seal-soft: var(--seal-soft);
   --color-alerta: var(--alerta);
+  --color-alerta-soft: var(--alerta-soft);
   --color-brass: var(--brass);
   --color-moss: var(--moss);
   --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
@@ -108,6 +110,7 @@ h1 {
 
 h2 {
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 ::selection {
@@ -240,6 +243,7 @@ a.expediente:hover {
   background: var(--card);
   color: var(--ink);
   font-size: 1rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 textarea.campo {
@@ -254,6 +258,7 @@ textarea.campo {
 
 .campo:focus {
   border-color: var(--seal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--seal) 12%, transparent);
 }
 
 .campo[readonly] {
@@ -588,17 +593,25 @@ code {
 /* The homepage stays quiet: one illustration, one search, one next step. */
 .inicio {
   display: flex;
-  min-height: calc(100svh - 8.25rem);
+  min-height: calc(100svh - 10rem);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2.25rem 1rem 2.75rem;
+  padding: 2.5rem 1rem 3rem;
   text-align: center;
+}
+
+.titulo-inicio {
+  font-size: clamp(2.65rem, 6.5vw, 4.5rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1.05;
 }
 
 .buscador-inicio {
   min-height: 3.75rem;
   padding-left: 1.25rem;
+  border-color: var(--control-line);
   box-shadow: 0 3px 14px color-mix(in srgb, var(--ink) 4%, transparent);
   transition:
     border-color 0.15s ease,
@@ -677,10 +690,12 @@ code {
 }
 
 .menu-toggle {
+  gap: 0.5rem;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
+  min-width: 2.75rem;
   height: 2.75rem;
+  padding-inline: 0.75rem;
   border: 1px solid var(--line);
   border-radius: 0.6rem;
   cursor: pointer;
@@ -805,6 +820,7 @@ input[type='radio'] {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 1.25rem;
+  box-shadow: 0 5px 24px -16px color-mix(in srgb, var(--ink) 20%, transparent);
 }
 .icono-estado {
   display: inline-flex;
@@ -1034,6 +1050,9 @@ a.metrico:hover {
 .panel-nav {
   display: none;
   width: 100%;
+  max-height: calc(100svh - 9rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .panel-nav-abierto {
   display: block;
@@ -1043,6 +1062,9 @@ a.metrico:hover {
   flex-direction: column;
   gap: 0.25rem;
   padding-block: 0.75rem;
+}
+.enlaces-principales > form .enlace-nav {
+  width: 100%;
 }
 .tema-nav {
   display: flex;
@@ -1063,6 +1085,8 @@ a.metrico:hover {
     align-items: center;
     gap: 1.5rem;
     width: auto;
+    max-height: none;
+    overflow: visible;
   }
   .enlaces-principales {
     flex-direction: row;
@@ -1074,8 +1098,69 @@ a.metrico:hover {
     border: 0;
     padding: 0;
   }
+  .acceso-nav {
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.65rem;
+    color: var(--ink);
+  }
+  .acceso-nav:hover,
+  .acceso-nav.enlace-nav-activo {
+    background: var(--seal-soft);
+    border-color: var(--control-line);
+    box-shadow: none;
+  }
 }
 
 .expediente {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 1023px) {
+  .enlaces-principales .enlace-nav {
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.6rem;
+  }
+  .enlaces-principales .enlace-nav:hover,
+  .enlaces-principales .enlace-nav-activo {
+    background: var(--seal-soft);
+    color: var(--seal);
+    box-shadow: none;
+  }
+  .enlaces-principales .enlace-nav-activo {
+    font-weight: 650;
+  }
+}
+
+/* Long identifiers and translated control text must reflow, including at 200% zoom. */
+main,
+fieldset {
+  min-width: 0;
+}
+.btn-primario,
+.btn-secundario,
+.btn-claro,
+.aviso {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 380px) {
+  .titulo-inicio {
+    font-size: 2.5rem;
+  }
+  .buscador-inicio {
+    flex-wrap: wrap;
+    column-gap: 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 1rem;
+  }
+  .buscador-inicio input {
+    width: calc(100% - 2rem);
+  }
+  .buscador-inicio .boton-buscar {
+    width: 100%;
+    margin: 0.25rem 0 0;
+    border-radius: 0.65rem;
+  }
 }
