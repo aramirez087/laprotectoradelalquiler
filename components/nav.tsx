@@ -12,7 +12,7 @@ export function Nav({
   usuario,
   tema,
 }: {
-  usuario: { nombre: string; rol: Rol; consulta: boolean } | null
+  usuario: { nombre: string; rol: Rol; consulta: boolean; administra?: boolean } | null
   tema: Tema
 }) {
   const path = usePathname()
@@ -50,7 +50,7 @@ export function Nav({
       <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
         Escribir reseña
       </Link>
-      {usuario?.rol === 'admin' && (
+      {usuario?.administra && (
         <Link href="/admin" aria-current={actual('/admin')} className={clase('/admin')}>
           Administración
         </Link>

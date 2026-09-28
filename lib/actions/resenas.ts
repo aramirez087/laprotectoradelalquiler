@@ -77,6 +77,8 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
     redirect(enRevision ? '/perfil?enviada=1' : `/fichas/${fichaId}`)
   } catch (e) {
     unstable_rethrow(e)
-    return { error: e instanceof Error ? e.message : 'No se pudo guardar la reseña.' }
+    const mensaje = e instanceof Error ? e.message : ''
+    const propio = /^(No |Su cuenta|Revise )/.test(mensaje) && !/relation|policy|permission|jwt|duplicate key/i.test(mensaje)
+    return { error: propio ? mensaje : 'No se pudo guardar la reseña.' }
   }
 }

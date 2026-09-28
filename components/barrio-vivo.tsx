@@ -11,7 +11,7 @@ const imagen = {
   sizes: '(max-width: 373px) 75vw, (max-width: 639px) 280px, 336px',
 } as const
 
-/** Only the sun and moon move; the neighborhood and page stay still. */
+/** The sun and moon follow a quiet arc above the fixed neighborhood. */
 export function BarrioVivo() {
   const escena = useRef<HTMLDivElement>(null)
 
@@ -24,34 +24,51 @@ export function BarrioVivo() {
     let visible = false
     let frame = 0
     let anterior = 0
-    let x = 0
-    let y = 0
-    let destinoX = 0
-    let destinoY = 0
+    // A circular path centered below the neighborhood, preserving the artwork's
+    // resting position. Smooth the angle so even reversals stay on the arc.
+    const inclinacion = -18 * Math.PI / 180
+    const recorrido = 14 * Math.PI / 180
+    const velocidadMaxima = 4 * Math.PI / 180 // At most four degrees per second.
+    const radio = 45 // Percentage of the illustration's width.
+    let angulo = 0
+    let destino = 0
+    let velocidad = 0
 
     function dibujar() {
-      elemento!.style.setProperty('--barrio-x', x.toFixed(4))
-      elemento!.style.setProperty('--barrio-y', y.toFixed(4))
+      const actual = inclinacion + angulo
+      const x = radio * (Math.sin(actual) - Math.sin(inclinacion))
+      // The artwork is twice as wide as it is tall: keep the radius circular.
+      const y = radio * 2 * (Math.cos(inclinacion) - Math.cos(actual))
+      elemento!.style.setProperty('--orbita-x', `${x.toFixed(4)}%`)
+      elemento!.style.setProperty('--orbita-y', `${y.toFixed(4)}%`)
     }
 
-    function detener() {
+    function pausar() {
       cancelAnimationFrame(frame)
       frame = 0
       anterior = 0
-      x = y = destinoX = destinoY = 0
+      velocidad = 0
+      destino = angulo
+    }
+
+    function detener() {
+      pausar()
+      angulo = destino = velocidad = 0
       dibujar()
     }
 
     function animar(ahora: number) {
-      // Time-based easing feels the same on 60 Hz and high-refresh displays.
-      const paso = 1 - Math.exp(-Math.min(ahora - (anterior || ahora - 16), 64) / 130)
+      // Ease velocity as well as position: quick pointer changes cannot make
+      // the sun jump or reverse abruptly. The speed cap applies on every frame.
+      const segundos = Math.min(ahora - (anterior || ahora - 16), 64) / 1000
       anterior = ahora
-      x += (destinoX - x) * paso
-      y += (destinoY - y) * paso
+      const deseada = Math.max(-velocidadMaxima, Math.min(velocidadMaxima, destino - angulo))
+      velocidad += (deseada - velocidad) * (1 - Math.exp(-segundos / 0.25))
+      angulo += velocidad * segundos
 
-      if (Math.abs(destinoX - x) + Math.abs(destinoY - y) < 0.001) {
-        x = destinoX
-        y = destinoY
+      if (Math.abs(destino - angulo) < 0.0001 && Math.abs(velocidad) < 0.0001) {
+        angulo = destino
+        velocidad = 0
         frame = 0
         anterior = 0
       } else {
@@ -67,13 +84,13 @@ export function BarrioVivo() {
     function seguir(evento: PointerEvent) {
       if (!visible || !movimiento.matches || document.hidden || evento.pointerType !== 'mouse') return
       const limites = elemento!.getBoundingClientRect()
-      destinoX = Math.max(-1, Math.min(1, (evento.clientX - limites.left - limites.width / 2) / 420))
-      destinoY = Math.max(-1, Math.min(1, (evento.clientY - limites.top - limites.height / 2) / 360))
+      const posicion = Math.max(-1, Math.min(1, (evento.clientX - limites.left - limites.width / 2) / 420))
+      destino = posicion * recorrido
       iniciar()
     }
 
     function volver() {
-      destinoX = destinoY = 0
+      destino = 0
       if (movimiento.matches && visible && !document.hidden) iniciar()
       else detener()
     }
@@ -85,7 +102,7 @@ export function BarrioVivo() {
     observador.observe(elemento)
     inicio.addEventListener('pointermove', seguir, { passive: true })
     inicio.addEventListener('pointerleave', volver)
-    window.addEventListener('blur', detener)
+    window.addEventListener('blur', pausar)
     document.addEventListener('visibilitychange', detener)
     movimiento.addEventListener('change', detener)
 
@@ -94,7 +111,7 @@ export function BarrioVivo() {
       observador.disconnect()
       inicio.removeEventListener('pointermove', seguir)
       inicio.removeEventListener('pointerleave', volver)
-      window.removeEventListener('blur', detener)
+      window.removeEventListener('blur', pausar)
       document.removeEventListener('visibilitychange', detener)
       movimiento.removeEventListener('change', detener)
     }

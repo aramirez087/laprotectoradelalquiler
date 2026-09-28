@@ -2,7 +2,7 @@ import 'server-only'
 
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
-import { altaFacebookPendiente } from '@/lib/facebook-alta'
+import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
 import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
@@ -40,50 +40,34 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+  // Una cuenta nueva de Facebook elige cédula y rol en /registro/facebook.
+  if (cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
 
-  const filtros = [`auth_user_id.eq.${user.id}`]
-  if (user.email) filtros.push(`email.eq.${user.email.toLowerCase()}`)
-  let { data } = await supabase
-    .from('usuarios')
-    .select('*')
-    .or(filtros.join(','))
-    .maybeSingle()
-
-  // El correo puede coincidir con otra cuenta. No la tomes como propia.
-  if (data?.auth_user_id && data.auth_user_id !== user.id && cuentaCreadaConFacebook(user)) {
-    data = null
-  }
-
-  if (!data) {
-    // Una cuenta nueva de Facebook elige cédula y rol en /registro/facebook.
-    // Insertar aquí dejaría el rol por defecto, y el trigger impide que la persona lo cambie.
-    if (cuentaCreadaConFacebook(user)) return null
-    // Self-healing: existe en Auth pero aún no tiene perfil en la BD
-    const cedulaMeta =
-      typeof user.user_metadata?.identificacion === 'string' ? normalizarCedula(user.user_metadata.identificacion) : ''
-    const { data: creado } = await supabase
+  const admin = createAdmin()
+  if (admin) {
+    const { data, error } = await admin
       .from('usuarios')
-      .insert({
-        auth_user_id: user.id,
-        email: user.email ?? '',
-        nombre: (user.user_metadata?.nombre as string) ?? 'Usuario',
-        rol: (user.user_metadata?.rol as Rol) ?? 'propietario',
-        identificacion: esCedulaValida(cedulaMeta) ? cedulaMeta : null,
-      })
-      .select()
-      .single()
-    data = creado
-  } else if (user.email && data.email.toLowerCase() === user.email.toLowerCase() && !data.auth_user_id) {
-    // Perfil ya existía (seed o migración) sin estar enlazado: enlazar
-    const { data: upd } = await supabase
-      .from('usuarios')
-      .update({ auth_user_id: user.id })
-      .eq('id', data.id)
-      .select()
+      .select('*')
+      .eq('auth_user_id', user.id)
       .maybeSingle()
-    if (upd) data = upd
+    if (error || !data) return null
+    return data as Usuario
   }
-  return data as Usuario
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre, avatar_url, rol, activo, ultimo_acceso, creado_en, actualizado_en')
+    .eq('auth_user_id', user.id)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    ...data,
+    email: user.email ?? '',
+    identificacion: null,
+    telefono: null,
+    auth_user_id: user.id,
+    persona_id: null,
+  } as Usuario
 })
 
 /** Completa cédula y Facebook si el alta los guardó en la sesión y faltan en el perfil. */
@@ -155,7 +139,7 @@ export async function requireUsuario(siguiente = '/fichas'): Promise<Usuario> {
 
 export async function requerirRol(...roles: Rol[]) {
   const u = await requireUsuario()
-  if (!roles.includes(u.rol)) redirect('/')
+  if (!u.activo || !roles.includes(u.rol)) redirect('/')
   return u
 }
 
@@ -203,7 +187,7 @@ export async function buscarFichas(opts: {
   const usuario = await obtenerUsuario()
   if (!usuario || !(await puedeConsultar(usuario))) return { fichas: [], total: 0 }
 
-  const supabase = await createClient()
+  const supabase = await clienteServicio()
   const porPagina = 20
   const pagina = Math.max(1, Number.isFinite(opts.pagina) ? Math.floor(opts.pagina ?? 1) : 1)
 
@@ -272,7 +256,7 @@ export async function resumenRegistro(): Promise<{ personas: number; resenas: nu
   const usuario = await obtenerUsuario()
   if (!usuario || !(await puedeConsultar(usuario))) return null
   try {
-    const supabase = await createClient()
+    const supabase = await clienteServicio()
     const [personas, resenas] = await Promise.all([
       supabase.from('personas').select('id', { count: 'exact', head: true }),
       supabase.from('resenas').select('id', { count: 'exact', head: true }).eq('estado', 'publicada'),
@@ -288,7 +272,7 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
   const usuario = await obtenerUsuario()
   if (!usuario || !(await puedeConsultar(usuario))) return null
 
-  const supabase = await createClient()
+  const supabase = await clienteServicio()
   const admin = createAdmin()
   // autor_id no es legible por la sesión. Con clave de servicio se resuelve
   // después y se omite si la reseña es anónima para quien no administra.
@@ -352,9 +336,11 @@ export async function crearResena(input: {
 }) {
   const yo = await requireUsuario()
   if (yo.id !== input.autorId) throw new Error('No puede publicar a nombre de otra cuenta.')
+  if (!yo.activo) throw new Error('Su cuenta está inactiva y no puede publicar.')
 
   const supabase = await createClient()
   const admin = createAdmin()
+  const dbPersona = admin ?? supabase
   const enRevision = yo.rol !== 'admin'
   if (enRevision && !admin) {
     throw new Error('No pudimos enviar la reseña a revisión. Falta la configuración de administración.')
@@ -365,12 +351,12 @@ export async function crearResena(input: {
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.
   let persona: { id: number } | null = null
   if (input.personaId) {
-    const { data, error } = await supabase.from('personas').select('id').eq('id', input.personaId).maybeSingle()
+    const { data, error } = await dbPersona.from('personas').select('id').eq('id', input.personaId).maybeSingle()
     if (error) throw error
     if (!data) throw new Error('No encontramos a esa persona en el registro.')
     persona = data
   } else {
-    const { data: exacta, error: errorExacta } = await supabase
+    const { data: exacta, error: errorExacta } = await dbPersona
       .from('personas')
       .select('id')
       .eq('identificacion', identificacion)
@@ -381,7 +367,7 @@ export async function crearResena(input: {
     const digitos = identificacion.replace(/\D/g, '')
     if (!persona && digitos.length >= 6) {
       const patron = `%${digitos.split('').join('%')}%`
-      const { data: candidatos, error } = await supabase
+      const { data: candidatos, error } = await dbPersona
         .from('personas')
         .select('id, identificacion')
         .ilike('identificacion', patron)
@@ -392,7 +378,7 @@ export async function crearResena(input: {
   }
 
   if (!persona) {
-    const { data: nueva, error } = await supabase
+    const { data: nueva, error } = await dbPersona
       .from('personas')
       .insert({
         identificacion,
@@ -405,7 +391,7 @@ export async function crearResena(input: {
       .select('id')
       .single()
     if (error?.code === '23505') {
-      const { data: otra, error: errorOtra } = await supabase
+      const { data: otra, error: errorOtra } = await dbPersona
         .from('personas')
         .select('id')
         .eq('identificacion', identificacion)
@@ -520,7 +506,7 @@ export async function denunciarResena(input: {
 export async function buscarPersonasParaResena(q: string) {
   const usuario = await obtenerUsuario()
   if (!usuario || !(await puedeConsultar(usuario))) return []
-  const supabase = await createClient()
+  const supabase = await clienteServicio()
   const { data } = await supabase
     .from('personas')
     .select('id, nombre, nombre2, apellido1, apellido2, identificacion')
@@ -534,10 +520,9 @@ function uno<T>(valor: T | T[] | null | undefined): T | null {
   return Array.isArray(valor) ? valor[0] ?? null : valor
 }
 
-// Catálogos y tablas puente no son legibles con el rol de la sesión (RLS sin
-// política de lectura). El cliente de servicio solo completa fichas que esa
-// sesión ya pudo ver.
-async function clienteCatalogo() {
+// La cédula, los borradores y las tablas privadas solo los lee el servicio,
+// después de autorizar en el servidor. El cliente de la sesión es el respaldo.
+async function clienteServicio() {
   return createAdmin() ?? (await createClient())
 }
 
@@ -647,7 +632,7 @@ async function enriquecerFicha(ficha: FichaCompleta, usuario: Usuario): Promise<
 }
 
 export const obtenerLookups = cache(async (): Promise<Lookups> => {
-  const supabase = await clienteCatalogo()
+  const supabase = await clienteServicio()
   const [calif, etq, danos, procesos, contratos, tiposAlq, tiempos, provincias] =
     await Promise.all([
       supabase.from('calificaciones').select('*').order('valor'),

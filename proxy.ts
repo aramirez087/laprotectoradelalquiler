@@ -4,8 +4,52 @@ import { authFacebookHabilitado, cuentaCreadaConFacebook, esRutaDeAltaFacebook }
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno } from '@/lib/util'
 
+function politicaContenido(nonce: string) {
+  const desarrollo = process.env.NODE_ENV === 'development'
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${desarrollo ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data: https:",
+    "font-src 'self'",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    desarrollo ? '' : 'upgrade-insecure-requests',
+  ]
+    .filter(Boolean)
+    .join('; ')
+}
+
+function conSeguridad(response: NextResponse, csp: string) {
+  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  return response
+}
+
+function urlLogin(request: NextRequest, path: string) {
+  const url = request.nextUrl.clone()
+  url.pathname = '/login'
+  url.search = ''
+  url.searchParams.set('siguiente', destinoInterno(path + request.nextUrl.search))
+  return url
+}
+
 export async function proxy(request: NextRequest) {
-  if (sinSupabase()) return NextResponse.next()
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const csp = politicaContenido(nonce)
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('Content-Security-Policy', csp)
+  const continuar = () =>
+    conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp)
+
+  if (sinSupabase()) return continuar()
 
   const path = request.nextUrl.pathname
   const protegida =
@@ -15,54 +59,35 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/admin') ||
     path.startsWith('/registro/resena')
   const vigilarFacebook = authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
-  if (!protegida && !vigilarFacebook) return NextResponse.next()
+  if (!protegida && !vigilarFacebook) return continuar()
 
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (protegida && !session) {
-    const destino = destinoInterno(path + request.nextUrl.search)
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.search = ''
-    url.searchParams.set('siguiente', destino)
-    return NextResponse.redirect(url)
-  }
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (protegida && !user) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp)
 
-  if (vigilarFacebook && session && cuentaCreadaConFacebook(session.user)) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        if (!protegida) return NextResponse.next()
-        const url = request.nextUrl.clone()
-        url.pathname = '/login'
-        url.search = ''
-        url.searchParams.set('siguiente', destinoInterno(path + request.nextUrl.search))
-        return NextResponse.redirect(url)
-      }
-      if (cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) {
-        const destino = destinoInterno(path + request.nextUrl.search)
-        const url = request.nextUrl.clone()
-        url.pathname = '/registro/facebook'
-        url.search = ''
-        url.searchParams.set('siguiente', destino)
-        return NextResponse.redirect(url)
-      }
-    } catch {
-      return NextResponse.next()
+    if (vigilarFacebook && user && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/registro/facebook'
+      url.search = ''
+      url.searchParams.set('siguiente', destinoInterno(path + request.nextUrl.search))
+      return conSeguridad(NextResponse.redirect(url), csp)
     }
+  } catch {
+    if (protegida) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp)
   }
 
-  return NextResponse.next()
+  return continuar()
 }
 
 export const config = {
   matcher: [
-    '/',
-    '/login',
-    '/registro/:path*',
-    '/fichas/:path*',
-    '/resenas/:path*',
-    '/perfil/:path*',
-    '/admin/:path*',
+    {
+      source: '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+      ],
+    },
   ],
 }

@@ -40,10 +40,10 @@ export async function vincularCuentaListaPorCorreo(authUserId: string, email: st
   if (!admin || !correo) return false
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, auth_user_id, identificacion')
+    .select('id, auth_user_id, identificacion, rol')
     .eq('email', correo)
     .maybeSingle()
-  if (error || !data || data.auth_user_id) return false
+  if (error || !data || data.auth_user_id || data.rol === 'admin') return false
   if (!esCedulaValida(data.identificacion)) return false
   const { data: facebook, error: errorFacebook } = await admin
     .from('autenticaciones')

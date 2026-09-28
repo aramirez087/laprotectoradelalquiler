@@ -25,6 +25,8 @@ function cargar(ruta, mocks = {}) {
     require: resolver,
     process,
     console,
+    crypto,
+    Headers,
     URL,
     URLSearchParams,
     Buffer,
@@ -123,6 +125,43 @@ test('Facebook registration uses the provider email even if the form submits ano
   assert.equal(correoGuardado, 'confirmado@example.com')
 })
 
+test('registration does not take over an unlinked profile', async () => {
+  let actualizo = false
+  let creoAuth = false
+  const admin = {
+    auth: { admin: { createUser: async () => { creoAuth = true; return { data: { user: null }, error: null } } } },
+    from: tabla => consulta(({ operacion, filtros }) => {
+      if (tabla === 'usuarios' && operacion === 'update') {
+        actualizo = true
+        return { data: { id: 9 }, error: null }
+      }
+      if (tabla === 'usuarios' && operacion === 'select' && filtros.some((filtro) => filtro[0] === 'ilike')) {
+        return { data: [], error: null }
+      }
+      if (tabla === 'usuarios' && operacion === 'select') {
+        return { data: { id: 9, auth_user_id: null }, error: null }
+      }
+      return { data: null, error: null }
+    }, tabla),
+  }
+  const acciones = cargar('lib/actions/auth.ts', {
+    'next/headers': {},
+    'next/navigation': { redirect: redirigir },
+    '@/lib/dal': {},
+    '@/lib/supabase/admin': { createAdmin: () => admin },
+    '@/lib/supabase/server': { sinSupabase: () => false, createClient: async () => ({}) },
+  })
+  const formulario = new FormData()
+  for (const [campo, valor] of Object.entries({
+    nombre: 'Persona Nueva', email: 'admin@laprotec.test', cedula: '102340567',
+    facebook: 'perfil.nuevo', clave: 'clave1234', rol: 'inquilino',
+  })) formulario.set(campo, valor)
+  const resultado = await acciones.registrarse(undefined, formulario)
+  assert.match(resultado.error, /inicie sesión/i)
+  assert.equal(actualizo, false)
+  assert.equal(creoAuth, false)
+})
+
 test('proxy uses current provider after unlinking and rejects deleted accounts', async () => {
   process.env.AUTH_FACEBOOK = '1'
   const { NextRequest } = require('next/server')
@@ -135,9 +174,6 @@ test('proxy uses current provider after unlinking and rejects deleted accounts',
     '@/lib/supabase/server': {
       sinSupabase: () => false,
       createClient: async () => ({ auth: {
-        getSession: async () => ({ data: { session: {
-          user: { id: 'auth-facebook', app_metadata: { provider: 'facebook' } },
-        } } }),
         getUser: async () => ({ data: { user: usuarioActual } }),
       } }),
     },

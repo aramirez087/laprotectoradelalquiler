@@ -1,6 +1,6 @@
 .escena {
-  --barrio-x: 0;
-  --barrio-y: 0;
+  --orbita-x: 0%;
+  --orbita-y: 0%;
   --ventanas: 0;
   --luz: 0.2;
   --filtro-sol: none;
@@ -28,7 +28,7 @@
 }
 
 .cielo {
-  transform: translate3d(calc(var(--barrio-x) * -7px), calc(var(--barrio-y) * -4px), 0);
+  transform: translate3d(var(--orbita-x), var(--orbita-y), 0);
 }
 
 .sol {
@@ -109,11 +109,9 @@
 @keyframes amanecer {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

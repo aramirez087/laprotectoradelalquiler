@@ -35,6 +35,8 @@ const SchemaLogin = z.object({
   clave: z.string().min(1, 'Escriba su clave'),
 })
 
+const CUENTA_OCUPADA = 'No pudimos crear la cuenta. Si ya está registrado, inicie sesión.'
+
 function avisoSinSupabase() {
   return {
     error:
@@ -94,9 +96,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   }
 
   try {
-    if (await cedulaEnUso(admin, cedula, email)) {
-      return { error: 'Esa cédula ya está registrada. Si es suya, inicie sesión.' }
-    }
+    if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
     const { data: facebookTomado, error: errorFacebook } = await admin
       .from('autenticaciones')
       .select('id')
@@ -104,7 +104,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       .eq('proveedor_id', facebook)
       .maybeSingle()
     if (errorFacebook) return { error: 'No pudimos revisar el perfil de Facebook. Intente de nuevo.' }
-    if (facebookTomado) return { error: 'Ese perfil de Facebook ya está registrado.' }
+    if (facebookTomado) return { error: CUENTA_OCUPADA }
 
     const { data: porEmail, error: errorEmail } = await admin
       .from('usuarios')
@@ -112,7 +112,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       .eq('email', email)
       .maybeSingle()
     if (errorEmail) return { error: 'No pudimos crear la cuenta. Intente de nuevo.' }
-    if (porEmail?.auth_user_id) return { error: 'Ese correo ya tiene cuenta. Inicie sesión.' }
+    if (porEmail) return { error: CUENTA_OCUPADA }
 
     const { data, error } = await admin.auth.admin.createUser({
       email,
@@ -124,36 +124,23 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       return {
         error:
           error && /already|registered/i.test(error.message)
-            ? 'Ese correo ya tiene cuenta. Inicie sesión.'
+            ? CUENTA_OCUPADA
             : 'No pudimos crear la cuenta. Intente de nuevo.',
       }
     }
     const authUserId = data.user.id
 
-    const perfil = porEmail
-      ? await admin
-          .from('usuarios')
-          .update({
-            auth_user_id: authUserId,
-            nombre,
-            rol,
-            identificacion: cedula,
-            actualizado_en: new Date().toISOString(),
-          })
-          .eq('id', porEmail.id)
-          .select('id')
-          .single()
-      : await admin
-          .from('usuarios')
-          .insert({
-            auth_user_id: authUserId,
-            email,
-            nombre,
-            rol: rol as Rol,
-            identificacion: cedula,
-          })
-          .select('id')
-          .single()
+    const perfil = await admin
+      .from('usuarios')
+      .insert({
+        auth_user_id: authUserId,
+        email,
+        nombre,
+        rol: rol as Rol,
+        identificacion: cedula,
+      })
+      .select('id')
+      .single()
     if (perfil.error || !perfil.data) {
       await deshacerRegistro(admin, authUserId)
       return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
@@ -169,7 +156,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       return {
         error:
           errorPerfilFacebook.code === '23505'
-            ? 'Ese perfil de Facebook ya está registrado.'
+            ? CUENTA_OCUPADA
             : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.',
       }
     }
@@ -218,13 +205,13 @@ async function guardarPerfilFacebook(
     .eq('proveedor_id', facebook)
     .maybeSingle()
   if (errorAjeno) return { error: 'No pudimos revisar el perfil de Facebook. Intente de nuevo.' }
-  if (ajeno && ajeno.id !== propio?.id) return { error: 'Ese perfil de Facebook ya está registrado.' }
+  if (ajeno && ajeno.id !== propio?.id) return { error: CUENTA_OCUPADA }
   if (propio) {
     const { error } = await admin.from('autenticaciones').update({ proveedor_id: facebook }).eq('id', propio.id)
     return {
       error: error
         ? error.code === '23505'
-          ? 'Ese perfil de Facebook ya está registrado.'
+          ? CUENTA_OCUPADA
           : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.'
         : null,
     }
@@ -237,7 +224,7 @@ async function guardarPerfilFacebook(
   return {
     error: error
       ? error.code === '23505'
-        ? 'Ese perfil de Facebook ya está registrado.'
+        ? CUENTA_OCUPADA
         : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.'
       : null,
   }
@@ -285,32 +272,23 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
   let creado = false
   let usuarioId = 0
   try {
-    if (await cedulaEnUso(admin, cedula, email)) {
-      return { error: 'Esa cédula ya está registrada. Si es suya, inicie sesión.' }
-    }
+    if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
 
     const { data: porAuth, error: errorAuth } = await admin
       .from('usuarios')
-      .select('id, auth_user_id')
+      .select('id, auth_user_id, rol')
       .eq('auth_user_id', user.id)
       .maybeSingle()
     if (errorAuth) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
     const { data: porEmail, error: errorEmail } = await admin
       .from('usuarios')
-      .select('id, auth_user_id')
+      .select('id, auth_user_id, rol')
       .eq('email', email)
       .maybeSingle()
     if (errorEmail) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
-    if (porEmail?.auth_user_id && porEmail.auth_user_id !== user.id) {
-      return {
-        error: 'Ese correo ya tiene cuenta. Inicie sesión con su clave y, desde su perfil, conecte Facebook.',
-      }
-    }
-    if (porAuth && porEmail && porAuth.id !== porEmail.id) {
-      return { error: 'Ese correo ya tiene cuenta. Inicie sesión con su clave.' }
-    }
+    if (porEmail && porEmail.id !== porAuth?.id) return { error: CUENTA_OCUPADA }
 
-    const existente = porAuth ?? porEmail
+    const existente = porAuth
     if (!existente) {
       if (!parsed.data.rol) return { error: 'Elija si es propietario, agencia o inquilino.' }
       const perfil = await admin
@@ -351,11 +329,12 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
       return { error: guardado.error }
     }
 
+    const rolCuenta = (existente?.rol as Rol | undefined) ?? parsed.data.rol
     await admin.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...user.user_metadata,
         nombre,
-        rol: parsed.data.rol ?? user.user_metadata?.rol,
+        ...(rolCuenta ? { rol: rolCuenta } : {}),
         identificacion: cedula,
         facebook,
       },
@@ -385,22 +364,20 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     if (/email not confirmed/i.test(error.message)) {
       return { error: 'Confirme su correo antes de entrar. Revise la bandeja de entrada.' }
     }
-    return {
-      error: /invalid login credentials/i.test(error.message) ? 'Correo o clave incorrectos.' : error.message,
+    if (/rate limit/i.test(error.message)) {
+      return { error: 'Espere un momento antes de intentar de nuevo.' }
     }
+    return { error: 'Correo o clave incorrectos.' }
   }
 
   if (data.user) {
-    await supabase.from('usuarios').upsert(
-      {
-        auth_user_id: data.user.id,
-        email: parsed.data.email,
-        nombre: (data.user.user_metadata?.nombre as string) ?? 'Usuario',
-        rol: (data.user.user_metadata?.rol as Rol) ?? 'propietario',
-        ultimo_acceso: new Date().toISOString(),
-      },
-      { onConflict: 'auth_user_id', ignoreDuplicates: true },
-    )
+    const admin = createAdmin()
+    if (admin) {
+      await admin
+        .from('usuarios')
+        .update({ ultimo_acceso: new Date().toISOString() })
+        .eq('auth_user_id', data.user.id)
+    }
   }
 
   const jar = await cookies()

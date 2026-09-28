@@ -126,7 +126,9 @@ CREATE INDEX idx_personas_busqueda ON personas USING gin (search_vector);
 CREATE INDEX idx_personas_nombres ON personas (lower(apellido1), lower(nombre));
 
 CREATE OR REPLACE FUNCTION fn_personas_search() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
 BEGIN
   NEW.search_vector := to_tsvector('spanish',
     coalesce(NEW.nombre, '') || ' ' || coalesce(NEW.nombre2, '') || ' ' ||
@@ -284,84 +286,209 @@ CREATE INDEX idx_bitacora_usuario ON bitacora (usuario_id, creado_en DESC);
 -- plano (dev local) no hay roles auth: el bloque no hace nada y la app
 -- funciona igual; la protección final la da Supabase.
 
--- Protege rol/activo contra auto-elevación vía API (solo `authenticated`
--- toca la tabla por la API; `postgres`/`service_role` pueden todo).
+-- Protege rol y activo. El JWT trae el rol en auth.role(); session_user no
+-- cambia cuando la API usa el rol authenticated.
 CREATE OR REPLACE FUNCTION fn_usuarios_proteger_rol() RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  rol_jwt text := NULL;
 BEGIN
-  IF session_user = 'authenticated'
-     AND (NEW.rol IS DISTINCT FROM OLD.rol
-          OR NEW.activo IS DISTINCT FROM OLD.activo)
-  THEN
-    RAISE EXCEPTION 'los campos rol y activo solo los cambia la administracion';
+  IF to_regnamespace('auth') IS NOT NULL THEN
+    EXECUTE 'SELECT auth.role()' INTO rol_jwt;
+  END IF;
+
+  IF current_user IN ('authenticated', 'anon') OR rol_jwt = 'authenticated' THEN
+    IF TG_OP = 'INSERT'
+       AND (NEW.rol IS DISTINCT FROM 'propietario' OR NEW.activo IS DISTINCT FROM true)
+    THEN
+      RAISE EXCEPTION 'los campos rol y activo solo los cambia la administracion';
+    END IF;
+    IF TG_OP = 'UPDATE'
+       AND (NEW.rol IS DISTINCT FROM OLD.rol OR NEW.activo IS DISTINCT FROM OLD.activo)
+    THEN
+      RAISE EXCEPTION 'los campos rol y activo solo los cambia la administracion';
+    END IF;
   END IF;
   RETURN NEW;
 END;
 $$;
 DROP TRIGGER IF EXISTS trg_usuarios_proteger_rol ON usuarios;
 CREATE TRIGGER trg_usuarios_proteger_rol
-  BEFORE UPDATE ON usuarios
+  BEFORE INSERT OR UPDATE ON usuarios
   FOR EACH ROW EXECUTE FUNCTION fn_usuarios_proteger_rol();
 
+-- La misma contención que db/seguridad-acceso.sql, para una base nueva.
 DO $$
+DECLARE
+  tabla text;
+  catalogos text[] := ARRAY[
+    'paises', 'provincias', 'cantones', 'distritos', 'barrios',
+    'calificaciones', 'etiquetas', 'tipos_contrato', 'tipos_alquiler',
+    'tiempos_alquiler', 'danos_vivienda', 'procesos_judiciales', 'conductas'
+  ];
+  privadas text[] := ARRAY[
+    'autenticaciones', 'viviendas', 'fotos_resena',
+    'resena_etiquetas', 'resena_conductas', 'bitacora'
+  ];
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    -- resenas: lectura pública de publicadas; solo se puede autor como uno mismo
-    ALTER TABLE resenas ENABLE ROW LEVEL SECURITY;
-    CREATE POLICY resenas_lectura ON resenas
-      FOR SELECT TO authenticated, anon USING (estado = 'publicada');
-    -- Quien no administra solo puede dejar la reseña en revisión.
-    -- Publicarla (y así abrir la consulta) lo hace la administración.
-    CREATE POLICY resenas_escritura ON resenas
-      FOR INSERT TO authenticated
-      WITH CHECK (
-        autor_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid())
-        AND (
-          estado = 'borrador'
-          OR (SELECT rol FROM usuarios WHERE auth_user_id = auth.uid()) = 'admin'
-        )
-      );
-    -- Misma regla que db/resenas-anonimas.sql: la sesión no lee autor_id.
-    REVOKE SELECT ON TABLE resenas FROM PUBLIC, anon, authenticated;
-    REVOKE SELECT (autor_id) ON TABLE resenas FROM PUBLIC, anon, authenticated;
-    GRANT SELECT (
-      id, persona_id, vivienda_id, tipo, calificacion_id, recomienda, drogas,
-      dano_vivienda_id, detalle_dano, proceso_judicial_id, tipo_contrato_id,
-      tipo_alquiler_id, tiempo_alquiler_id, fecha_inicio_alquiler, fecha_fin_alquiler,
-      comentario, verificada, detalle_verificacion, estado, fuente, id_fuente,
-      creado_en, actualizado_en, anonima
-    ) ON TABLE resenas TO anon, authenticated;
-
-    -- personas: lectura pública; creación libre (la app la valida en el DAL)
-    ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
-    CREATE POLICY personas_lectura ON personas
-      FOR SELECT TO authenticated, anon USING (true);
-    CREATE POLICY personas_escritura ON personas
-      FOR INSERT TO authenticated WITH CHECK (true);
-
-    -- usuarios: lectura abierta (la ficha firma las reseñas que no son anónimas);
-    -- crear/editar/eliminar solo la propia cuenta
-    ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
-    CREATE POLICY usuarios_lectura ON usuarios
-      FOR SELECT TO authenticated, anon USING (true);
-    CREATE POLICY usuarios_crear ON usuarios
-      FOR INSERT TO authenticated WITH CHECK (auth_user_id = auth.uid());
-    CREATE POLICY usuarios_actualizar ON usuarios
-      FOR UPDATE TO authenticated
-      USING (auth_user_id = auth.uid() OR email = lower(auth.email()))
-      WITH CHECK (auth_user_id = auth.uid() OR email = lower(auth.email()));
-    CREATE POLICY usuarios_eliminar ON usuarios
-      FOR DELETE TO authenticated USING (auth_user_id = auth.uid());
-
-    -- denuncias: solo las propias
-    ALTER TABLE denuncias ENABLE ROW LEVEL SECURITY;
-    CREATE POLICY denuncias_lectura ON denuncias
-      FOR SELECT TO authenticated
-      USING (denunciante_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid()));
-    CREATE POLICY denuncias_escritura ON denuncias
-      FOR INSERT TO authenticated
-      WITH CHECK (denunciante_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid()));
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    RETURN;
   END IF;
+
+  CREATE SCHEMA IF NOT EXISTS privado;
+  REVOKE ALL ON SCHEMA privado FROM PUBLIC, anon;
+  GRANT USAGE ON SCHEMA privado TO authenticated;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT USAGE ON SCHEMA privado TO service_role;
+  END IF;
+
+  CREATE OR REPLACE FUNCTION privado.sesion_activa()
+  RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path = pg_catalog, public
+  AS $fn$
+    SELECT EXISTS (
+      SELECT 1 FROM public.usuarios
+      WHERE auth_user_id = auth.uid() AND activo
+    );
+  $fn$;
+
+  CREATE OR REPLACE FUNCTION privado.puede_leer_registro()
+  RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path = pg_catalog, public
+  AS $fn$
+    SELECT EXISTS (
+      SELECT 1
+      FROM public.usuarios u
+      WHERE u.auth_user_id = auth.uid()
+        AND u.activo
+        AND (
+          u.rol = 'admin'
+          OR EXISTS (
+            SELECT 1 FROM public.resenas r
+            WHERE r.autor_id = u.id AND r.estado = 'publicada'
+          )
+        )
+    );
+  $fn$;
+
+  REVOKE ALL ON FUNCTION privado.sesion_activa() FROM PUBLIC, anon, authenticated;
+  REVOKE ALL ON FUNCTION privado.puede_leer_registro() FROM PUBLIC, anon, authenticated;
+  REVOKE ALL ON FUNCTION public.fn_usuarios_proteger_rol() FROM PUBLIC, anon, authenticated;
+  REVOKE ALL ON FUNCTION public.fn_personas_search() FROM PUBLIC, anon;
+  GRANT EXECUTE ON FUNCTION privado.sesion_activa() TO authenticated;
+  GRANT EXECUTE ON FUNCTION privado.puede_leer_registro() TO authenticated;
+  GRANT EXECUTE ON FUNCTION public.fn_usuarios_proteger_rol() TO authenticated;
+  GRANT EXECUTE ON FUNCTION public.fn_personas_search() TO authenticated;
+  ALTER FUNCTION public.fn_usuarios_proteger_rol() SET SCHEMA privado;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION privado.sesion_activa() TO service_role;
+    GRANT EXECUTE ON FUNCTION privado.puede_leer_registro() TO service_role;
+    GRANT EXECUTE ON FUNCTION privado.fn_usuarios_proteger_rol() TO service_role;
+    GRANT EXECUTE ON FUNCTION public.fn_personas_search() TO service_role;
+  END IF;
+
+  FOREACH tabla IN ARRAY privadas LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tabla);
+    EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated', tabla);
+  END LOOP;
+
+  FOREACH tabla IN ARRAY catalogos LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tabla);
+    EXECUTE format('DROP POLICY IF EXISTS catalogo_lectura ON public.%I', tabla);
+    EXECUTE format(
+      'CREATE POLICY catalogo_lectura ON public.%I FOR SELECT TO authenticated USING (privado.sesion_activa())',
+      tabla
+    );
+    EXECUTE format(
+      'REVOKE INSERT, UPDATE, DELETE, TRUNCATE, SELECT ON TABLE public.%I FROM PUBLIC, anon',
+      tabla
+    );
+    EXECUTE format(
+      'REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.%I FROM authenticated',
+      tabla
+    );
+    EXECUTE format('GRANT SELECT ON TABLE public.%I TO authenticated', tabla);
+  END LOOP;
+
+  ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE resenas ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE denuncias ENABLE ROW LEVEL SECURITY;
+
+  DROP POLICY IF EXISTS personas_lectura ON personas;
+  DROP POLICY IF EXISTS personas_escritura ON personas;
+  CREATE POLICY personas_lectura ON personas
+    FOR SELECT TO authenticated
+    USING (privado.puede_leer_registro());
+  CREATE POLICY personas_escritura ON personas
+    FOR INSERT TO authenticated
+    WITH CHECK (privado.sesion_activa());
+  REVOKE SELECT, UPDATE, DELETE, TRUNCATE ON TABLE personas FROM PUBLIC, anon, authenticated;
+  GRANT INSERT ON TABLE personas TO authenticated;
+  GRANT SELECT (
+    id, nombre, nombre2, apellido1, apellido2, pais_id, provincia_id, canton_id,
+    distrito_id, barrio_id, creado_en, actualizado_en
+  ) ON TABLE personas TO authenticated;
+
+  DROP POLICY IF EXISTS usuarios_lectura ON usuarios;
+  DROP POLICY IF EXISTS usuarios_crear ON usuarios;
+  DROP POLICY IF EXISTS usuarios_actualizar ON usuarios;
+  DROP POLICY IF EXISTS usuarios_eliminar ON usuarios;
+  CREATE POLICY usuarios_lectura ON usuarios
+    FOR SELECT TO authenticated
+    USING (auth_user_id = auth.uid());
+  REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLE usuarios FROM PUBLIC, anon, authenticated;
+  GRANT SELECT (
+    id, nombre, avatar_url, rol, activo, ultimo_acceso, creado_en, actualizado_en
+  ) ON TABLE usuarios TO authenticated;
+
+  DROP POLICY IF EXISTS resenas_lectura ON resenas;
+  DROP POLICY IF EXISTS resenas_escritura ON resenas;
+  CREATE POLICY resenas_lectura ON resenas
+    FOR SELECT TO authenticated
+    USING (estado = 'publicada' AND privado.puede_leer_registro());
+  CREATE POLICY resenas_escritura ON resenas
+    FOR INSERT TO authenticated
+    WITH CHECK (
+      autor_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid() AND activo)
+      AND (
+        estado = 'borrador'
+        OR (SELECT rol FROM usuarios WHERE auth_user_id = auth.uid() AND activo) = 'admin'
+      )
+    );
+  REVOKE ALL PRIVILEGES ON TABLE resenas FROM PUBLIC, anon, authenticated;
+  REVOKE SELECT (autor_id) ON TABLE resenas FROM PUBLIC, anon, authenticated;
+  GRANT SELECT (
+    id, persona_id, vivienda_id, tipo, calificacion_id, recomienda, drogas,
+    dano_vivienda_id, detalle_dano, proceso_judicial_id, tipo_contrato_id,
+    tipo_alquiler_id, tiempo_alquiler_id, fecha_inicio_alquiler, fecha_fin_alquiler,
+    comentario, verificada, detalle_verificacion, estado, fuente, id_fuente,
+    creado_en, actualizado_en, anonima
+  ) ON TABLE resenas TO authenticated;
+  GRANT INSERT ON TABLE resenas TO authenticated;
+
+  DROP POLICY IF EXISTS denuncias_lectura ON denuncias;
+  DROP POLICY IF EXISTS denuncias_escritura ON denuncias;
+  CREATE POLICY denuncias_lectura ON denuncias
+    FOR SELECT TO authenticated
+    USING (denunciante_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid()));
+  CREATE POLICY denuncias_escritura ON denuncias
+    FOR INSERT TO authenticated
+    WITH CHECK (
+      privado.puede_leer_registro()
+      AND denunciante_id = (SELECT id FROM usuarios WHERE auth_user_id = auth.uid() AND activo)
+    );
+  GRANT SELECT, INSERT ON TABLE denuncias TO authenticated;
+  REVOKE UPDATE, DELETE, TRUNCATE ON TABLE denuncias FROM PUBLIC, anon, authenticated;
 END;
 $$;
 

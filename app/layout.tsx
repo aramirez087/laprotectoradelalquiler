@@ -43,7 +43,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
           Saltar al contenido
         </a>
         <Nav
-          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, consulta } : null}
+          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, consulta, administra: usuario.rol === 'admin' && usuario.activo } : null}
           tema={tema}
         />
         {usuario && !usuario.activo && (
