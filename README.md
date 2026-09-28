@@ -41,17 +41,28 @@ Requiere las políticas de seguridad del esquema actual
 (`db/seguridad-acceso.sql` en instalaciones antiguas). En bases nuevas,
 `schema.sql` ya incluye la misma migración.
 
-Solo cuentan las reseñas actualmente publicadas: ninguna impide consultar;
-1 concede 1 mes; 2 o 3 conceden 6 meses; 4 o más conceden 1 año. El plazo
-se calcula desde la **aprobación inicial más reciente** entre esas reseñas,
-en meses naturales UTC, sin sumar períodos al vencimiento anterior. Al llegar
-al instante de vencimiento se deniega la consulta. Una nueva reseña aprobada
-renueva el plazo según el total publicado. Administración activa está exenta;
+Solo cuentan las experiencias con al menos una reseña actualmente publicada.
+Cada experiencia de alquiler distinta suma 3 meses al vencimiento vigente. Si
+el permiso ya venció, los 3 meses comienzan en la nueva aprobación. El tiempo
+no utilizado se acumula, pero el vencimiento nunca puede superar 12 meses desde
+la aprobación de la experiencia nueva más reciente. Se suman meses naturales
+en UTC, ajustando al último día del mes cuando corresponda. Al llegar al instante
+de vencimiento se deniega la consulta. Administración activa está exenta;
 las cuentas inactivas no consultan.
 
-El trigger registra la primera aprobación y no permite modificarla. Editar
-una reseña o rechazarla y aprobarla otra vez no reinicia su plazo. Rechazar o
-eliminar reseñas recalcula inmediatamente el total y la fecha de referencia.
+El trigger registra la primera aprobación y un recibo privado inmutable.
+Un alquiler se identifica por autor, persona, tipo de reseña y fecha de inicio.
+Varias reseñas del mismo alquiler cuentan una sola vez, desde su primera
+aprobación, incluso al borrar la original y reenviarla. Editar datos o rechazar
+y aprobar de nuevo tampoco reinicia el plazo. Al rechazar o eliminar la última
+reseña publicada de una experiencia, se recalcula el permiso sin ese aporte.
+Los recibos no guardan el relato y se eliminan al borrar la cuenta del autor.
+
+El formulario pide la fecha de inicio; administración verifica que la experiencia
+y la fecha sean reales, independientemente de si el relato es positivo o negativo.
+Cambiar la fecha en un reenvío no demuestra que sea otro alquiler. Las reseñas
+históricas sin fecha del mismo autor, persona y tipo cuentan como una experiencia;
+la migración no inventa períodos de alquiler que no estén documentados.
 Las reseñas publicadas existentes y las importaciones legacy usan su fecha
 de creación, porque no existe un historial anterior de aprobación. La
 migración no concede un período nuevo a reseñas antiguas.
@@ -63,8 +74,9 @@ deniegan acceso. Los usuarios sin permiso pueden seguir viendo sus reseñas
 en el perfil y enviar nuevas experiencias a revisión.
 
 Validación: `npm run test:acceso-consultas` usa Postgres desechable en Docker
-para probar migración, todos los tramos, fin de mes, años bisiestos,
-moderación, renovación, cuentas inactivas y acceso directo con RLS.
+para probar migración, acumulación, límite de 12 meses, fin de mes, años
+bisiestos, duplicados, aprobaciones simultáneas, moderación, renovación,
+cuentas inactivas y acceso directo con RLS.
 
 ### Edición administrativa de reseñas
 

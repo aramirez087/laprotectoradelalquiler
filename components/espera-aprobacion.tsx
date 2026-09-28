@@ -48,9 +48,8 @@ export function EstadoAcceso({ acceso }: { acceso: AccesoConsulta }) {
           </Link>
         )}
       </div>
-      {revision && (
-        <p className="mt-5 text-xs text-ink-soft">No necesita enviar otra reseña mientras espera.</p>
-      )}
+      {revision && <p className="mt-5 text-xs text-ink-soft">Reenviar la misma experiencia no suma tiempo de consulta.</p>}
+      {vencida && revision && <Link href="/resenas/nueva" className="mt-5 text-sm font-semibold text-seal">Compartir una experiencia distinta</Link>}
       {activo && !error && <p className="mt-5 max-w-md text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>}
     </div>
   )

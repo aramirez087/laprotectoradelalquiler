@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import * as z from 'zod'
 import { crearResena, listarResenasDe, requireUsuario } from '@/lib/dal'
 import { esCedulaValida } from '@/lib/util'
+import { esFecha, hoyCR } from '@/lib/periodo'
 import type { EstadoForm } from './auth'
 
 const CamposPersona = {
@@ -17,6 +18,7 @@ const CamposPersona = {
 
 const SchemaResena = z.object({
   ...CamposPersona,
+  fechaInicio: z.string().refine((fecha) => esFecha(fecha) && fecha <= hoyCR(), 'Indique una fecha de inicio válida, hasta hoy.'),
   comentario: z
     .string()
     .trim()
@@ -66,6 +68,7 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
       apellido1: f.apellido1,
       apellido2: f.apellido2 || undefined,
       comentario: f.comentario,
+      fechaInicio: f.fechaInicio,
       etiquetas: [],
       autorId: usuario.id,
       anonima: formData.get('anonima') === '1',

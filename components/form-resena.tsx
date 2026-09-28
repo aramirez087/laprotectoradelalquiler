@@ -183,6 +183,22 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
         texto="Describa hechos concretos y que pueda respaldar. Evite incluir teléfonos, direcciones u otros datos personales."
       >
         <div>
+          <label htmlFor="fechaInicio" className="etiqueta-campo">Inicio del alquiler *</label>
+          <input
+            {...atributosError('fechaInicio')}
+            id="fechaInicio"
+            name="fechaInicio"
+            type="date"
+            required
+            className="campo"
+            aria-describedby={errorCampo('fechaInicio') ? 'error-fechaInicio ayuda-inicio' : 'ayuda-inicio'}
+          />
+          <ErrorCampo nombre="fechaInicio" mensaje={errorCampo('fechaInicio')} />
+          <p id="ayuda-inicio" className="mt-2 text-xs text-ink-soft">
+            Use la fecha en que comenzó este alquiler. Varias reseñas sobre el mismo alquiler cuentan como una sola experiencia para su permiso.
+          </p>
+        </div>
+        <div>
           <label htmlFor="comentario" className="etiqueta-campo">
             Su experiencia *
           </label>

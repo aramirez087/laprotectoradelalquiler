@@ -9,7 +9,7 @@ const exec = promisify(execFile)
 const docker = async (...args) => (await exec('docker', args)).stdout.trim()
 
 // A disposable database only; never loads .env or the application's DATABASE_URL.
-test('temporary consultation access: migration, calendar tiers, moderation and RLS', { timeout: 120_000 }, async (t) => {
+test('temporary consultation access: stacking, cap, moderation and RLS', { timeout: 120_000 }, async (t) => {
   const container = `consulta-test-${process.pid}-${Date.now()}`
   let db
   t.after(async () => { await db?.end(); await docker('rm', '-f', container) })
@@ -48,8 +48,10 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
   }
   const access = async (id = 1) => (await db.query('SELECT * FROM accesos_consulta(ARRAY[$1::integer])', [id])).rows[0]
   const review = async (date = new Date().toISOString(), state = 'publicada', count = 1) => {
-    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en)
-      SELECT 1,1,$1,'legacy',$2::timestamptz FROM generate_series(1,$3::integer)`, [state, date, count])
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en,fecha_inicio_alquiler)
+      SELECT 1,1,$1,'legacy',$2::timestamptz,
+        DATE '2000-01-01' + coalesce((SELECT max(id) FROM resenas),0) + n
+      FROM generate_series(1,$3::integer) n`, [state, date, count])
   }
   const asUser = async (id, callback) => {
     await db.query("SELECT set_config('request.jwt.claim.sub',$1,false), set_config('request.jwt.claim.role','authenticated',false)", [id])
@@ -65,7 +67,7 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
     await review('2020-01-01T12:00:00Z', 'borrador')
     await db.query(migration)
     const before = await access()
-    assert.equal(before.vence_en.toISOString(), '2020-02-29T12:00:00.000Z')
+    assert.equal(before.vence_en.toISOString(), '2020-04-30T12:00:00.000Z')
     assert.equal(before.motivo, 'vencida')
     assert.equal(before.puede_consultar, false)
     await db.query(migration)
@@ -88,12 +90,12 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
       assert.equal((await db.query('SELECT id FROM resenas')).rowCount, 0)
     })
   })
-  await t.test('all tiers use calendar months, including month ends and leap years', async () => {
+  await t.test('rewards stack in calendar months and stop at twelve months', async () => {
     for (const [count, start, end] of [
-      [1, '2024-01-31T18:42:00Z', '2024-02-29T18:42:00.000Z'],
-      [1, '2025-01-31T18:42:00Z', '2025-02-28T18:42:00.000Z'],
-      [2, '2024-08-31T18:42:00Z', '2025-02-28T18:42:00.000Z'],
-      [3, '2024-02-29T18:42:00Z', '2024-08-29T18:42:00.000Z'],
+      [1, '2024-01-31T18:42:00Z', '2024-04-30T18:42:00.000Z'],
+      [1, '2025-01-31T18:42:00Z', '2025-04-30T18:42:00.000Z'],
+      [2, '2024-01-31T18:42:00Z', '2024-07-30T18:42:00.000Z'],
+      [3, '2024-02-29T18:42:00Z', '2024-11-29T18:42:00.000Z'],
       [4, '2024-02-29T18:42:00Z', '2025-02-28T18:42:00.000Z'],
       [1001, '2024-01-31T18:42:00Z', '2025-01-31T18:42:00.000Z'],
     ]) {
@@ -108,8 +110,8 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
     }
     await db.query("SET timezone='UTC'")
   })
-  await t.test('fresh approvals unlock each tier; most recent approval anchors the full period', async () => {
-    for (const [count, months] of [[1, 1], [2, 6], [3, 6], [4, 12]]) {
+  await t.test('a fresh approval starts three months after an expired balance', async () => {
+    for (const count of [1, 2, 3, 4]) {
       await seed()
       if (count > 1) await review('2020-01-01T00:00:00Z', 'publicada', count - 1)
       await db.query("INSERT INTO resenas(persona_id,autor_id,estado,creado_en) VALUES(1,1,'borrador','2020-01-01')")
@@ -118,7 +120,7 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
       assert.equal(result.puede_consultar, true)
       assert.equal(result.aprobadas, count)
       assert.ok(Date.now() - result.ultima_aprobacion_en.getTime() < 10_000)
-      const expected = (await db.query("SELECT $1::timestamptz + make_interval(months => $2) AS fecha", [result.ultima_aprobacion_en, months])).rows[0].fecha
+      const expected = (await db.query("SELECT $1::timestamptz + interval '3 months' AS fecha", [result.ultima_aprobacion_en])).rows[0].fecha
       assert.deepEqual(result.vence_en, expected)
       await asUser(uid, async () => {
         assert.equal(await visible(), 1)
@@ -128,26 +130,102 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
       })
     }
   })
+  await t.test('later approvals preserve the remaining balance and move the twelve-month cap', async () => {
+    await seed()
+    await review('2024-01-15T12:00:00Z')
+    await review('2024-02-15T12:00:00Z')
+    assert.equal((await access()).vence_en.toISOString(), '2024-07-15T12:00:00.000Z')
+    await review('2024-03-15T12:00:00Z', 'publicada', 4)
+    assert.equal((await access()).vence_en.toISOString(), '2025-03-15T12:00:00.000Z')
+    await review('2024-04-15T12:00:00Z')
+    assert.equal((await access()).vence_en.toISOString(), '2025-04-15T12:00:00.000Z')
+    await review('2026-01-15T12:00:00Z')
+    assert.equal((await access()).vence_en.toISOString(), '2026-04-15T12:00:00.000Z')
+  })
   await t.test('expiry denies access at the cutoff and every later request', async () => {
     await seed()
     await db.query('BEGIN')
     try {
       // Keep PostgreSQL's microsecond precision and a fixed transaction clock.
-      // If subtracting a month clamps the date, use the yearly tier instead.
+      // Five rewards reach the cap even if intermediate month ends clamp.
       for (const delta of [1, 0, -1]) {
         await db.query(`WITH tier AS (
-          SELECT CASE WHEN now()-interval '1 month'+interval '1 month'=now() THEN 1 ELSE 4 END AS n
-        ) INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en)
-          SELECT 1,1,'publicada','legacy',now()-(CASE WHEN n=1 THEN interval '1 month' ELSE interval '1 year' END)+$1*interval '1 microsecond'
-          FROM tier, generate_series(1,tier.n)`, [delta])
+          SELECT CASE WHEN now()-interval '3 months'+interval '3 months'=now() THEN 1 ELSE 5 END AS n
+        ) INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en,fecha_inicio_alquiler)
+          SELECT 1,1,'publicada','legacy',now()-(CASE WHEN n=1 THEN interval '3 months' ELSE interval '12 months' END)+$1*interval '1 microsecond',
+            DATE '2000-01-01' + i
+          FROM tier, generate_series(1,tier.n) i`, [delta])
         assert.equal((await access()).puede_consultar, delta > 0)
         await asUser(uid, async () => {
           assert.equal(await visible(), delta > 0 ? 1 : 0)
           assert.equal((await db.query('SELECT privado.puede_leer_registro() AS allowed')).rows[0].allowed, delta > 0)
         })
-        await db.query('DELETE FROM resenas')
+        await db.query('TRUNCATE resenas, privado.aportes_consulta CASCADE')
       }
     } finally { await db.query('ROLLBACK') }
+  })
+  await t.test('duplicates, resubmissions and changed rental details cannot earn the same reward twice', async () => {
+    await seed()
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en,fecha_inicio_alquiler)
+      VALUES (1,1,'publicada','legacy','2020-01-15','2019-01-01')`)
+    const original = await access()
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fecha_inicio_alquiler)
+      VALUES (1,1,'publicada','2019-01-01')`)
+    assert.deepEqual(await access(), original)
+    await db.query('DELETE FROM resenas WHERE id=1')
+    assert.deepEqual(await access(), original)
+    await db.query("UPDATE resenas SET estado='borrador', fecha_inicio_alquiler='2020-01-01'")
+    assert.equal((await access()).puede_consultar, false)
+    await db.query("UPDATE resenas SET estado='publicada'")
+    assert.deepEqual(await access(), original)
+    await db.query(migration)
+    assert.deepEqual(await access(), original)
+    await db.query('DELETE FROM resenas')
+    assert.equal((await access()).aprobadas, 0)
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fecha_inicio_alquiler)
+      VALUES (1,1,'publicada','2019-01-01')`)
+    assert.deepEqual(await access(), original)
+    // A genuinely different tenancy with the same person does earn a new reward.
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fecha_inicio_alquiler)
+      VALUES (1,1,'publicada','2021-01-01')`)
+    assert.equal((await access()).aprobadas, 2)
+    assert.equal((await access()).puede_consultar, true)
+  })
+  await t.test('historical reviews without rental dates count as one experience per author and person', async () => {
+    await seed()
+    await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fuente,creado_en)
+      SELECT 1,1,'publicada','legacy','2020-01-01' FROM generate_series(1,5)`)
+    assert.equal((await access()).aprobadas, 1)
+    assert.equal((await access()).vence_en.toISOString(), '2020-04-01T00:00:00.000Z')
+  })
+  await t.test('simultaneous approvals neither duplicate rewards nor lose distinct contributions', async () => {
+    const other = new pg.Client({ connectionString: `postgres://postgres@127.0.0.1:${port}/consulta_test` })
+    await other.connect()
+    try {
+      for (const same of [true, false]) {
+        await seed()
+        await db.query(`INSERT INTO resenas(persona_id,autor_id,estado,fecha_inicio_alquiler)
+          VALUES (1,1,'borrador','2020-01-01'), (1,1,'borrador',$1)`, [same ? '2020-01-01' : '2021-01-01'])
+        await Promise.all([db.query('BEGIN'), other.query('BEGIN')])
+        try {
+          await Promise.all([
+            db.query("UPDATE resenas SET estado='publicada' WHERE id=1"),
+            other.query("UPDATE resenas SET estado='publicada' WHERE id=2"),
+          ])
+          await Promise.all([db.query('COMMIT'), other.query('COMMIT')])
+        } catch (error) {
+          await Promise.all([db.query('ROLLBACK'), other.query('ROLLBACK')])
+          throw error
+        }
+        const result = await access()
+        assert.equal(result.aprobadas, same ? 1 : 2)
+        const expected = (await db.query(`SELECT CASE WHEN $1::boolean
+          THEN min(primera_aprobacion_en) + interval '3 months'
+          ELSE min(primera_aprobacion_en) + interval '3 months' + interval '3 months'
+          END AS fecha FROM resenas`, [same])).rows[0].fecha
+        assert.deepEqual(result.vence_en, expected)
+      }
+    } finally { await other.end() }
   })
   await t.test('content edits, supplied timestamps and repeated moderation cannot renew a review', async () => {
     await seed()
@@ -199,6 +277,8 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
       await assert.rejects(db.query("INSERT INTO resenas(persona_id,autor_id,estado) VALUES(1,1,'publicada')"), /row-level security/)
       await assert.rejects(db.query("UPDATE resenas SET primera_aprobacion_en=now()"), /permission denied/)
       await assert.rejects(db.query('SELECT * FROM accesos_consulta(ARRAY[2])'), /permission denied/)
+      await assert.rejects(db.query('SELECT * FROM privado.aportes_consulta'), /permission denied/)
+      await assert.rejects(db.query('DELETE FROM privado.aportes_consulta'), /permission denied/)
       assert.equal((await db.query('SELECT * FROM mi_acceso_consulta()')).rows[0].usuario_id, 1)
       await assert.rejects(db.query("INSERT INTO denuncias(resena_id,denunciante_id,motivo) VALUES(1,1,'otro')"), /row-level security/)
     })
@@ -212,5 +292,15 @@ test('temporary consultation access: migration, calendar tiers, moderation and R
     await db.query('SET ROLE service_role')
     try { assert.equal((await access()).motivo, 'vencida') }
     finally { await db.query('RESET ROLE') }
+  })
+  await t.test('valid users can file and read their own reports without exposing the private auth column', async () => {
+    await seed()
+    await review()
+    await asUser(uid, async () => {
+      await db.query("INSERT INTO denuncias(resena_id,denunciante_id,motivo) VALUES(1,1,'otro')")
+      assert.equal((await db.query('SELECT id FROM denuncias')).rowCount, 1)
+      await assert.rejects(db.query("INSERT INTO denuncias(resena_id,denunciante_id,motivo) VALUES(1,2,'otro')"), /row-level security/)
+    })
+    await asUser(adminUid, async () => assert.equal((await db.query('SELECT id FROM denuncias')).rowCount, 0))
   })
 })

@@ -30,14 +30,15 @@ test('expired members see the expiry and a renewal link instead of restarting re
   assert.match(html, /hora de Costa Rica/)
   assert.match(html, /href="\/resenas\/nueva"/)
   assert.doesNotMatch(html, /href="\/registro\/resena"/)
-  assert.match(html, /1 mes/)
-  assert.match(html, /6 meses/)
-  assert.match(html, /1 año/)
+  assert.match(html, /3 meses/)
+  assert.match(html, /máximo de 12 meses/)
 })
 test('pending renewals keep users informed and link to their existing reviews', () => {
   const html = render({ pendientes: 1 })
   assert.match(html, /Tiene una reseña en revisión/)
   assert.match(html, /href="\/perfil"/)
+  assert.match(html, /href="\/resenas\/nueva"/)
+  assert.match(html, /Reenviar la misma experiencia no suma/)
   assert.doesNotMatch(html, /href="\/registro\/resena"/)
 })
 test('database errors and inactive accounts do not encourage unnecessary submissions', () => {
@@ -50,7 +51,7 @@ test('database errors and inactive accounts do not encourage unnecessary submiss
 test('first-time users are directed to the first-review step', () => {
   const html = render({ motivo: 'ninguna', aprobadas: 0, vence_en: null })
   assert.match(html, /href="\/registro\/resena"/)
-  assert.match(html, /tendrá 1 mes/)
+  assert.match(html, /tendrá 3 meses/)
 })
 test('expiry display has an explicit Costa Rica timezone regardless of server locale', () => {
   assert.match(acceso.fechaVencimiento('2025-02-01T02:00:00Z'), /31 de enero de 2025/)

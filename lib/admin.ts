@@ -25,7 +25,7 @@ export class SinClaveAdmin extends AvisoAdmin {
 const POR_PAGINA = 20
 
 const SELECT_RESENA = `
-  id, anonima, estado, comentario, detalle_verificacion, creado_en,
+  id, anonima, estado, comentario, detalle_verificacion, creado_en, fecha_inicio_alquiler,
   calificacion:calificaciones(valor, texto),
   persona:personas(id, nombre, nombre2, apellido1, apellido2, identificacion),
   autor:usuarios(id, nombre, email, identificacion)
@@ -38,6 +38,7 @@ export interface FilaAdminResena {
   comentario: string | null
   detalle_verificacion: string | null
   creado_en: string
+  fecha_inicio_alquiler: string | null
   calificacion: { valor: number; texto: string } | null
   persona: {
     id: number
@@ -142,6 +143,7 @@ type CrudoResena = {
   comentario: string | null
   detalle_verificacion: string | null
   creado_en: string
+  fecha_inicio_alquiler: string | null
   calificacion: FilaAdminResena['calificacion'] | NonNullable<FilaAdminResena['calificacion']>[] | null
   persona: FilaAdminResena['persona'] | FilaAdminResena['persona'][] | null
   autor: FilaAdminResena['autor'] | NonNullable<FilaAdminResena['autor']>[] | null
@@ -157,6 +159,7 @@ function aFila(row: CrudoResena): FilaAdminResena | null {
     comentario: row.comentario,
     detalle_verificacion: row.detalle_verificacion,
     creado_en: row.creado_en,
+    fecha_inicio_alquiler: row.fecha_inicio_alquiler,
     calificacion: uno(row.calificacion),
     persona,
     autor: (() => {

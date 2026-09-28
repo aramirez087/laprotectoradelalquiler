@@ -3,6 +3,7 @@ export type MotivoAcceso = 'ninguna' | 'revision' | 'rechazada' | 'vencida' | 'v
 export interface AccesoConsulta {
   usuario_id: number
   puede_consultar: boolean
+  /** Experiencias distintas con al menos una reseña publicada. */
   aprobadas: number
   pendientes: number
   rechazadas: number
@@ -11,7 +12,7 @@ export interface AccesoConsulta {
   motivo: MotivoAcceso
 }
 
-export const REGLAS_CONSULTA = '1 reseña aprobada: 1 mes; 2 o 3: 6 meses; 4 o más: 1 año. El plazo cuenta desde la aprobación inicial más reciente, sin acumular períodos.'
+export const REGLAS_CONSULTA = 'Cada experiencia de alquiler distinta, aprobada por administración, suma 3 meses. El tiempo no utilizado se acumula, hasta un máximo de 12 meses desde la última experiencia nueva aprobada. Editar o reenviar el mismo alquiler no suma tiempo.'
 
 export function fechaVencimiento(fecha: string) {
   return new Intl.DateTimeFormat('es-CR', {
@@ -28,6 +29,6 @@ export function mensajeAcceso(acceso: AccesoConsulta): string {
     case 'revision': return 'Su reseña está en revisión. El permiso de consulta comienza cuando administración la apruebe.'
     case 'rechazada': return 'Revise el motivo del rechazo en su perfil. Necesita una reseña aprobada para consultar.'
     case 'error': return 'No pudimos verificar su permiso de consulta. Intente de nuevo en un momento.'
-    default: return 'Comparta su primera experiencia. Cuando administración la apruebe, tendrá 1 mes para consultar.'
+    default: return 'Comparta su primera experiencia. Cuando administración la apruebe, tendrá 3 meses para consultar.'
   }
 }

@@ -53,6 +53,10 @@ export function ResenaAdmin({ fila }: { fila: FilaAdminResena }) {
           <CalificacionEstrellas valor={fila.calificacion?.valor ?? null} texto={fila.calificacion?.texto} />
         </div>
       </div>
+      <p className="text-sm text-ink-soft">
+        Inicio del alquiler: {fila.fecha_inicio_alquiler ? fila.fecha_inicio_alquiler.split('-').reverse().join('/') : 'Sin fecha registrada'}.
+        {' '}Verifique que corresponda a una experiencia real y distinta antes de aprobar.
+      </p>
       <p className="whitespace-pre-wrap text-sm">{fila.comentario?.trim() || 'Sin comentario.'}</p>
       {fila.detalle_verificacion && <p className="text-sm text-ink-soft">{fila.detalle_verificacion}</p>}
       <FormDecision id={fila.id} decisiones={decisionesDe(fila.estado)} />

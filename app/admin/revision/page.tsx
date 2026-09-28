@@ -35,7 +35,7 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
       <section className="space-y-4">
         <h1 className="text-3xl">Revisión</h1>
         <p className="text-sm text-ink-soft">
-          Revise la cédula, el perfil de Facebook y el relato. La primera aprobación inicia el permiso temporal de consulta: 1 reseña aprobada da 1 mes; 2 o 3, 6 meses; 4 o más, 1 año.
+          Revise la cédula, el perfil de Facebook y el relato. Confirme que sea una experiencia de alquiler distinta: cada primera aprobación suma 3 meses al permiso vigente, hasta acumular 12 meses.
         </p>
         {aviso && <p className="aviso aviso-error">{aviso}</p>}
         {!aviso && filas.length === 0 && <p className="text-sm text-ink-soft">No hay reseñas en revisión.</p>}

@@ -105,11 +105,11 @@ export default async function PerfilPage(props: {
         <p className="text-sm text-ink-soft">{mensajeAcceso(acceso)}</p>
         {usuario.activo && usuario.rol !== 'admin' && acceso.motivo !== 'error' && (
           <>
-            <p className="text-sm">{acceso.aprobadas === 1 ? '1 reseña aprobada' : `${acceso.aprobadas} reseñas aprobadas`}</p>
+            <p className="text-sm">{acceso.aprobadas === 1 ? '1 experiencia aprobada' : `${acceso.aprobadas} experiencias aprobadas`}</p>
             <p className="text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>
           </>
         )}
-        {acceso.motivo === 'vencida' && acceso.pendientes === 0 && (
+        {acceso.motivo === 'vencida' && (
           <Link href="/resenas/nueva" className="btn-primario">Escribir otra reseña</Link>
         )}
       </section>
