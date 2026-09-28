@@ -13,6 +13,7 @@
     "db:admin-resenas": "node scripts/aplicar-esquema.mjs --solo-admin-resenas",
     "db:migrar": "node scripts/migrar-legacy.mjs",
     "test:importacion": "node --test tests/integration/migracion-legacy.test.mjs",
+    "test:invitaciones-admin": "node --test tests/integration/invitaciones-admin.test.mjs",
     "test:admin-resenas": "node --test tests/integration/admin-resenas.test.mjs",
     "test:importacion:bundle": "npm run build && node --test tests/integration/migracion-legacy-bundle.test.mjs"
   },
