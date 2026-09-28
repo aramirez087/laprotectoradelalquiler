@@ -11,7 +11,7 @@ const imagen = {
   sizes: '(max-width: 373px) 75vw, (max-width: 639px) 280px, 336px',
 } as const
 
-/** A little depth for the original watercolor; the page itself stays still. */
+/** Only the sun and moon move; the neighborhood and page stay still. */
 export function BarrioVivo() {
   const escena = useRef<HTMLDivElement>(null)
 

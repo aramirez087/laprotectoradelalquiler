@@ -51,11 +51,6 @@
   transition: opacity 1.4s ease;
 }
 
-.casas {
-  transform: perspective(800px) rotateX(calc(var(--barrio-y) * -1.5deg)) rotateY(calc(var(--barrio-x) * 2.5deg)) translate3d(calc(var(--barrio-x) * 2px), calc(var(--barrio-y) * 1px), 0);
-  transform-origin: 50% 85%;
-}
-
 .ilustracion {
   mask-image: radial-gradient(ellipse 6% 12% at 36.4% 26.4%, transparent 98%, #000 100%);
   filter: var(--filtro-casas);
@@ -106,23 +101,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .entrada {
-    animation: revelar 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
   .sol {
     animation: amanecer 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-}
-
-@keyframes revelar {
-  from {
-    opacity: 0;
-    transform: translateY(7px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -138,12 +118,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cielo,
-  .casas {
+  .cielo {
     transform: none;
   }
 
-  .entrada,
   .sol {
     animation: none;
   }

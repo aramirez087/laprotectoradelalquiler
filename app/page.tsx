@@ -13,7 +13,7 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="inicio aparecer">
+    <div className="inicio">
       <BarrioVivo />
       <p className="eyebrow mt-5">Alquilar empieza con confianza</p>
       <h1 className="mt-3 text-[2.85rem] font-medium tracking-[-0.055em] sm:text-[4.25rem]">
