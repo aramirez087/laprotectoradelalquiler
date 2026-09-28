@@ -20,7 +20,7 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   return (
     <MarcoAcceso
       titulo="Sea parte de la comunidad"
-      texto="Paso 1 de 2. Indique su cédula y su perfil de Facebook. En el siguiente paso escribirá una reseña. Administración la aprueba antes de abrir la consulta."
+      texto="Paso 1 de 2. Indique su cédula y su perfil de Facebook. Después compartirá su primera experiencia. Cuando administración la apruebe, tendrá 3 meses para consultar reseñas."
     >
       {sinSupabase() ? (
         <AvisoConfiguracion />

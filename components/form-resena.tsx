@@ -235,7 +235,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
-            ? 'Esta reseña se envía a revisión. No queda publicada hasta que administración la apruebe. Puede seguir el estado en su perfil.'
+            ? 'Se envía a revisión. Si corresponde a una experiencia distinta y se aprueba, suma 3 meses de consulta, hasta el máximo de 12 meses acumulados. Puede seguir el estado en su perfil.'
             : 'Como administración, la reseña se publica de inmediato.'}
         </p>
         <button disabled={pendiente} className="btn-primario shrink-0">

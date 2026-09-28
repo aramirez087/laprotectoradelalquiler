@@ -5,7 +5,8 @@ import { cookies } from 'next/headers'
 import './globals.css'
 import { Nav } from '@/components/nav'
 import { AvisosAdmin } from '@/components/avisos-admin'
-import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
+import { obtenerUsuario, accesoConsulta, horaServidor } from '@/lib/dal'
+import { FranjaPermiso } from '@/components/permiso-consulta'
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
@@ -33,7 +34,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout(props: LayoutProps<'/'>) {
   const usuario = await obtenerUsuario()
-  const consulta = usuario ? await puedeConsultar(usuario) : false
+  const acceso = usuario ? await accesoConsulta(usuario) : null
   const guardado = (await cookies()).get('protectora-tema')?.value
   const tema = guardado === 'light' || guardado === 'dark' ? guardado : 'system'
 
@@ -44,16 +45,11 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
           Saltar al contenido
         </a>
         <Nav
-          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, consulta, administra: usuario.rol === 'admin' && usuario.activo } : null}
+          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, administra: usuario.rol === 'admin' && usuario.activo } : null}
           tema={tema}
-        />
-        {usuario && !usuario.activo && (
-          <p className="franja-aviso">
-            {consulta
-              ? 'Su cuenta está inactiva. Puede consultar el registro, no publicar.'
-              : 'Su cuenta está inactiva. No puede publicar.'}
-          </p>
-        )}
+        >
+          {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
+        </Nav>
         <AvisosAdmin>
           <main id="contenido" tabIndex={-1} className="flex-1">
             {props.children}

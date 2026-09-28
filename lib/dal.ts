@@ -178,6 +178,9 @@ export const accesoConsulta = cache(async (usuario: Usuario): Promise<AccesoCons
   }
 })
 
+/** Una referencia temporal estable por petición para hidratar los contadores. */
+export const horaServidor = cache(() => Date.now())
+
 /** Todas las lecturas del registro, incluidos metadatos y acciones, pasan aquí. */
 export async function puedeConsultar(usuario: Usuario): Promise<boolean> {
   return (await accesoConsulta(usuario)).puede_consultar

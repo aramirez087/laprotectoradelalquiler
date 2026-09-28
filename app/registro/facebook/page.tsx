@@ -47,7 +47,7 @@ export default async function RegistroFacebookPage(props: {
   return (
     <MarcoAcceso
       titulo="Complete su cuenta"
-      texto="Facebook confirmó su entrada. Indique su cédula y el enlace público de su perfil. En el siguiente paso escribirá una reseña."
+      texto="Facebook confirmó su entrada. Indique su cédula y el enlace público de su perfil. Después compartirá su primera experiencia; al aprobarse, tendrá 3 meses para consultar reseñas."
     >
       <RegistroFacebookForm
         nombre={nombreDesdeFacebook(user.user_metadata)}

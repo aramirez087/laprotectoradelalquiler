@@ -14,6 +14,40 @@ export interface AccesoConsulta {
 
 export const REGLAS_CONSULTA = 'Cada experiencia de alquiler distinta, aprobada por administración, suma 3 meses. El tiempo no utilizado se acumula, hasta un máximo de 12 meses desde la última experiencia nueva aprobada. Editar o reenviar el mismo alquiler no suma tiempo.'
 
+export const BENEFICIO_CONSULTA = 'Una experiencia nueva aprobada le da 3 meses para consultar. Puede acumular hasta 12 meses de acceso.'
+
+/** Solo presentación. La autorización siempre la decide Postgres. */
+export function accesoEnPantalla(acceso: AccesoConsulta, ahora: number): AccesoConsulta {
+  if (acceso.motivo === 'vigente' && acceso.vence_en && Date.parse(acceso.vence_en) <= ahora) {
+    return { ...acceso, puede_consultar: false, motivo: 'vencida' }
+  }
+  return acceso
+}
+
+export function tiempoRestante(venceEn: string, ahora: number): string {
+  const restante = Date.parse(venceEn) - ahora
+  if (!Number.isFinite(restante)) return 'Por verificar'
+  if (restante <= 0) return 'Acceso vencido'
+  const dias = Math.floor(restante / 86_400_000)
+  if (dias > 0) return `${dias} ${dias === 1 ? 'día' : 'días'}`
+  const horas = Math.floor(restante / 3_600_000)
+  if (horas > 0) return `${horas} ${horas === 1 ? 'hora' : 'horas'}`
+  return 'Menos de 1 hora'
+}
+
+export function tituloAcceso(acceso: AccesoConsulta): string {
+  switch (acceso.motivo) {
+    case 'vigente': return 'Acceso activo'
+    case 'vencida': return 'Acceso vencido'
+    case 'revision': return 'Reseña en revisión'
+    case 'rechazada': return 'Reseña no aprobada'
+    case 'inactiva': return 'Cuenta inactiva'
+    case 'administracion': return 'Acceso de administración'
+    case 'error': return 'Acceso por verificar'
+    default: return 'Comparta su primera experiencia'
+  }
+}
+
 export function fechaVencimiento(fecha: string) {
   return new Intl.DateTimeFormat('es-CR', {
     dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Costa_Rica',

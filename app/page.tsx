@@ -5,7 +5,7 @@ import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
-import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'
+import { BENEFICIO_CONSULTA, REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 
 export default async function HomePage() {
   const usuario = await obtenerUsuario()
@@ -28,7 +28,7 @@ export default async function HomePage() {
       </p>
       {!usuario && (
         <p className="mt-5 max-w-md text-xs leading-relaxed text-ink-soft">
-          Para consultar necesita una cuenta y un permiso vigente por sus reseñas aprobadas.
+          {BENEFICIO_CONSULTA}
         </p>
       )}
       <form action="/fichas" method="GET" className="mt-5 w-full max-w-xl" role="search">
