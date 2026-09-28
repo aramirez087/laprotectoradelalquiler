@@ -14,7 +14,7 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   const siguiente = destinoInterno(primer((await props.searchParams).siguiente))
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
-    if (usuario) redirect('/registro/resena')
+    if (usuario) redirect(usuario.rol === 'admin' ? '/admin' : '/registro/resena')
     if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(siguiente))
   }
   return (

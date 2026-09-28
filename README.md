@@ -32,6 +32,47 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
 
 ## Puesta en marcha
 
+Para actualizar una base existente con la edición y eliminación administrativa
+de reseñas, ejecute `npm run db:admin-resenas` antes de desplegar estos cambios.
+Este comando instala únicamente las funciones de `db/administrar-resenas.sql`;
+conserva los datos. **No use `db:aplicar` para actualizar una base existente**:
+el esquema inicial recrea las tablas.
+
+Las funciones comprueban que quien actúa sea un administrador activo y solo
+permiten ejecución al servidor (`service_role`). La edición guarda los cambios
+de inquilino y reseña en una sola transacción. Las cédulas legacy sin modificar
+se admiten al corregir otros datos. Puede verificarlo con
+`npm run test:admin-resenas` (requiere Docker; crea una base desechable).
+
+### Correos opcionales de administración
+
+No es necesario contratar un plan ni configurar Resend para editar o eliminar
+reseñas. Mientras `RESEND_API_KEY` esté vacío, la casilla «Notificar por correo»
+aparece deshabilitada con un aviso. Cada acción requiere que el administrador
+marque esa casilla; está desmarcada de forma predeterminada.
+
+Para habilitarla más adelante:
+
+1. Verifique `protectoradelalquiler.com` en Resend y cree una API key con permiso
+   de envío. Si utiliza otro dominio, configure también `RESEND_FROM_EMAIL` con
+   un remitente de ese dominio verificado. El valor predeterminado es
+   `La Protectora del Alquiler <notificaciones@protectoradelalquiler.com>`.
+2. Configure `RESEND_API_KEY` en el entorno del servidor (`.env.local` en local;
+   `vercel env add RESEND_API_KEY production` en Vercel). No use `NEXT_PUBLIC_`
+   para esta clave. Reinicie el servidor local o vuelva a desplegar en Vercel.
+
+Los avisos se envían por la [API de Resend](https://resend.com/docs/api-reference/emails/send-email)
+al autor obtenido de la base de datos, únicamente después de confirmar el cambio.
+El correo contiene el número de reseña y un enlace al perfil; no incluye la cédula
+ni el relato. Los errores transitorios tienen un reintento con la misma clave de
+idempotencia. Si no se puede confirmar el envío, el cambio se conserva y aparece
+un aviso persistente para administración, incluso si la reseña desapareció de la
+lista. No vuelva a modificar o eliminar para reintentar el correo: primero revise
+los registros en Resend. Las cuentas legacy sin correo real y las eliminadas no
+reciben notificaciones.
+
+### Instalación inicial
+
 1. Cree un proyecto en [supabase.com](https://supabase.com) (plan gratuito).
    En **Authentication → Providers**, para desarrollo puede desactivar la
    confirmación de correo. En **Settings → API** copie la *Project URL*, la
@@ -65,7 +106,15 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
    ```
 
    El módulo **Importar datos** también ofrece **Simular importación**.
-   Tanto la simulación como la importación requieren `DATABASE_URL`.
+   Tanto la simulación como la importación requieren `DATABASE_URL` (o las
+   variables de la integración `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL`).
+   El importador y `db:aplicar` verifican la cadena TLS y el nombre del servidor.
+   La CA pública de Supabase se incluye en el despliegue: no necesita una nueva
+   variable ni descargarla en cada ejecución. Las URLs con `sslmode=require`
+   se normalizan a `verify-full`, conservando una CA explícita en `sslrootcert`
+   si existe. Para Postgres local sin TLS use `DATABASE_SSL=false`; esta opción
+   solo se acepta para `localhost`, `127.0.0.1` o `::1`.
+   Consulte [la procedencia y renovación de la CA](scripts/certs/README.md).
    La simulación ejecuta las mismas escrituras y restricciones dentro de una
    transacción y termina con `ROLLBACK`; no crea accesos en Supabase Auth.
    Las secuencias de Postgres pueden avanzar aunque se reviertan las filas.
@@ -130,3 +179,17 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
   sigue siendo el enlace público del perfil (el que abre administración), no
   el id de Facebook. Para encenderlo en producción, siga
   `docs/runbooks/facebook-signin.md` y al final ponga `AUTH_FACEBOOK=1`.
+
+### Registro e invitaciones de administración
+
+El registro público tiene dos pasos: crear la cuenta y enviar la primera reseña. Si una persona abandona el segundo paso, su cuenta existe pero no puede consultar el registro hasta tener una reseña aprobada. Al volver a iniciar sesión se retoma ese paso. En Usuarios se distingue entre cuentas sin reseña, pendientes de aprobación y con acceso. Las cuentas inactivas no pueden consultar.
+
+Las cuentas de administración están exentas de la primera reseña. Desde **Administración → Usuarios → Invitar administrador**, un administrador activo puede invitar por nombre y correo a una persona nueva. Si ya existe una cuenta, se debe cambiar su rol desde la lista de usuarios. Las invitaciones usan la misma configuración opcional de Resend y permanecen deshabilitadas mientras falte `RESEND_API_KEY`.
+
+Antes de desplegar esta funcionalidad en una base existente, aplique la migración aditiva:
+
+```bash
+npm run db:invitaciones-admin
+```
+
+El enlace se envía al dominio de producción `https://www.protectoradelalquiler.com/invitacion/admin`. La invitación no otorga acceso hasta que el destinatario verifica el enlace y establece una clave. No consume el enlace al abrir la página (evita que un escáner de correo lo acepte). El token vence según la configuración de Auth y la invitación tiene un máximo de 24 horas. Reenviar reemplaza el enlace anterior. Si falla el envío o la aceptación, se puede reenviar con el mismo formulario. Las cuentas ya existentes nunca se promueven ni reactivan por este flujo; la persona que invitó debe seguir siendo administrador activo al aceptar. La tabla de invitaciones registra quién invitó y cuándo se aceptó; solo el servidor tiene acceso.

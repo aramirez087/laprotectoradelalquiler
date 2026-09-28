@@ -4,7 +4,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import * as z from 'zod'
 import { COOKIE_CORREO } from '@/lib/correo-recordado'
-import { requireUsuario } from '@/lib/dal'
+import { requireUsuario, destinoTrasLogin } from '@/lib/dal'
 import { authFacebookHabilitado, cuentaCreadaConFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
@@ -15,6 +15,7 @@ export type EstadoForm = {
   error?: string
   campos?: Record<string, string>
   mensaje?: string
+  advertencia?: string
 } | undefined
 
 const SchemaRegistro = z.object({
@@ -388,7 +389,8 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
   })
-  redirect(destinoInterno(formData.get('siguiente')))
+  const siguiente = destinoInterno(formData.get('siguiente'))
+  redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
 }
 
 const SchemaClave = z

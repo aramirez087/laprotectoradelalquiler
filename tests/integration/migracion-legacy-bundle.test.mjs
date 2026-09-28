@@ -24,5 +24,15 @@ test('the production trace can run the import worker outside the workspace', asy
   }
   const worker = await exec(process.execPath, ['scripts/migrar-legacy.mjs', '--probar-claves'], { cwd: isolated, env: {} });
   assert.match(worker.stdout, /clasificarSecreto ok/);
+  // La CA también debe estar disponible en el worker desplegado, sin .env.
+  await exec(process.execPath, ['--input-type=module', '--eval', `
+    import assert from 'node:assert/strict';
+    import pg from 'pg';
+    import { configuracionPostgres } from './scripts/postgres-config.mjs';
+    const client = new pg.Client(configuracionPostgres('postgres://test:dummy@aws-0-example.pooler.supabase.com/postgres?sslmode=require'));
+    assert.match(client.connectionParameters.ssl.ca, /BEGIN CERTIFICATE/);
+    assert.equal(client.connectionParameters.ssl.rejectUnauthorized, true);
+    assert.equal(typeof client.connectionParameters.ssl.checkServerIdentity, 'function');
+  `], { cwd: isolated, env: {} });
   await exec(process.execPath, ['--input-type=module', '--eval', "await import('@supabase/supabase-js'); await import('mysql2/promise'); await import('pg');"], { cwd: isolated, env: {} });
 });

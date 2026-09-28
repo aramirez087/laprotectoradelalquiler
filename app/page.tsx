@@ -85,7 +85,7 @@ export default async function HomePage() {
               <span className="numero-paso">3</span>
               <div>
                 <p className="text-sm font-medium">Consulte el registro</p>
-                <p className="mt-1 text-xs text-ink-soft">Una reseña aprobada le da acceso a las fichas.</p>
+                <p className="mt-1 text-xs text-ink-soft">Una reseña aprobada le permite consultar reseñas.</p>
               </div>
             </li>
           </ol>

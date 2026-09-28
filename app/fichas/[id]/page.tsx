@@ -1,6 +1,8 @@
+import { correoResenasConfigurado } from '@/lib/correo-resenas'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { requireUsuario, obtenerFicha, obtenerUsuario, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
@@ -53,7 +55,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
     return (
       <div className="contenedor max-w-xl space-y-4">
         <Link href={volver} className="text-sm font-semibold text-ink-soft">
-          ← Todas las fichas
+          ← Volver a reseñas
         </Link>
         <AvisoConfiguracion />
       </div>
@@ -67,7 +69,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
     return (
       <div className="contenedor max-w-xl space-y-4">
         <Link href={volver} className="text-sm font-semibold text-ink-soft">
-          ← Todas las fichas
+          ← Volver a reseñas
         </Link>
         <p className="aviso aviso-error">No pudimos abrir esta ficha. Intente de nuevo en un momento.</p>
       </div>
@@ -119,7 +121,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
       </header>
       <h2 className="text-xl">Experiencias compartidas</h2>
       {resenas.length === 0 && privadas.length === 0 ? (
-        <p className="text-sm text-ink-soft">Todavía no hay reseñas para esta persona.</p>
+        <p className="text-sm text-ink-soft">Todavía no hay reseñas para este inquilino.</p>
       ) : resenas.length === 0 ? null : (
         <div className="space-y-4">
           {resenas.map((r) => (
@@ -127,7 +129,8 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
               key={r.id}
               resena={r}
               puedeDenunciar={!r.propia}
-              esAdmin={usuario.rol === 'admin'}
+              esAdmin={usuario.rol === 'admin' && usuario.activo}
+              persona={persona}
             />
           ))}
         </div>
@@ -145,6 +148,19 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
               </p>
               <p className="whitespace-pre-wrap text-sm">{r.comentario?.trim() || 'Sin comentario.'}</p>
               {r.detalle_verificacion && <p className="text-sm text-ink-soft">{r.detalle_verificacion}</p>}
+              {usuario.rol === 'admin' && usuario.activo && (
+                <div className="space-y-2 border-t border-line pt-3">
+                  <FormEditarResena
+                    key={`${r.id}-${persona.id}-${r.comentario ?? ''}-${r.anonima ? 1 : 0}`}
+                    id={r.id}
+                    persona={persona}
+                    comentario={r.comentario}
+                    anonima={r.anonima}
+                    notificacionesHabilitadas={correoResenasConfigurado()}
+                  />
+                  <FormEliminarResena id={r.id} notificacionesHabilitadas={correoResenasConfigurado()} />
+                </div>
+              )}
             </article>
           ))}
         </section>

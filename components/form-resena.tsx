@@ -82,14 +82,14 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
 
       <Paso
         numero="1"
-        titulo="¿Sobre quién escribe?"
-        texto="Revise el nombre y el documento para identificar a la persona correcta."
+        titulo="Identificación del inquilino"
+        texto="Escriba el nombre y la cédula para identificar al inquilino. Las reseñas son solo sobre inquilinos."
       >
         {bloqueada && personaInicial && <p className="text-sm text-ink-soft">{nombreCompleto(personaInicial)}</p>}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="etiqueta-campo" htmlFor="identificacion">
-              Cédula o documento *
+              Cédula del inquilino *
             </label>
             <input
               {...atributosError('identificacion')}
@@ -209,9 +209,9 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <label htmlFor="anonima" className="opcion-rol flex items-start gap-3">
         <input id="anonima" name="anonima" type="checkbox" value="1" className="mt-1 h-4 w-4 shrink-0" />
         <span>
-          <span className="block text-sm font-medium">Publicar sin mi nombre</span>
+          <span className="block text-sm font-medium">Ocultar mi nombre</span>
           <span className="mt-0.5 block text-xs text-ink-soft">
-            En la ficha aparece como anónima. No escriba su nombre en el relato. Administración sí ve qué cuenta la
+            En la reseña aparece como anónima. No escriba su nombre en el relato. Administración sí ve qué cuenta la
             envió.
           </span>
         </span>
@@ -219,11 +219,11 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
-            ? 'Su reseña se enviará a revisión. Puede seguir su estado en su perfil.'
-            : 'Revise los datos antes de publicar su reseña.'}
+            ? 'Esta reseña se envía a revisión. No queda publicada hasta que administración la apruebe. Puede seguir el estado en su perfil.'
+            : 'Como administración, la reseña se publica de inmediato.'}
         </p>
         <button disabled={pendiente} className="btn-primario shrink-0">
-          {pendiente ? 'Enviando reseña…' : enRevision ? 'Enviar reseña a revisión' : 'Publicar reseña'}
+          {pendiente ? 'Enviando…' : enRevision ? 'Enviar reseña a revisión' : 'Publicar ahora'}
         </button>
       </div>
     </form>

@@ -98,9 +98,12 @@ export default async function PerfilPage(props: {
           Recibimos su reseña. Puede seguir su estado en «Mis reseñas».
         </p>
       )}
-      {!consulta && (
+      {usuario.rol === 'admin' && usuario.activo && (
+        <p className="aviso aviso-ok">Su cuenta de administración no necesita una reseña para acceder.</p>
+      )}
+      {!consulta && usuario.activo && (
         <p className="text-sm text-ink-soft">
-          Cuando administración apruebe una reseña, puede consultar fichas.
+          Cuando administración apruebe una reseña, puede consultar reseñas.
         </p>
       )}
 
@@ -115,8 +118,8 @@ export default async function PerfilPage(props: {
         {!aviso && misResenas.length === 0 ? (
           <div className="expediente space-y-3">
             <p className="text-ink-soft">Todavía no ha escrito reseñas.</p>
-            <Link href="/registro/resena" className="btn-primario">
-              Escribir la primera
+            <Link href={usuario.rol === 'admin' ? '/admin' : '/registro/resena'} className="btn-primario">
+              {usuario.rol === 'admin' ? 'Ir a administración' : 'Escribir la primera'}
             </Link>
           </div>
         ) : (

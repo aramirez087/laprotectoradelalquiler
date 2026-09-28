@@ -42,7 +42,7 @@ export default function PrivacidadPage() {
         <p className="text-sm leading-relaxed text-ink-soft">
           La reseña guarda el relato y la persona de quien se habla. Si la marca anónima, el público no ve su nombre.
           La cédula completa no se publica: en el registro se muestra enmascarada. Administración ve la cuenta, la
-          cédula y el enlace de Facebook al revisar. Consultar fichas de otras personas se abre cuando administración
+          cédula y el enlace de Facebook al revisar. Consultar reseñas de otras personas se abre cuando administración
           aprueba una reseña suya.
         </p>
       </section>

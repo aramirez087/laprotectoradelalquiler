@@ -3,7 +3,7 @@ import 'server-only'
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
-import { etiquetaMotivo, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
+import { etiquetaMotivo, normalizarCedula, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -283,6 +283,69 @@ export async function decidirResena(input: { id: number; estado: EstadoResena; n
   return data.persona_id as number
 }
 
+type ResultadoCambioResena = {
+  persona_id: number
+  persona_anterior_id?: number
+  movida?: boolean
+  autor_email: string
+  autor_nombre: string
+}
+
+function errorCambioResena(error: { code?: string; message: string }) {
+  if (error.code === '23505') return new AvisoAdmin('Esa cédula ya identifica a otro inquilino.')
+  const mensajes = [
+    'No puede administrar reseñas con esta cuenta.',
+    'No encontramos esa reseña.',
+    'Escriba un documento de 6 a 12 dígitos; puede incluir guiones.',
+    'Revise los campos indicados.',
+  ]
+  if (error.code === 'P0001' && mensajes.includes(error.message)) return new AvisoAdmin(error.message)
+  return error
+}
+
+export async function editarResena(input: {
+  id: number
+  identificacion: string
+  nombre: string
+  nombre2: string
+  apellido1: string
+  apellido2: string
+  comentario: string
+  anonima: boolean
+}) {
+  const { usuario, db } = await exigirAdmin()
+  const { data, error } = await db.rpc('admin_editar_resena', {
+    p_admin_id: usuario.id,
+    p_id: input.id,
+    p_identificacion: normalizarCedula(input.identificacion),
+    p_nombre: input.nombre,
+    p_nombre2: input.nombre2,
+    p_apellido1: input.apellido1,
+    p_apellido2: input.apellido2,
+    p_comentario: input.comentario,
+    p_anonima: input.anonima,
+  }).single<ResultadoCambioResena>()
+  if (error) throw errorCambioResena(error)
+  if (!data) throw new AvisoAdmin('No encontramos esa reseña.')
+  return {
+    personaId: data.persona_id,
+    personaAnteriorId: data.persona_anterior_id,
+    movida: data.movida,
+    autor: { email: data.autor_email, nombre: data.autor_nombre },
+  }
+}
+
+export async function eliminarResena(id: number) {
+  const { usuario, db } = await exigirAdmin()
+  const { data, error } = await db.rpc('admin_eliminar_resena', {
+    p_admin_id: usuario.id,
+    p_id: id,
+  }).single<ResultadoCambioResena>()
+  if (error) throw errorCambioResena(error)
+  if (!data) throw new AvisoAdmin('No encontramos esa reseña.')
+  return { personaId: data.persona_id, autor: { email: data.autor_email, nombre: data.autor_nombre } }
+}
+
 export async function conteoPorUsuario(q: string) {
   const { db } = await exigirAdmin()
   const totales = new Map<number, { total: number; publicadas: number; revision: number; rechazadas: number }>()
@@ -338,7 +401,11 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   const pagina = Math.max(1, opts.pagina ?? 1)
   let consulta = db
     .from('usuarios')
-    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en', { count: 'exact' })
+    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en, resenas(id), aprobadas:resenas(id), pendientes:resenas(id)', { count: 'exact' })
+    .eq('aprobadas.estado', 'publicada').eq('pendientes.estado', 'borrador')
+    .limit(1, { referencedTable: 'resenas' })
+    .limit(1, { referencedTable: 'aprobadas' })
+    .limit(1, { referencedTable: 'pendientes' })
 
   const q = textoPlano(opts.q ?? '')
   if (q.length >= 2) {
@@ -351,10 +418,15 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   const desde = (pagina - 1) * POR_PAGINA
   const { data, error, count } = await consulta.order('nombre', { ascending: true }).range(desde, desde + POR_PAGINA - 1)
   if (error) throw error
-  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook'>>
+  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook'> & { resenas: { id: number }[]; aprobadas: { id: number }[]; pendientes: { id: number }[] }>
   const perfiles = await facebookPorUsuario(db, base.map((fila) => fila.id))
   return {
-    filas: base.map((fila) => ({ ...fila, facebook: perfiles.get(fila.id) ?? null })),
+    filas: base.map((fila) => ({ ...fila, facebook: perfiles.get(fila.id) ?? null,
+      registro: !fila.activo ? 'Cuenta inactiva' : fila.rol === 'admin' ? 'Administración: reseña no requerida'
+        : fila.aprobadas.length ? 'Consulta habilitada: reseña aprobada'
+        : fila.pendientes.length ? 'Reseña pendiente de aprobación'
+        : fila.resenas.length ? 'Sin reseñas aprobadas' : 'Registro incompleto: falta la primera reseña',
+    })),
     total: count ?? 0,
   }
 }

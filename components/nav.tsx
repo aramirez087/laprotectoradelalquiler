@@ -44,7 +44,7 @@ export function Nav({
     <>
       {(!usuario || usuario.consulta || usuario.rol === 'admin') && (
         <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
-          Consultar fichas
+          Consultar reseñas
         </Link>
       )}
       <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>

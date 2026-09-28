@@ -9,7 +9,7 @@ import { TarjetaFicha } from '@/components/tarjeta-ficha'
 import { EstadoVacio } from '@/components/estado-vacio'
 import type { VistaFicha } from '@/lib/tipos'
 
-export const metadata = { title: 'Fichas' }
+export const metadata = { title: 'Reseñas' }
 
 function hrefLista(opts: { q?: string; pagina?: number }) {
   const p = new URLSearchParams()
@@ -60,9 +60,9 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-3">Registro de la comunidad</p>
-          <h1 className="text-3xl sm:text-4xl">Consultar fichas</h1>
+          <h1 className="text-3xl sm:text-4xl">Consultar reseñas</h1>
           <p className="mt-3 text-sm text-ink-soft">
-            Busque una persona para conocer las experiencias compartidas.
+            Busque a un inquilino por nombre o cédula para leer las reseñas.
           </p>
         </div>
         <Link href="/resenas/nueva" className="btn-secundario">
@@ -84,14 +84,14 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
 
       {!aviso && total > 0 && (
         <p className="text-sm text-ink-soft">
-          {desde}–{hasta} de {formatoNumero(total)} {total === 1 ? 'ficha' : 'fichas'}
+          {desde}–{hasta} de {formatoNumero(total)} {total === 1 ? 'resultado' : 'resultados'}
         </p>
       )}
 
       {fichas.length === 0 && !aviso ? (
         <EstadoVacio
-          titulo="No encontramos fichas"
-          texto="Pruebe con un apellido o revise el documento."
+          titulo="No encontramos a ese inquilino"
+          texto="Pruebe con el apellido o la cédula."
         >
           {q && (
             <Link href="/fichas" className="btn-secundario">

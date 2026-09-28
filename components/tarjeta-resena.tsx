@@ -1,3 +1,5 @@
+import { correoResenasConfigurado } from '@/lib/correo-resenas'
+import { FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { FormDenuncia } from '@/components/form-denuncia'
@@ -8,10 +10,19 @@ export function TarjetaResena({
   resena,
   puedeDenunciar,
   esAdmin = false,
+  persona,
 }: {
   resena: FilaResenaCompleta
   puedeDenunciar: boolean
   esAdmin?: boolean
+  persona?: {
+    id: number
+    identificacion: string
+    nombre: string
+    nombre2: string | null
+    apellido1: string
+    apellido2: string | null
+  }
 }) {
   const identidad = identidadAutorResena({
     anonima: resena.anonima,
@@ -146,6 +157,20 @@ export function TarjetaResena({
           <summary>Denunciar esta reseña</summary>
           <FormDenuncia resenaId={resena.id} />
         </details>
+      )}
+
+      {esAdmin && persona && (
+        <div className="space-y-2 border-t border-line pt-3">
+          <FormEditarResena
+            key={`${resena.id}-${persona.id}-${resena.comentario ?? ''}-${resena.anonima ? 1 : 0}`}
+            id={resena.id}
+            persona={persona}
+            comentario={resena.comentario}
+            anonima={resena.anonima}
+            notificacionesHabilitadas={correoResenasConfigurado()}
+          />
+          <FormEliminarResena id={resena.id} notificacionesHabilitadas={correoResenasConfigurado()} />
+        </div>
       )}
     </article>
   )

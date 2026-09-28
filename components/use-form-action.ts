@@ -6,8 +6,16 @@ import type { EstadoForm } from '@/lib/actions/auth'
 type Accion = (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
 
 /** Keep entered values on recoverable errors; React otherwise resets uncontrolled fields. */
-export function useFormAction(accion: Accion, { resetOnSuccess = false } = {}) {
-  const [estado, action, pendiente] = useActionState(accion, undefined)
+export function useFormAction(accion: Accion, { resetOnSuccess = false, onResultado }: {
+  resetOnSuccess?: boolean
+  onResultado?: (resultado: EstadoForm) => void
+} = {}) {
+  const accionConAviso: Accion = async (prev, datos) => {
+    const resultado = await accion(prev, datos)
+    onResultado?.(resultado)
+    return resultado
+  }
+  const [estado, action, pendiente] = useActionState(onResultado ? accionConAviso : accion, undefined)
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {

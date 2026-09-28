@@ -23,6 +23,7 @@ import crypto from 'node:crypto';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { importarCatalogos } from './legacy-catalogos.mjs';
+import { configuracionPostgres } from './postgres-config.mjs';
 
 const args = process.argv.slice(2);
 if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves'].includes(a) && !a.startsWith('--pasos='))) {
@@ -75,17 +76,9 @@ if (CREAR_ACCOUNTS && (!SUPABASE_URL_ADMIN || !SUPABASE_KEY_ADMIN)) {
   process.exit(1);
 }
 
-// Supabase/pooler usa certificado autofirmado: ciframos sin validar la cadena.
-// (El dashboard permite descargar la CA oficial para validación estricta.)
-function sslConfig() {
-  if (process.env.DATABASE_SSL === 'false') return undefined;
-  if ((process.env.DATABASE_URL ?? '').includes('supabase.co')) return { rejectUnauthorized: false };
-  return undefined;
-}
-
 const m = await mysql.createPool(mysqlCfg);
 // Un único cliente: BEGIN/COMMIT y todas las escrituras comparten conexión.
-const pool = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: sslConfig(), connectionTimeoutMillis: 15_000 });
+const pool = new pg.Client({ ...configuracionPostgres(process.env.DATABASE_URL), connectionTimeoutMillis: 15_000 });
 const supabaseAdmin = CREAR_ACCOUNTS
   ? (await import('@supabase/supabase-js')).createClient(SUPABASE_URL_ADMIN, SUPABASE_KEY_ADMIN, {
       auth: { autoRefreshToken: false, persistSession: false },

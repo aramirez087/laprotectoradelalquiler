@@ -143,12 +143,24 @@ export async function requerirRol(...roles: Rol[]) {
   return u
 }
 
+/** Resume the first-review step after an ordinary account logs back in. */
+export async function destinoTrasLogin(authUserId: string, siguiente: string): Promise<string> {
+  const db = createAdmin()
+  if (!db) return siguiente
+  const { data: usuario, error } = await db.from('usuarios').select('id, rol, activo').eq('auth_user_id', authUserId).maybeSingle()
+  if (error || !usuario || !usuario.activo) return siguiente
+  if (usuario.rol === 'admin') return siguiente === '/registro/resena' ? '/admin' : siguiente
+  const { count, error: errorResenas } = await db.from('resenas').select('id', { head: true, count: 'exact' }).eq('autor_id', usuario.id)
+  return !errorResenas && count === 0 ? '/registro/resena' : siguiente
+}
+
 /**
  * Consultar el registro (buscar fichas y leer reseñas ajenas) exige al menos
  * una reseña propia ya publicada. Administración entra siempre.
  * Si la consulta falla, se niega el acceso.
  */
 export const puedeConsultar = cache(async (usuario: Usuario): Promise<boolean> => {
+  if (!usuario.activo) return false
   if (usuario.rol === 'admin') return true
   if (sinSupabase()) return false
   const admin = createAdmin()

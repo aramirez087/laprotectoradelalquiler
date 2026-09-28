@@ -1,5 +1,6 @@
+import { correoResenasConfigurado } from '@/lib/correo-resenas'
 import Link from 'next/link'
-import { FormDecision } from '@/components/admin-formularios'
+import { FormDecision, FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import type { FilaAdminResena } from '@/lib/admin'
 import { etiquetaEstado, fechaCorta, nombreCompleto } from '@/lib/util'
@@ -55,6 +56,17 @@ export function ResenaAdmin({ fila }: { fila: FilaAdminResena }) {
       <p className="whitespace-pre-wrap text-sm">{fila.comentario?.trim() || 'Sin comentario.'}</p>
       {fila.detalle_verificacion && <p className="text-sm text-ink-soft">{fila.detalle_verificacion}</p>}
       <FormDecision id={fila.id} decisiones={decisionesDe(fila.estado)} />
+      <div className="space-y-2 border-t border-line pt-3">
+        <FormEditarResena
+          key={`${fila.id}-${fila.persona.id}-${fila.comentario ?? ''}-${fila.anonima ? 1 : 0}`}
+          id={fila.id}
+          persona={fila.persona}
+          comentario={fila.comentario}
+          anonima={fila.anonima}
+          notificacionesHabilitadas={correoResenasConfigurado()}
+        />
+        <FormEliminarResena id={fila.id} notificacionesHabilitadas={correoResenasConfigurado()} />
+      </div>
     </article>
   )
 }

@@ -11,7 +11,6 @@ import {
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
-import { createAdmin } from '@/lib/supabase/admin'
 import { mascararCedula, primer } from '@/lib/util'
 
 export const metadata = { title: 'Escribir reseña' }
@@ -90,22 +89,22 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         <p className="eyebrow mb-3">Una experiencia que ayuda</p>
         <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          Identifique a la persona y cuente qué ocurrió.
+          Identifique al inquilino y cuente qué ocurrió.
         </p>
-        {usuario.rol !== 'admin' && createAdmin() && (
+        {usuario.rol !== 'admin' && (
           <p className="mt-2 text-sm text-ink-soft">
-            La reseña se publica cuando administración la revisa.
-            {!consulta && ' Con una reseña aprobada puede consultar fichas.'}
+            La reseña se envía a revisión. Se publica cuando administración la aprueba.
+            {!consulta && ' Con una reseña aprobada puede consultar reseñas.'}
           </p>
         )}
       </div>
       <FormResena
         accion={crearResenaAction}
         personaInicial={personaInicial}
-        enRevision={usuario.rol !== 'admin' && !!createAdmin()}
+        enRevision={usuario.rol !== 'admin'}
       />
       <Link href={consulta ? '/fichas' : '/perfil'} className="text-sm font-semibold text-ink-soft">
-        {consulta ? '← Volver a fichas' : '← Perfil'}
+        {consulta ? '← Volver a reseñas' : '← Perfil'}
       </Link>
     </div>
   )

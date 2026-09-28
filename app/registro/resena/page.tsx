@@ -9,7 +9,6 @@ import {
 import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
-import { createAdmin } from '@/lib/supabase/admin'
 
 export const metadata = { title: 'Su primera reseña' }
 
@@ -27,6 +26,8 @@ export default async function RegistroResenaPage() {
       </div>
     )
   }
+
+  if (usuario.rol === 'admin') redirect('/admin')
 
   if (sinSupabase()) {
     return (
@@ -52,14 +53,14 @@ export default async function RegistroResenaPage() {
         <p className="eyebrow mb-3">Paso 2 de 2</p>
         <h1 className="text-3xl sm:text-4xl">Cuéntenos una experiencia</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          Identifique a la persona y cuente qué ocurrió. Administración revisa la reseña antes de abrir la consulta.
+          Identifique al inquilino y cuente qué ocurrió. La reseña se envía a revisión antes de publicarse.
         </p>
       </div>
       <FormResena
         primera
         accion={crearResenaAction}
         personaInicial={null}
-        enRevision={usuario.rol !== 'admin' && !!createAdmin()}
+        enRevision
       />
       <Link href="/perfil" className="text-sm font-semibold text-ink-soft">
         ← Perfil

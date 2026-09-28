@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import './globals.css'
 import { Nav } from '@/components/nav'
+import { AvisosAdmin } from '@/components/avisos-admin'
 import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 
 const instrumentSans = Instrument_Sans({
@@ -53,9 +54,11 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
               : 'Su cuenta está inactiva. No puede publicar.'}
           </p>
         )}
-        <main id="contenido" tabIndex={-1} className="flex-1">
-          {props.children}
-        </main>
+        <AvisosAdmin>
+          <main id="contenido" tabIndex={-1} className="flex-1">
+            {props.children}
+          </main>
+        </AvisosAdmin>
         <footer className="pie-pagina">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 sm:px-6">
             <p className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">

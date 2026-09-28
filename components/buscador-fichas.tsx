@@ -20,14 +20,14 @@ export function BuscadorFichas({ q }: { q: string }) {
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="¿A quién desea consultar?"
+            placeholder="Nombre o cédula del inquilino"
             maxLength={150}
             className="campo pl-11"
           />
         </div>
       </div>
       <button type="submit" className="btn-primario">
-        Buscar fichas
+        Buscar
       </button>
     </form>
   )

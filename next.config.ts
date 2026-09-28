@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
     '/admin/migracion': [
       './scripts/migrar-legacy.mjs',
       './scripts/legacy-catalogos.mjs',
+      './scripts/postgres-config.mjs',
+      './scripts/certs/supabase-prod-ca-2021.crt',
       ...archivosRuntimeLegacy(),
     ],
   },

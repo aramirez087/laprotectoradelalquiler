@@ -1,3 +1,5 @@
+import { FormInvitacionAdmin } from '@/components/form-invitacion-admin'
+import { correoResenasConfigurado } from '@/lib/correo-resenas'
 import { redirect } from 'next/navigation'
 import { buscarUsuarios, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { FormUsuario } from '@/components/admin-formularios'
@@ -36,6 +38,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
   return (
     <div className="contenedor space-y-5">
       <h1 className="text-3xl">Usuarios</h1>
+      <FormInvitacionAdmin habilitada={correoResenasConfigurado()} />
       <form method="GET" className="buscador" role="search">
         <label className="sr-only" htmlFor="q">
           Nombre, correo, cédula o teléfono
@@ -52,6 +55,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
           <li key={usuario.id} className="expediente space-y-3">
             <div>
               <p className="text-lg">{usuario.nombre}</p>
+              <p className="mt-1 text-sm font-semibold text-seal">{usuario.registro}</p>
               <p className="text-sm text-ink-soft">
                 {[
                   usuario.email,

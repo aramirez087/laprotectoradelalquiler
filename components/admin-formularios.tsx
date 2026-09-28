@@ -1,7 +1,8 @@
 'use client'
 
 import { useFormAction } from '@/components/use-form-action'
-import { decidirResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
+import { useAvisoAdmin } from '@/components/avisos-admin'
+import { decidirResenaAction, editarResenaAction, eliminarResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
 import { MensajeForm } from '@/components/mensaje-form'
 import { etiquetaRol } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
@@ -39,6 +40,178 @@ export function FormDecision({
         ))}
       </div>
     </form>
+  )
+}
+
+function ErrorCampo({ nombre, mensaje }: { nombre: string; mensaje?: string }) {
+  return mensaje ? (
+    <p id={`error-${nombre}`} className="mt-2 text-sm text-alerta">
+      {mensaje}
+    </p>
+  ) : null
+}
+
+function OpcionNotificar({ id, habilitada }: { id: string; habilitada: boolean }) {
+  return (
+    <div className={habilitada ? '' : 'text-ink-soft'}>
+      <label htmlFor={id} className={`flex items-start gap-3 text-sm ${habilitada ? '' : 'opacity-60'}`}>
+        <input id={id} name="notificar" type="checkbox" value="1" disabled={!habilitada}
+          aria-describedby={`${id}-ayuda`} className="mt-1 h-4 w-4 shrink-0" />
+        <span>Notificar por correo a quien escribió la reseña</span>
+      </label>
+      <p id={`${id}-ayuda`} className="mt-2 text-xs text-ink-soft">
+        {habilitada
+          ? 'Se enviará un aviso después de guardar esta acción.'
+          : 'Resend aún no está configurado. Las notificaciones por correo están deshabilitadas.'}
+      </p>
+    </div>
+  )
+}
+
+export function FormEditarResena({
+  id,
+  persona,
+  comentario,
+  anonima,
+  notificacionesHabilitadas = false,
+}: {
+  id: number
+  persona: {
+    identificacion: string
+    nombre: string
+    nombre2: string | null
+    apellido1: string
+    apellido2: string | null
+  }
+  comentario: string | null
+  anonima: boolean
+  notificacionesHabilitadas?: boolean
+}) {
+  const onResultado = useAvisoAdmin()
+  const { estado, pendiente, formProps } = useFormAction(editarResenaAction, { onResultado })
+  function errorCampo(nombre: string) {
+    return estado?.campos?.[nombre]
+  }
+
+  return (
+    <details className="denuncia">
+      <summary>Modificar reseña</summary>
+      <form {...formProps} className="space-y-4">
+        <input type="hidden" name="id" value={id} />
+        <p className="text-sm text-ink-soft">
+          Corregir el nombre actualiza al inquilino en todas sus reseñas. Una cédula distinta mueve solo esta reseña.
+        </p>
+        <fieldset key={JSON.stringify([persona.identificacion, persona.nombre, persona.nombre2, persona.apellido1, persona.apellido2])} className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="etiqueta-campo" htmlFor={`identificacion-${id}`}>
+              Cédula del inquilino
+            </label>
+            <input
+              id={`identificacion-${id}`}
+              name="identificacion"
+              required
+              maxLength={30}
+              defaultValue={persona.identificacion}
+              aria-invalid={!!errorCampo('identificacion')}
+              aria-describedby={errorCampo('identificacion') ? `error-identificacion-${id}` : undefined}
+              className="campo"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <ErrorCampo nombre={`identificacion-${id}`} mensaje={errorCampo('identificacion')} />
+          </div>
+          <div>
+            <label className="etiqueta-campo" htmlFor={`nombre-${id}`}>
+              Nombre
+            </label>
+            <input
+              id={`nombre-${id}`}
+              name="nombre"
+              required
+              minLength={2}
+              defaultValue={persona.nombre}
+              aria-invalid={!!errorCampo('nombre')}
+              className="campo"
+              autoComplete="off"
+            />
+            <ErrorCampo nombre={`nombre-${id}`} mensaje={errorCampo('nombre')} />
+          </div>
+          <div>
+            <label className="etiqueta-campo" htmlFor={`nombre2-${id}`}>
+              Segundo nombre
+            </label>
+            <input id={`nombre2-${id}`} name="nombre2" maxLength={100} defaultValue={persona.nombre2 ?? ''} className="campo" autoComplete="off" />
+          </div>
+          <div>
+            <label className="etiqueta-campo" htmlFor={`apellido1-${id}`}>
+              Primer apellido
+            </label>
+            <input
+              id={`apellido1-${id}`}
+              name="apellido1"
+              required
+              minLength={2}
+              defaultValue={persona.apellido1}
+              aria-invalid={!!errorCampo('apellido1')}
+              className="campo"
+              autoComplete="off"
+            />
+            <ErrorCampo nombre={`apellido1-${id}`} mensaje={errorCampo('apellido1')} />
+          </div>
+          <div>
+            <label className="etiqueta-campo" htmlFor={`apellido2-${id}`}>
+              Segundo apellido
+            </label>
+            <input id={`apellido2-${id}`} name="apellido2" maxLength={100} defaultValue={persona.apellido2 ?? ''} className="campo" autoComplete="off" />
+          </div>
+        </fieldset>
+        <div>
+          <label className="etiqueta-campo" htmlFor={`comentario-${id}`}>
+            Relato
+          </label>
+          <textarea
+            id={`comentario-${id}`}
+            name="comentario"
+            required
+            rows={6}
+            maxLength={5000}
+            defaultValue={comentario ?? ''}
+            aria-invalid={!!errorCampo('comentario')}
+            className="campo"
+          />
+          <ErrorCampo nombre={`comentario-${id}`} mensaje={errorCampo('comentario')} />
+        </div>
+        <label htmlFor={`anonima-${id}`} className="flex items-start gap-3 text-sm">
+          <input id={`anonima-${id}`} name="anonima" type="checkbox" value="1" defaultChecked={anonima} className="mt-1 h-4 w-4 shrink-0" />
+          <span>Ocultar el nombre de quien escribió</span>
+        </label>
+        <OpcionNotificar id={`notificar-edicion-${id}`} habilitada={notificacionesHabilitadas} />
+        <MensajeForm error={estado?.error} />
+        <button disabled={pendiente} className="btn-primario">
+          {pendiente ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+      </form>
+    </details>
+  )
+}
+
+export function FormEliminarResena({ id, notificacionesHabilitadas = false }: { id: number; notificacionesHabilitadas?: boolean }) {
+  const onResultado = useAvisoAdmin()
+  const { estado, pendiente, formProps } = useFormAction(eliminarResenaAction, { onResultado })
+
+  return (
+    <details className="denuncia">
+      <summary>Eliminar reseña</summary>
+      <form {...formProps} className="space-y-3">
+        <input type="hidden" name="id" value={id} />
+        <p className="text-sm text-ink-soft">Se borra esta reseña del registro. No se puede recuperar.</p>
+        <OpcionNotificar id={`notificar-eliminacion-${id}`} habilitada={notificacionesHabilitadas} />
+        <MensajeForm error={estado?.error} />
+        <button name="confirmar" value="1" disabled={pendiente} className="btn-secundario btn-peligro">
+          {pendiente ? 'Eliminando…' : 'Confirmar eliminación'}
+        </button>
+      </form>
+    </details>
   )
 }
 

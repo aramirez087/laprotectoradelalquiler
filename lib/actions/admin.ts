@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
-import { actualizarUsuario, AvisoAdmin, decidirResena, resolverDenuncia } from '@/lib/admin'
+import { actualizarUsuario, AvisoAdmin, decidirResena, editarResena, eliminarResena, resolverDenuncia } from '@/lib/admin'
+import { notificarCambioResena } from '@/lib/correo-resenas'
 import type { EstadoForm } from './auth'
 import type { EstadoResena } from '@/lib/tipos'
 
@@ -34,7 +35,7 @@ function aviso(e: unknown) {
   return 'No se pudo guardar.'
 }
 
-function revalidarResena(personaId?: number) {
+function revalidarResena(personaId?: number | Array<number | null | undefined>) {
   revalidatePath('/admin')
   revalidatePath('/admin/resenas')
   revalidatePath('/admin/revision')
@@ -43,7 +44,29 @@ function revalidarResena(personaId?: number) {
   revalidatePath('/admin/reportes')
   revalidatePath('/fichas')
   revalidatePath('/perfil')
-  if (personaId) revalidatePath(`/fichas/${personaId}`)
+  const ids = Array.isArray(personaId) ? personaId : [personaId]
+  for (const id of new Set(ids)) {
+    if (id) revalidatePath(`/fichas/${id}`)
+  }
+}
+
+const SchemaEditarResena = z.object({
+  id: z.coerce.number().int().positive(),
+  identificacion: z.string().trim().max(30),
+  nombre: z.string().trim().min(2, 'Escriba el nombre'),
+  nombre2: z.string().trim().max(100).optional().or(z.literal('')),
+  apellido1: z.string().trim().min(2, 'Escriba el primer apellido'),
+  apellido2: z.string().trim().max(100).optional().or(z.literal('')),
+  comentario: z.string().trim().min(1, 'Escriba el relato').max(5000, 'El relato es muy largo'),
+})
+
+const SchemaEliminarResena = z.object({
+  id: z.coerce.number().int().positive(),
+  confirmar: z.literal('1'),
+})
+
+function camposDe(error: z.ZodError) {
+  return Object.fromEntries(error.issues.map((issue) => [String(issue.path[0]), issue.message]))
 }
 
 export async function decidirResenaAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
@@ -62,6 +85,63 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
     })
     revalidarResena(personaId)
     return { mensaje: 'Listo.' }
+  } catch (e) {
+    unstable_rethrow(e)
+    return { error: aviso(e) }
+  }
+}
+
+export async function editarResenaAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  const parsed = SchemaEditarResena.safeParse({
+    id: formData.get('id'),
+    identificacion: formData.get('identificacion'),
+    nombre: formData.get('nombre'),
+    nombre2: formData.get('nombre2') ?? '',
+    apellido1: formData.get('apellido1'),
+    apellido2: formData.get('apellido2') ?? '',
+    comentario: formData.get('comentario'),
+  })
+  if (!parsed.success) return { error: 'Revise los campos indicados.', campos: camposDe(parsed.error) }
+
+  try {
+    const resultado = await editarResena({
+      ...parsed.data,
+      nombre2: parsed.data.nombre2 ?? '',
+      apellido2: parsed.data.apellido2 ?? '',
+      anonima: formData.get('anonima') === '1',
+    })
+    const correo = await notificarCambioResena({
+      solicitada: formData.get('notificar') === '1',
+      accion: 'modificada',
+      resenaId: parsed.data.id,
+      autor: resultado.autor,
+    })
+    revalidarResena([resultado.personaId, resultado.personaAnteriorId])
+    const mensaje = resultado.movida ? 'La reseña quedó en la ficha de esa cédula.' : 'Reseña actualizada.'
+    return { mensaje: [mensaje, correo.mensaje].filter(Boolean).join(' '), advertencia: correo.advertencia }
+  } catch (e) {
+    unstable_rethrow(e)
+    return { error: aviso(e) }
+  }
+}
+
+export async function eliminarResenaAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  const parsed = SchemaEliminarResena.safeParse({
+    id: formData.get('id'),
+    confirmar: formData.get('confirmar'),
+  })
+  if (!parsed.success) return { error: 'Confirme la eliminación.' }
+
+  try {
+    const resultado = await eliminarResena(parsed.data.id)
+    const correo = await notificarCambioResena({
+      solicitada: formData.get('notificar') === '1',
+      accion: 'eliminada',
+      resenaId: parsed.data.id,
+      autor: resultado.autor,
+    })
+    revalidarResena(resultado.personaId)
+    return { mensaje: ['Reseña eliminada.', correo.mensaje].filter(Boolean).join(' '), advertencia: correo.advertencia }
   } catch (e) {
     unstable_rethrow(e)
     return { error: aviso(e) }
