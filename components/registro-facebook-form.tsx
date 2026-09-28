@@ -1,0 +1,119 @@
+'use client'
+
+import { useFormAction } from '@/components/use-form-action'
+import { completarAltaFacebook, cerrarSesion } from '@/lib/actions/auth'
+import { MensajeForm } from '@/components/mensaje-form'
+
+const ROLES = [
+  { value: 'propietario', titulo: 'Propietario', descripcion: 'Alquilo una propiedad propia.', defecto: true },
+  { value: 'agencia', titulo: 'Agencia', descripcion: 'Gestiono alquileres para otras personas.', defecto: false },
+  { value: 'inquilino', titulo: 'Inquilino', descripcion: 'Alquilo una vivienda o local.', defecto: false },
+]
+
+export function RegistroFacebookForm({
+  nombre,
+  email,
+  cedula,
+  facebook,
+  pedirRol,
+}: {
+  nombre: string
+  email: string
+  cedula: string
+  facebook: string
+  pedirRol: boolean
+}) {
+  const { estado, pendiente, formProps } = useFormAction(completarAltaFacebook)
+
+  return (
+    <div className="space-y-4">
+      <form {...formProps} className="space-y-4">
+        <div>
+          <label className="etiqueta-campo" htmlFor="nombre">
+            Nombre completo
+          </label>
+          <input
+            id="nombre"
+            name="nombre"
+            required
+            minLength={3}
+            className="campo"
+            defaultValue={nombre}
+            autoComplete="name"
+          />
+        </div>
+        <div>
+          <p className="etiqueta-campo">Correo electrónico</p>
+          <p className="text-sm">{email}</p>
+        </div>
+        <div>
+          <label className="etiqueta-campo" htmlFor="cedula">
+            Número de cédula
+          </label>
+          <input
+            id="cedula"
+            name="cedula"
+            required
+            className="campo"
+            defaultValue={cedula}
+            placeholder="1-0234-0567"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={30}
+          />
+        </div>
+        <div>
+          <label className="etiqueta-campo" htmlFor="facebook">
+            Perfil de Facebook
+          </label>
+          <input
+            id="facebook"
+            name="facebook"
+            required
+            className="campo"
+            defaultValue={facebook}
+            placeholder="facebook.com/su.perfil"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={300}
+            aria-describedby="ayuda-facebook"
+          />
+          <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">
+            El enlace público de su perfil. Administración lo abre al revisar la reseña.
+          </p>
+        </div>
+        {pedirRol && (
+          <fieldset>
+            <legend className="etiqueta-campo">Soy…</legend>
+            <div className="grid gap-2">
+              {ROLES.map((rol) => (
+                <label key={rol.value} className="opcion-rol flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="rol"
+                    value={rol.value}
+                    defaultChecked={rol.defecto}
+                    className="mt-1 h-4 w-4 shrink-0 accent-[var(--seal)]"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">{rol.titulo}</span>
+                    <span className="mt-0.5 block text-xs text-ink-soft">{rol.descripcion}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
+        <button disabled={pendiente} className="btn-primario w-full">
+          {pendiente ? 'Guardando…' : 'Continuar a la reseña'}
+        </button>
+      </form>
+      <form action={cerrarSesion}>
+        <button type="submit" className="btn-secundario w-full">
+          Cancelar
+        </button>
+      </form>
+    </div>
+  )
+}

@@ -22,11 +22,22 @@ const ROLES = [
   { value: 'inquilino', titulo: 'Inquilino', descripcion: 'Alquilo una vivienda o local.', defecto: false },
 ]
 
-export function RegistroForm({ siguiente = '/fichas' }: { siguiente?: string }) {
+export function RegistroForm({
+  siguiente = '/fichas',
+  enlaceFacebook = null,
+}: {
+  siguiente?: string
+  enlaceFacebook?: string | null
+}) {
   const { estado, pendiente, formProps } = useFormAction(registrarse)
 
   return (
     <form {...formProps} className="space-y-4">
+      {enlaceFacebook && (
+        <a className="btn-secundario flex w-full" href={enlaceFacebook}>
+          Continuar con Facebook
+        </a>
+      )}
       <div>
         <label className="etiqueta-campo" htmlFor="nombre">
           Nombre completo

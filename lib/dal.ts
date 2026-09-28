@@ -2,6 +2,8 @@ import 'server-only'
 
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
+import { altaFacebookPendiente } from '@/lib/facebook-alta'
+import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import {
@@ -47,7 +49,15 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
     .or(filtros.join(','))
     .maybeSingle()
 
+  // El correo puede coincidir con otra cuenta. No la tomes como propia.
+  if (data?.auth_user_id && data.auth_user_id !== user.id && cuentaCreadaConFacebook(user)) {
+    data = null
+  }
+
   if (!data) {
+    // Una cuenta nueva de Facebook elige cédula y rol en /registro/facebook.
+    // Insertar aquí dejaría el rol por defecto, y el trigger impide que la persona lo cambie.
+    if (cuentaCreadaConFacebook(user)) return null
     // Self-healing: existe en Auth pero aún no tiene perfil en la BD
     const cedulaMeta =
       typeof user.user_metadata?.identificacion === 'string' ? normalizarCedula(user.user_metadata.identificacion) : ''
@@ -135,7 +145,11 @@ export async function perfilFacebookDe(usuarioId: number) {
 /** Requiere sesión; redirige a /login si no hay. */
 export async function requireUsuario(siguiente = '/fichas'): Promise<Usuario> {
   const u = await obtenerUsuario()
-  if (!u) redirect(`/login?${new URLSearchParams({ siguiente: destinoInterno(siguiente) })}`)
+  const destino = destinoInterno(siguiente)
+  if (!u) {
+    if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(destino))
+    redirect(`/login?${new URLSearchParams({ siguiente: destino })}`)
+  }
   return u
 }
 

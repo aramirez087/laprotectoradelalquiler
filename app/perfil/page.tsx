@@ -2,21 +2,39 @@ import Link from 'next/link'
 import { FormClave } from '@/components/form-clave'
 import { requireUsuario, listarResenasDe, puedeConsultar, perfilFacebookDe } from '@/lib/dal'
 import { cerrarSesion } from '@/lib/actions/auth'
+import {
+  authFacebookHabilitado,
+  mensajeErrorFacebook,
+  RUTA_VINCULAR_FACEBOOK,
+  tieneIdentidadFacebook,
+} from '@/lib/facebook-auth'
+import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
-import { sinSupabase } from '@/lib/supabase/server'
 
 export const metadata = { title: 'Mi perfil' }
 
 export default async function PerfilPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const enviada = primer((await props.searchParams).enviada) === '1'
+  const params = await props.searchParams
+  const enviada = primer(params.enviada) === '1'
   const usuario = await requireUsuario('/perfil')
   const consulta = await puedeConsultar(usuario)
   const facebook = await perfilFacebookDe(usuario.id)
   const sinBackend = sinSupabase()
+  const facebookAuth = authFacebookHabilitado()
+  const avisoFacebook = mensajeErrorFacebook(primer(params.error), facebookAuth)
+  const facebookConectado = facebookAuth && primer(params.facebook) === 'conectado'
+  let ofrecerFacebook = false
+  if (facebookAuth && !sinBackend) {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    ofrecerFacebook = !tieneIdentidadFacebook(user)
+  }
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
   let aviso: string | null = null
 
@@ -52,10 +70,28 @@ export default async function PerfilPage(props: {
             </p>
           )}
         </div>
-        <form action={cerrarSesion}>
-          <button className="btn-secundario">Cerrar sesión</button>
-        </form>
+        <div className="flex flex-col gap-2">
+          {ofrecerFacebook && (
+            <a href={RUTA_VINCULAR_FACEBOOK} className="btn-secundario">
+              Conectar Facebook
+            </a>
+          )}
+          <form action={cerrarSesion}>
+            <button className="btn-secundario">Cerrar sesión</button>
+          </form>
+        </div>
       </header>
+
+      {avisoFacebook && (
+        <p role="alert" className="aviso aviso-error">
+          {avisoFacebook}
+        </p>
+      )}
+      {facebookConectado && (
+        <p role="status" className="aviso aviso-ok">
+          Facebook quedó conectado. Puede usarlo para entrar.
+        </p>
+      )}
 
       {enviada && (
         <p role="status" className="aviso aviso-ok">

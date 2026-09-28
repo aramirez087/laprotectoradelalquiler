@@ -1,18 +1,21 @@
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { MarcoAcceso } from '@/components/marco-acceso'
 import { LoginForm } from '@/components/login-form'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
+import { altaFacebookPendiente } from '@/lib/facebook-alta'
+import { authFacebookHabilitado, mensajeErrorFacebook, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
+import { COOKIE_CORREO, correoRecordado } from '@/lib/correo-recordado'
 import { sinSupabase } from '@/lib/supabase/server'
-import { destinoInterno } from '@/lib/util'
+import { destinoInterno, primer } from '@/lib/util'
 
 export const metadata = { title: 'Entrar' }
-
-function primer(v: string | string[] | undefined) {
-  return Array.isArray(v) ? v[0] : v
-}
 
 export default async function LoginPage(props: PageProps<'/login'>) {
   const searchParams = await props.searchParams
   const siguiente = destinoInterno(primer(searchParams.siguiente))
+  const correo = correoRecordado((await cookies()).get(COOKIE_CORREO)?.value)
+  if (!sinSupabase() && (await altaFacebookPendiente())) redirect(rutaAltaFacebook(siguiente))
 
   return (
     <MarcoAcceso
@@ -23,7 +26,16 @@ export default async function LoginPage(props: PageProps<'/login'>) {
           : 'Inicie sesión para continuar. Para consultar fichas necesita una reseña aprobada.'
       }
     >
-      {sinSupabase() ? <AvisoConfiguracion /> : <LoginForm siguiente={siguiente} />}
+      {sinSupabase() ? (
+        <AvisoConfiguracion />
+      ) : (
+        <LoginForm
+          siguiente={siguiente}
+          enlaceFacebook={authFacebookHabilitado() ? rutaEntrarConFacebook(siguiente) : null}
+          correo={correo}
+          aviso={mensajeErrorFacebook(primer(searchParams.error), authFacebookHabilitado())}
+        />
+      )}
     </MarcoAcceso>
   )
 }

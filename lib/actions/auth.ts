@@ -1,9 +1,11 @@
 'use server'
 
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import * as z from 'zod'
+import { COOKIE_CORREO } from '@/lib/correo-recordado'
 import { requireUsuario } from '@/lib/dal'
+import { authFacebookHabilitado, cuentaCreadaConFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, esCedulaValida, normalizarCedula, normalizarPerfilFacebook } from '@/lib/util'
@@ -188,6 +190,183 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   redirect('/registro/resena')
 }
 
+const SchemaAltaFacebook = z.object({
+  nombre: z.string().trim().min(3, 'Escriba su nombre completo'),
+  email: z.email('Escriba un correo válido'),
+  cedula: z.string().trim().min(1, 'Escriba su número de cédula'),
+  facebook: z.string().trim().min(1, 'Escriba su perfil de Facebook'),
+  rol: z.enum(['propietario', 'agencia', 'inquilino']).optional(),
+})
+
+async function guardarPerfilFacebook(
+  admin: NonNullable<ReturnType<typeof createAdmin>>,
+  usuarioId: number,
+  facebook: string,
+) {
+  const { data: propio, error: errorPropio } = await admin
+    .from('autenticaciones')
+    .select('id, proveedor_id')
+    .eq('usuario_id', usuarioId)
+    .eq('proveedor', 'facebook')
+    .maybeSingle()
+  if (errorPropio) return { error: 'No pudimos guardar su perfil de Facebook. Intente de nuevo.' }
+  if (propio?.proveedor_id === facebook) return { error: null }
+  const { data: ajeno, error: errorAjeno } = await admin
+    .from('autenticaciones')
+    .select('id')
+    .eq('proveedor', 'facebook')
+    .eq('proveedor_id', facebook)
+    .maybeSingle()
+  if (errorAjeno) return { error: 'No pudimos revisar el perfil de Facebook. Intente de nuevo.' }
+  if (ajeno && ajeno.id !== propio?.id) return { error: 'Ese perfil de Facebook ya está registrado.' }
+  if (propio) {
+    const { error } = await admin.from('autenticaciones').update({ proveedor_id: facebook }).eq('id', propio.id)
+    return {
+      error: error
+        ? error.code === '23505'
+          ? 'Ese perfil de Facebook ya está registrado.'
+          : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.'
+        : null,
+    }
+  }
+  const { error } = await admin.from('autenticaciones').insert({
+    usuario_id: usuarioId,
+    proveedor: 'facebook',
+    proveedor_id: facebook,
+  })
+  return {
+    error: error
+      ? error.code === '23505'
+        ? 'Ese perfil de Facebook ya está registrado.'
+        : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.'
+      : null,
+  }
+}
+
+export async function completarAltaFacebook(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  if (!authFacebookHabilitado()) return { error: 'El ingreso con Facebook no está disponible.' }
+  if (sinSupabase()) return avisoSinSupabase()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user || !cuentaCreadaConFacebook(user)) {
+    return { error: 'La sesión de Facebook venció. Entre de nuevo.' }
+  }
+
+  const emailSesion = user.email?.trim().toLowerCase() ?? ''
+  if (!emailSesion) {
+    return { error: 'Facebook no confirmó un correo. Use una cuenta de Facebook con correo confirmado.' }
+  }
+  const parsed = SchemaAltaFacebook.safeParse({
+    nombre: formData.get('nombre'),
+    email: emailSesion,
+    cedula: formData.get('cedula'),
+    facebook: formData.get('facebook'),
+    rol: formData.get('rol') || undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise los datos.' }
+
+  const { nombre, email } = parsed.data
+  const cedula = normalizarCedula(parsed.data.cedula)
+  const facebook = normalizarPerfilFacebook(parsed.data.facebook)
+  if (!esCedulaValida(cedula)) {
+    return { error: 'Escriba su cédula con 6 a 12 dígitos. Puede incluir guiones.' }
+  }
+  if (!facebook) {
+    return { error: 'Escriba el enlace de su perfil de Facebook, o su usuario.' }
+  }
+  const admin = createAdmin()
+  if (!admin) {
+    return { error: 'El registro no está disponible en este momento. Falta la configuración de administración.' }
+  }
+
+  let creado = false
+  let usuarioId = 0
+  try {
+    if (await cedulaEnUso(admin, cedula, email)) {
+      return { error: 'Esa cédula ya está registrada. Si es suya, inicie sesión.' }
+    }
+
+    const { data: porAuth, error: errorAuth } = await admin
+      .from('usuarios')
+      .select('id, auth_user_id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+    if (errorAuth) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
+    const { data: porEmail, error: errorEmail } = await admin
+      .from('usuarios')
+      .select('id, auth_user_id')
+      .eq('email', email)
+      .maybeSingle()
+    if (errorEmail) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
+    if (porEmail?.auth_user_id && porEmail.auth_user_id !== user.id) {
+      return {
+        error: 'Ese correo ya tiene cuenta. Inicie sesión con su clave y, desde su perfil, conecte Facebook.',
+      }
+    }
+    if (porAuth && porEmail && porAuth.id !== porEmail.id) {
+      return { error: 'Ese correo ya tiene cuenta. Inicie sesión con su clave.' }
+    }
+
+    const existente = porAuth ?? porEmail
+    if (!existente) {
+      if (!parsed.data.rol) return { error: 'Elija si es propietario, agencia o inquilino.' }
+      const perfil = await admin
+        .from('usuarios')
+        .insert({
+          auth_user_id: user.id,
+          email,
+          nombre,
+          rol: parsed.data.rol as Rol,
+          identificacion: cedula,
+        })
+        .select('id')
+        .single()
+      if (perfil.error || !perfil.data) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
+      usuarioId = perfil.data.id
+      creado = true
+    } else {
+      const perfil = await admin
+        .from('usuarios')
+        .update({
+          auth_user_id: user.id,
+          nombre,
+          identificacion: cedula,
+          actualizado_en: new Date().toISOString(),
+        })
+        .eq('id', existente.id)
+        .select('id')
+        .single()
+      if (perfil.error || !perfil.data) return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
+      usuarioId = perfil.data.id
+    }
+
+    const guardado = await guardarPerfilFacebook(admin, usuarioId, facebook)
+    if (guardado.error) {
+      if (creado) {
+        await admin.from('usuarios').delete().eq('id', usuarioId)
+      }
+      return { error: guardado.error }
+    }
+
+    await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: {
+        ...user.user_metadata,
+        nombre,
+        rol: parsed.data.rol ?? user.user_metadata?.rol,
+        identificacion: cedula,
+        facebook,
+      },
+    })
+  } catch {
+    return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
+  }
+
+  redirect('/registro/resena')
+}
+
 export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   if (sinSupabase()) return avisoSinSupabase()
 
@@ -224,6 +403,14 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     )
   }
 
+  const jar = await cookies()
+  jar.set(COOKIE_CORREO, parsed.data.email, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 400,
+    sameSite: 'lax',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+  })
   redirect(destinoInterno(formData.get('siguiente')))
 }
 

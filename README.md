@@ -82,5 +82,7 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
   fichas importadas sigan correctas; `setval` reajusta las secuencias.
 - RLS: lectura pública solo para `resenas` publicas y `personas` (ver
   `schema.sql`); la app siempre valida sesión y rol en el DAL.
-- Facebook login: el esquema ya incluye `autenticaciones`
-  (proveedor/proveedor_id) para conectarlo después sin migración.
+- Facebook login está implementado y oculto. `autenticaciones.proveedor_id`
+  sigue siendo el enlace público del perfil (el que abre administración), no
+  el id de Facebook. Para encenderlo en producción, siga
+  `docs/runbooks/facebook-signin.md` y al final ponga `AUTH_FACEBOOK=1`.
