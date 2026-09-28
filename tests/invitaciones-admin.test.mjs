@@ -58,7 +58,7 @@ function harness(config = {}) {
   })
   return { ...api, calls }
 }
-const invite = { nombre: 'Invited Admin', email: 'invitee@example.com' }
+const invite = { nombre: 'Invited Admin', email: 'invitee@example.com', enviarPorCorreo: true }
 
 test('only active admins can invite and unconfigured email creates no Auth account', async () => {
   for (const config of [{ unauthorized: true }, { configured: false }]) {
@@ -86,7 +86,7 @@ test('invitations persist a digest and session actor before sending, without gra
   assert.equal(h.calls.some(([op]) => op === 'rpc'), false)
 })
 test('save and delivery failures are never reported as success or grant privileges', async () => {
-  for (const config of [{ saveError: {} }, { sent: false }, { linkError: {} }]) {
+  for (const config of [{ saveError: {} }, { linkError: {} }]) {
     const h = harness(config)
     await assert.rejects(h.invitarAdmin(invite))
     assert.equal(h.calls.some(([op]) => op === 'rpc'), false)
@@ -167,4 +167,35 @@ test('login resumes missing first review but exempts admins and does not repeat 
   assert.equal(await dal({ reviews: 1 }).destinoTrasLogin('auth-user', '/perfil'), '/perfil')
   assert.equal(await dal({ rol: 'admin' }).destinoTrasLogin('auth-user', '/registro/resena'), '/admin')
   assert.equal(await dal({ rol: 'admin' }).destinoTrasLogin('auth-user', '/fichas'), '/fichas')
+})
+
+test('public registration rejects a forged admin role before touching Auth or the database', async () => {
+  let writes = 0
+  const api = load('lib/actions/auth.ts', {
+    'next/headers': {}, 'next/navigation': {}, '@/lib/dal': {},
+    '@/lib/correo-recordado': {}, '@/lib/facebook-auth': {}, '@/lib/util': {},
+    '@/lib/supabase/server': { sinSupabase: () => false },
+    '@/lib/supabase/admin': { createAdmin: () => { writes++; throw new Error('unexpected write') } },
+  })
+  const form = new FormData()
+  for (const [key, value] of Object.entries({ nombre: 'Forged Admin', email: 'fake@example.test', cedula: '102340567', facebook: 'https://www.facebook.com/example', clave: 'Password123', rol: 'admin' })) form.set(key, value)
+  assert.ok((await api.registrarse(undefined, form)).error)
+  assert.equal(writes, 0)
+})
+
+test('manual invitations work with no email provider and never attempt to send', async () => {
+  const h = harness({ configured: false })
+  const result = await h.invitarAdmin({ ...invite, enviarPorCorreo: false })
+  assert.equal(result.enviada, false)
+  assert.equal(result.email, invite.email)
+  assert.equal(new URL(result.enlace).searchParams.get('token'), input.token)
+  assert.equal(h.calls.some(([op]) => ['send', 'rpc'].includes(op)), false)
+})
+test('email failure leaves a usable manual link with an explicit warning', async () => {
+  const h = harness({ sent: false })
+  const result = await h.invitarAdmin(invite)
+  assert.equal(result.enviada, false)
+  assert.match(result.advertencia, /copiar el enlace/)
+  assert.ok(result.enlace)
+  assert.equal(h.calls.some(([op]) => op === 'rpc'), false)
 })

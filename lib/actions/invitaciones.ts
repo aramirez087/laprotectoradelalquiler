@@ -8,11 +8,12 @@ import type { EstadoForm } from './auth'
 
 export async function invitarAdminAction(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   try {
-    await invitarAdmin({ nombre: String(formData.get('nombre') ?? ''), email: String(formData.get('email') ?? '').trim().toLowerCase() })
-    return { mensaje: 'Invitación enviada. El acceso se activará cuando la persona acepte el enlace y elija su clave.' }
+    const resultado = await invitarAdmin({ nombre: String(formData.get('nombre') ?? ''), email: String(formData.get('email') ?? '').trim().toLowerCase(), enviarPorCorreo: formData.get('enviarPorCorreo') === '1' })
+    return { mensaje: resultado.enviada ? 'Invitación enviada por correo.' : 'Invitación creada. Copie el enlace y envíelo a la persona invitada.',
+      invitacion: { enlace: resultado.enlace, email: resultado.email }, advertencia: resultado.advertencia }
   } catch (e) {
     unstable_rethrow(e)
-    return { error: e instanceof AvisoAdmin ? e.message : 'No se pudo enviar la invitación.' }
+    return { error: e instanceof AvisoAdmin ? e.message : 'No se pudo crear la invitación.' }
   }
 }
 

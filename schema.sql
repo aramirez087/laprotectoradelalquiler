@@ -608,7 +608,7 @@ CREATE TABLE IF NOT EXISTS public.invitaciones_admin (
   email text NOT NULL UNIQUE CHECK (email = lower(email)),
   nombre text NOT NULL,
   auth_user_id uuid NOT NULL UNIQUE,
-  invitado_por integer NOT NULL REFERENCES public.usuarios(id),
+  invitado_por integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
   token_digest text NOT NULL,
   tipo text NOT NULL CHECK (tipo IN ('invite', 'recovery')),
   vence_en timestamptz NOT NULL,

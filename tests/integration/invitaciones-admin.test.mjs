@@ -38,6 +38,8 @@ test('admin invitations and first-review access enforce server and database boun
     CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.role', true), '') $$;
     GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;`)
   await db.query(schema)
+  // Supabase grants these service-role privileges by default.
+  await db.query('GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;')
   await db.query(migration)
   const uid = 'a1111111-1111-4111-8111-111111111111'
   const inviteUid = 'b2222222-2222-4222-8222-222222222222'

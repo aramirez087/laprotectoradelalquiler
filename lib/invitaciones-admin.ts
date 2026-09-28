@@ -12,9 +12,9 @@ const schemaInvitacion = z.object({ nombre: z.string().trim().min(3).max(150), e
 const digest = (token: string) => createHash('sha256').update(token).digest('hex')
 const NO_DISPONIBLE = 'La invitación venció, ya se usó o no está disponible. Pida a administración un nuevo enlace.'
 
-export async function invitarAdmin(input: { nombre: string; email: string }) {
+export async function invitarAdmin(input: { nombre: string; email: string; enviarPorCorreo?: boolean }) {
   const actor = await requerirRol('admin')
-  if (!correoResenasConfigurado()) throw new AvisoAdmin('Resend aún no está configurado. Las invitaciones por correo están deshabilitadas.')
+  if (input.enviarPorCorreo && !correoResenasConfigurado()) throw new AvisoAdmin('Resend aún no está configurado. Las invitaciones por correo están deshabilitadas.')
   const parsed = schemaInvitacion.safeParse(input)
   if (!parsed.success) throw new AvisoAdmin('Escriba un nombre y un correo válidos.')
   const { nombre, email } = parsed.data
@@ -49,12 +49,15 @@ export async function invitarAdmin(input: { nombre: string; email: string }) {
   const enlace = new URL('/invitacion/admin', 'https://www.protectoradelalquiler.com')
   enlace.searchParams.set('id', id)
   enlace.searchParams.set('token', token)
+  if (!input.enviarPorCorreo) return { enlace: enlace.toString(), email, enviada: false }
   const enviado = await enviarCorreo({
     to: email,
     subject: 'Invitación de administración · La Protectora del Alquiler',
     text: `Hola, ${nombre}.\n\nLe invitamos a administrar La Protectora del Alquiler. Abra el enlace y elija una clave para aceptar. No necesita escribir una reseña.\n\n${enlace}\n\nEl enlace es de un solo uso y vence según la configuración de autenticación, como máximo en 24 horas. Si no esperaba esta invitación, ignórela.`,
   })
-  if (!enviado) throw new AvisoAdmin('No pudimos confirmar el envío. Todavía no se otorgó acceso. Revise Resend; puede reenviar la invitación con este formulario.')
+  return { enlace: enlace.toString(), email, enviada: enviado,
+    advertencia: enviado ? undefined : 'No pudimos confirmar el envío por Resend. Puede copiar el enlace y enviarlo desde su propio correo.',
+  }
 }
 
 export async function aceptarInvitacionAdmin(input: { id: string; token: string; clave: string; confirmacion: string }) {
