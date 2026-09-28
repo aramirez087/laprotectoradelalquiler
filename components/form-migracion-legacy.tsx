@@ -8,7 +8,7 @@ function DatoDiagnostico({ etiqueta, valor }: { etiqueta: string; valor: number 
   return (
     <div className="metrico">
       <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-soft">{etiqueta}</dt>
-      <dd className="mt-1">{valor == null ? 'No disponible' : formatoNumero(valor)}</dd>
+      <dd className="mt-1">{valor == null ? <span className="text-base leading-5 tracking-normal">No disponible</span> : formatoNumero(valor)}</dd>
     </div>
   )
 }

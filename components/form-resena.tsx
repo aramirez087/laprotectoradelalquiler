@@ -83,7 +83,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <Paso
         numero="1"
         titulo="Identificación del inquilino"
-        texto="Escriba el nombre y la cédula para identificar al inquilino. Las reseñas son solo sobre inquilinos."
+        texto="Escriba el nombre y la cédula para identificar al inquilino."
       >
         {bloqueada && personaInicial && <p className="text-sm text-ink-soft">{nombreCompleto(personaInicial)}</p>}
         <div className="grid gap-4 sm:grid-cols-2">

@@ -24,6 +24,7 @@ import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { importarCatalogos } from './legacy-catalogos.mjs';
 import { configuracionPostgres } from './postgres-config.mjs';
+import { existeTablaLegacy } from './legacy-tablas.mjs';
 
 const args = process.argv.slice(2);
 if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves'].includes(a) && !a.startsWith('--pasos='))) {
@@ -106,21 +107,15 @@ async function mysqlRows(sql, params = []) {
   return rows;
 }
 
+const tablasOrigen = new Map();
 async function mysqlTableExists(name) {
-  const rows = await mysqlRows(
-    `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`,
-    [name],
-  );
-  return rows.length > 0;
+  if (!tablasOrigen.has(name)) tablasOrigen.set(name, await existeTablaLegacy(m, name));
+  return tablasOrigen.get(name);
 }
 
 async function mysqlFindTable(patterns) {
-  const rows = await mysqlRows(
-    `SELECT table_name AS nombre FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?)`,
-    [patterns],
-  );
-  const presentes = new Set(rows.map((r) => r.nombre));
-  return patterns.find((p) => presentes.has(p)) ?? null;
+  for (const name of patterns) if (await mysqlTableExists(name)) return name;
+  return null;
 }
 
 // Columns consumed from the supplied legacy/schema.sql. SELECTing them also
@@ -945,8 +940,11 @@ try {
   if (!bloqueo.rows[0].ok) throw new Error('Ya hay una importación en curso en la base de datos.');
   await pool.query("SET LOCAL statement_timeout = '60s'");
   await mysqlRows('SET time_zone = ?', [zonaLegacy]);
-  if (!(await mysqlTableExists('tb_persona')) || !(await mysqlTableExists('tb_inquilinos_no_nacionales'))) {
-    throw new Error('El origen no contiene las tablas tb_persona y tb_inquilinos_no_nacionales del esquema legacy.');
+  if (!(await mysqlTableExists('tb_inquilinos_no_nacionales'))) {
+    throw new Error('El origen no contiene la tabla de fichas tb_inquilinos_no_nacionales. Revise la base de datos seleccionada.');
+  }
+  if (!(await mysqlTableExists('tb_persona'))) {
+    avisar('sin_tb_persona', 'El origen no contiene tb_persona. Las personas se obtuvieron de las fichas y solicitantes disponibles; los accesos y autores sin identidad comprobable se conservaron como perfiles legacy inactivos.');
   }
   for (const tabla of Object.keys(COLUMNAS_ORIGEN)) await mysqlAll(tabla);
   if (PASOS.includes('lookups')) await pasoLookups();

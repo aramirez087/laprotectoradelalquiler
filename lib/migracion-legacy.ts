@@ -3,6 +3,7 @@ import 'server-only'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import mysql from 'mysql2/promise'
+import { existeTablaLegacy } from '../scripts/legacy-tablas.mjs'
 import { resumenDesdeSalida, type ResumenMigracion } from '@/lib/resultado-migracion-legacy'
 export type { ResumenMigracion } from '@/lib/resultado-migracion-legacy'
 
@@ -54,14 +55,12 @@ export function configuracionDestinoLegacy() {
 async function contarSiExiste(
   conexion: mysql.Connection,
   tablas: readonly string[],
-  existentes: Set<string>,
 ) {
-  const presentes = tablas.filter((nombre) => existentes.has(nombre))
-  if (!presentes.length) return null
-  let total = 0
-  for (const tabla of presentes) {
+  let total: number | null = null
+  for (const tabla of tablas) {
+    if (!(await existeTablaLegacy(conexion, tabla))) continue
     const [filas] = await conexion.query<mysql.RowDataPacket[]>(`SELECT COUNT(*) AS total FROM \`${tabla}\``)
-    total += Number(filas[0]?.total ?? 0)
+    total = (total ?? 0) + Number(filas[0]?.total ?? 0)
   }
   return total
 }
@@ -77,13 +76,12 @@ export async function probarConexionLegacy(datos: ConexionLegacy): Promise<Diagn
     const [filas] = await conexion.query<mysql.RowDataPacket[]>(
       'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()',
     )
-    const existentes = new Set(filas.map((fila) => String(fila.TABLE_NAME ?? fila.table_name)))
     const [personas, fichas, usuarios] = await Promise.all([
-      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.personas, existentes),
-      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.fichas, existentes),
-      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.usuarios, existentes),
+      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.personas),
+      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.fichas),
+      contarSiExiste(conexion, TABLAS_DIAGNOSTICO.usuarios),
     ])
-    return { tablas: existentes.size, personas, fichas, usuarios }
+    return { tablas: filas.length, personas, fichas, usuarios }
   } finally {
     await conexion.end()
   }

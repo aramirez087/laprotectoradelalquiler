@@ -127,6 +127,15 @@ reciben notificaciones.
    y conductas de reseñas importadas se sincronizan con el origen al repetir.
    `--pasos=resenas` incluye automáticamente catálogos, personas y usuarios.
 
+   La tabla de fichas `tb_inquilinos_no_nacionales` es obligatoria. Si el origen
+   no contiene `tb_persona`, el importador obtiene las personas de las fichas y
+   de `tb_solicitante`, si existe, e informa esta limitación en las observaciones.
+   Los accesos de `tb_login` que dependan de esa tabla no se vinculan por una
+   coincidencia de ids: quedan inactivos, al igual que los autores sin identidad
+   comprobable. **Probar conexión** avisa de esta situación antes de importar;
+   revise primero una simulación. Una tabla sin permiso de lectura produce un
+   error de permisos, no se trata como una tabla ausente.
+
    Revise las **observaciones** de la simulación. Los nombres faltantes se
    indican expresamente, las fechas inválidas quedan vacías y los autores
    ausentes o ambiguos usan perfiles inactivos. Las cuentas con una cédula

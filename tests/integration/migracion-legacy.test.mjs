@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import test from 'node:test';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import { existeTablaLegacy } from '../../scripts/legacy-tablas.mjs';
 
 const exec = promisify(execFile);
 const docker = async (...args) => (await exec('docker', args)).stdout.trim();
@@ -79,13 +80,88 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
     const marker = '=== Resumen ===';
     return { ...r, resumen: r.stdout.includes(marker) ? JSON.parse(r.stdout.split(marker).pop()) : null };
   };
-  const snapshot = async () => (await target.query(`SELECT jsonb_build_object(
+  const snapshot = async (db = target) => (await db.query(`SELECT jsonb_build_object(
     'personas',(SELECT jsonb_agg(p ORDER BY id) FROM personas p),
     'usuarios',(SELECT jsonb_agg(u ORDER BY id) FROM usuarios u),
     'resenas',(SELECT jsonb_agg(r ORDER BY id) FROM resenas r),
     'etiquetas',(SELECT jsonb_agg(e ORDER BY id) FROM etiquetas e),
     'paises',(SELECT jsonb_agg(p ORDER BY id) FROM paises p)) AS datos`)).rows[0].datos;
 
+  await t.test('without tb_persona, imports review identities and preserves unresolved accounts without guessing links', async () => {
+    await target.query('CREATE DATABASE import_without_personas');
+    const databaseUrl = `postgres://postgres@127.0.0.1:${pgPort}/import_without_personas`;
+    const variant = new pg.Client({ connectionString: databaseUrl });
+    await variant.connect();
+    await variant.query(await readFile('schema.sql', 'utf8'));
+    await variant.query(await readFile('db/seeds.sql', 'utf8'));
+    await source.query('RENAME TABLE tb_persona TO tb_persona_fuera');
+    try {
+      assert.equal(await existeTablaLegacy(source, 'tb_persona'), false);
+      const antes = await snapshot(variant);
+      const simulated = await run(['--seco'], { DATABASE_URL: databaseUrl });
+      assert.equal(simulated.code, 0, simulated.stderr);
+      assert.equal(simulated.resumen.personas, 6);
+      assert.equal(simulated.resumen.resenas, 5);
+      assert.ok(simulated.resumen.advertencias.some((a) => a.codigo === 'sin_tb_persona'));
+      assert.deepEqual(await snapshot(variant), antes);
+
+      const imported = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(imported.code, 0, imported.stderr);
+      assert.equal(imported.resumen.resenas, 5);
+      const reviews = (await variant.query(`SELECT r.id_fuente, p.identificacion, p.nombre, u.email, u.activo
+        FROM resenas r JOIN personas p ON p.id=r.persona_id JOIN usuarios u ON u.id=r.autor_id
+        WHERE r.fuente='legacy' ORDER BY r.id_fuente`)).rows;
+      assert.equal(reviews.length, 5);
+      assert.equal(reviews[0].identificacion, '303030303');
+      assert.equal(reviews[0].nombre, 'María');
+      assert.equal(reviews[3].email, 'autor-registrador-2@legacy.laprotec', 'do not assume a registrador is a users.user_id');
+      assert.equal(reviews[3].activo, false);
+      assert.equal(reviews[4].email, 'unique@example.test', 'tb_resenador still provides an unambiguous author identity');
+      const orphan = (await variant.query("SELECT activo, identificacion, persona_id, auth_user_id FROM usuarios WHERE email='login-2@legacy.laprotec'")).rows[0];
+      assert.deepEqual(orphan, { activo: false, identificacion: null, persona_id: null, auth_user_id: null });
+
+      const committed = await snapshot(variant);
+      const repeated = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(repeated.code, 0, repeated.stderr);
+      assert.deepEqual(await snapshot(variant), committed);
+    } finally {
+      await source.query('RENAME TABLE tb_persona_fuera TO tb_persona');
+      await variant.end();
+      await target.query('DROP DATABASE import_without_personas');
+    }
+  });
+  await t.test('a hidden tb_persona fails with SELECT permission guidance instead of silently omitting data', async () => {
+    await source.query("CREATE USER 'limited_import'@'%' IDENTIFIED BY 'fixture-only'");
+    await source.query("GRANT SELECT ON legacy_test.tb_inquilinos_no_nacionales TO 'limited_import'@'%'");
+    const reader = await mysql.createConnection({ host: '127.0.0.1', port: mysqlPort, user: 'limited_import', password: 'fixture-only', database: 'legacy_test' });
+    const antes = await snapshot();
+    try {
+      const [visible] = await reader.query("SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='tb_persona'");
+      assert.equal(visible.length, 0, 'metadata alone cannot distinguish absent tables from denied access');
+      await assert.rejects(existeTablaLegacy(reader, 'tb_persona'), /tb_persona.*permisos SELECT/);
+      const r = await run(['--seco'], { LEGACY_MYSQL_USER: 'limited_import', LEGACY_MYSQL_PASSWORD: 'fixture-only' });
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /tb_persona.*permisos SELECT/);
+      assert.equal(r.resumen, null);
+      assert.deepEqual(await snapshot(), antes);
+    } finally {
+      await reader.end();
+      await source.query("DROP USER 'limited_import'@'%'");
+    }
+  });
+  await t.test('the review table remains mandatory and a missing table cannot produce a successful empty import', async () => {
+    const antes = await snapshot();
+    await source.query('RENAME TABLE tb_inquilinos_no_nacionales TO fichas_fuera');
+    try {
+      const r = await run(['--seco']);
+      assert.equal(r.code, 1);
+      assert.match(r.stderr, /tabla de fichas tb_inquilinos_no_nacionales/);
+      assert.equal(r.resumen, null);
+      assert.deepEqual(await snapshot(), antes);
+    } finally {
+      await source.query('RENAME TABLE fichas_fuera TO tb_inquilinos_no_nacionales');
+    }
+  });
   await t.test('dry-run checks constraints, counts all reviews and rolls back', async () => {
     const antes = await snapshot();
     const r = await run(['--seco']);

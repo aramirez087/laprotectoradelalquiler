@@ -70,10 +70,20 @@ export async function migrarLegacyAction(
   try {
     if (modo === 'probar') {
       const diagnostico = await probarConexionLegacy(conexion)
+      if (diagnostico.fichas == null) {
+        return {
+          tipo: 'conexion',
+          error: 'MySQL respondió, pero no encontramos la tabla de fichas tb_inquilinos_no_nacionales. Revise la base de datos seleccionada.',
+          diagnostico,
+        }
+      }
       return {
         tipo: 'conexion',
         mensaje: `Conexión lista. Encontramos ${diagnostico.tablas} tablas en el origen.`,
         diagnostico,
+        observaciones: diagnostico.personas == null
+          ? ['No existe tb_persona. Se pueden importar las personas de las fichas y solicitantes disponibles. Los accesos y autores sin identidad comprobable quedarán como perfiles legacy inactivos. Ejecute una simulación y revise las observaciones.']
+          : [],
       }
     }
 
