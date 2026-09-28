@@ -56,7 +56,7 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
 4. (Opcional) Importe los datos del sistema legacy:
 
    ```bash
-   # primero pruebe en seco (solo cuenta filas, no escribe):
+   # primero simule contra un destino de staging (valida SQL y revierte el lote):
    npm run db:migrar -- --seco
    # luego la importación real:
    npm run db:migrar
@@ -64,8 +64,52 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
    npm run db:migrar -- --crear-accounts
    ```
 
-   El script es idempotente: puede reejecutarse. Los lookups legacy se
-   importan preservando ids; las FK huérfanas pasan a `NULL`.
+   El módulo **Importar datos** también ofrece **Simular importación**.
+   Tanto la simulación como la importación requieren `DATABASE_URL`.
+   La simulación ejecuta las mismas escrituras y restricciones dentro de una
+   transacción y termina con `ROLLBACK`; no crea accesos en Supabase Auth.
+   Las secuencias de Postgres pueden avanzar aunque se reviertan las filas.
+
+   La importación de datos es atómica y tiene un bloqueo de base de datos:
+   un error revierte el lote completo y dos importadores no pueden escribir
+   a la vez. Puede reejecutarse sin duplicar personas, cuentas o reseñas.
+   Los catálogos se emparejan por significado y ubicación superior, sin
+   reutilizar los ids de los seeds como si fueran ids legacy. Las etiquetas
+   y conductas de reseñas importadas se sincronizan con el origen al repetir.
+   `--pasos=resenas` incluye automáticamente catálogos, personas y usuarios.
+
+   Revise las **observaciones** de la simulación. Los nombres faltantes se
+   indican expresamente, las fechas inválidas quedan vacías y los autores
+   ausentes o ambiguos usan perfiles inactivos. Las cuentas con una cédula
+   compartida permanecen separadas y sin un enlace arbitrario a una persona.
+   Los estados de reseña desconocidos quedan como borradores. El esquema
+   legacy no incluye tablas para varios códigos (calificación, contrato,
+   duración, daños y procesos judiciales): sin un catálogo verificable se
+   dejan vacíos y se reportan; **no se inventan equivalencias con los seeds**.
+   Conserve el respaldo original para reconciliar esos códigos.
+
+   Supabase Auth se procesa después de confirmar los datos y solo para las
+   cuentas importadas. Un fallo de Auth se informa como resultado parcial
+   (código de salida `2`); repetir con `--crear-accounts` completa los accesos
+   pendientes sin restablecer las claves de cuentas ya enlazadas. Los fallos
+   de datos usan código `1`; éxito y simulación válida usan `0`.
+
+   Use una copia estable del MySQL legacy o detenga las escrituras durante la
+   migración: sus tablas MyISAM no ofrecen una instantánea transaccional.
+   Las fechas sin zona se interpretan como Costa Rica (`-06:00`); configure
+   `LEGACY_MYSQL_TIMEZONE` si el servidor anterior usaba otra zona fija.
+   La web interrumpe el proceso a los cuatro minutos para poder responder;
+   para volúmenes mayores use `npm run db:migrar` desde un servidor con acceso
+   a ambas bases. No vuelva a ejecutar `db:aplicar` sobre datos existentes:
+   ese comando recrea las tablas.
+
+   Pruebas de integración aisladas (Docker, imágenes `mysql:8` y
+   `postgres:16-alpine`; nunca usan las bases de `.env.local`):
+
+   ```bash
+   npm run test:importacion
+   npm run test:importacion:bundle
+   ```
 
 5. Desarrolle:
 
@@ -78,8 +122,8 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
 - `personas` es la persona natural (cédula única); `usuarios` es la cuenta
   (1:1 opcional vía `persona_id`); `resenas` une autor → persona.
 - `resenas.fuente/id_fuente` trazan el origen de la migración (idempotencia).
-- Los ids de lookups del legacy se conservan para que las FK de las ~6.500
-  fichas importadas sigan correctas; `setval` reajusta las secuencias.
+- Las FK de las fichas se traducen mediante equivalencias de catálogos;
+  los ids y las relaciones existentes en destino se conservan.
 - RLS: lectura pública solo para `resenas` publicas y `personas` (ver
   `schema.sql`); la app siempre valida sesión y rol en el DAL.
 - Facebook login está implementado y oculto. `autenticaciones.proveedor_id`

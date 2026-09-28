@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // Uso:
 //   node scripts/migrar-legacy.mjs                  # ejecuta todos los pasos
-//   node scripts/migrar-legacy.mjs --seco           # solo cuenta, no escribe
+//   node scripts/migrar-legacy.mjs --seco           # valida todo en una transacción que se revierte
 //   node scripts/migrar-legacy.mjs --pasos=lookups,personas,usuarios,resenas
 //   node scripts/migrar-legacy.mjs --crear-accounts # crea identidades en Supabase Auth
 //   node scripts/migrar-legacy.mjs --probar-claves   # solo verifica el detector de claves
@@ -15,18 +15,26 @@
 //   SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)  (solo con --crear-accounts)
 //
 // Idempotente: puede correrse varias veces (upsert por clave natural).
-// Los ids de lookups legacy se preservan para que las FK de fichas sigan válidas;
-// las FK que no encuentran su lookup en destino se convierten en NULL.
+// Los catálogos se enlazan por significado, nunca por coincidencia de ids.
+// Las referencias sin catálogo se convierten en NULL y se informan en el resumen.
 // ============================================================================
 
 import crypto from 'node:crypto';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import { importarCatalogos } from './legacy-catalogos.mjs';
 
 const args = process.argv.slice(2);
+if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves'].includes(a) && !a.startsWith('--pasos='))) {
+  throw new Error('Opción de migración desconocida.');
+}
 const seco = args.includes('--seco');
 const pasoArg = args.find((a) => a.startsWith('--pasos='));
-const PASOS = pasoArg ? pasoArg.split('=').pop().split(',') : ['lookups', 'personas', 'usuarios', 'resenas'];
+const ordenPasos = ['lookups', 'personas', 'usuarios', 'resenas'];
+const solicitados = pasoArg ? pasoArg.split('=').pop().split(',') : ordenPasos;
+if (solicitados.some((paso) => !ordenPasos.includes(paso))) throw new Error('Paso de migración desconocido.');
+// Importar una etapa incluye sus dependencias para no borrar referencias.
+const PASOS = ordenPasos.slice(0, Math.max(...solicitados.map((p) => ordenPasos.indexOf(p))) + 1);
 const CREAR_ACCOUNTS = args.includes('--crear-accounts') && !seco;
 
 // Carga .env.local (convención Next.js) y, si existe, .env; no sobreescribe lo ya definido
@@ -43,7 +51,9 @@ const mysqlCfg = {
   user: process.env.LEGACY_MYSQL_USER ?? 'root',
   password: process.env.LEGACY_MYSQL_PASSWORD ?? '',
   database: process.env.LEGACY_MYSQL_DB ?? 'laprotec_laprotectora',
-  connectionLimit: 2,
+  connectionLimit: 1,
+  connectTimeout: 15_000,
+  dateStrings: true,
   // El legacy mezcla latin1/utf8/utf8mb4: forzar utf8mb4 para decodificar bien
   charset: 'utf8mb4',
 };
@@ -54,8 +64,10 @@ if (args.includes('--probar-claves')) {
   process.exit(0);
 }
 
-if (!seco && !process.env.DATABASE_URL) {
-  console.error('Falta DATABASE_URL (conexión directa a Postgres) o usa --seco');
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
+if (!process.env.DATABASE_URL) {
+  console.error('Falta DATABASE_URL. La simulación también valida las restricciones del destino.');
   process.exit(1);
 }
 if (CREAR_ACCOUNTS && (!SUPABASE_URL_ADMIN || !SUPABASE_KEY_ADMIN)) {
@@ -72,7 +84,8 @@ function sslConfig() {
 }
 
 const m = await mysql.createPool(mysqlCfg);
-const pool = !seco ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: sslConfig() }) : null;
+// Un único cliente: BEGIN/COMMIT y todas las escrituras comparten conexión.
+const pool = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: sslConfig(), connectionTimeoutMillis: 15_000 });
 const supabaseAdmin = CREAR_ACCOUNTS
   ? (await import('@supabase/supabase-js')).createClient(SUPABASE_URL_ADMIN, SUPABASE_KEY_ADMIN, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -81,6 +94,9 @@ const supabaseAdmin = CREAR_ACCOUNTS
 
 const log = (msg) => console.log(`\n▸ ${msg}`);
 const resumen = {
+  estado: seco ? 'simulacion' : 'completada',
+  advertencias: [],
+  auth: { creadas: 0, fallidas: 0 },
   lookups: {},
   personas: 0,
   usuarios: 0,
@@ -107,38 +123,100 @@ async function mysqlTableExists(name) {
 
 async function mysqlFindTable(patterns) {
   const rows = await mysqlRows(
-    `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?)`,
+    `SELECT table_name AS nombre FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (?)`,
     [patterns],
   );
-  return rows[0]?.table_name ?? null;
+  const presentes = new Set(rows.map((r) => r.nombre));
+  return patterns.find((p) => presentes.has(p)) ?? null;
 }
 
+// Columns consumed from the supplied legacy/schema.sql. SELECTing them also
+// validates empty tables; SELECT * alone would hide incompatible schemas.
+const COLUMNAS_ORIGEN = {
+  tb_persona: 'camp_id_persona camp_identificacion camp_nombreUno camp_nombreDOs camp_apellidoUno camp_apellidoDos camp_fk_nacionalidad camp_fk_domicilio camp_fechaNacimiento camp_fk_sexo camp_idSolicitud',
+  tb_inquilinos_no_nacionales: 'camp_id_inquilino camp_identificacion camp_nombre camp_apellido_uno camp_apellido_dos camp_fk_nacionalidad camp_nacimiento camp_fk_sexo camp_imagen camp_fk_provincia camp_fk_canton camp_fk_distrito camp_fk_barrio camp_fk_tipo_contrato camp_fk_tipo_alquiler camp_fk_tiempo_alquiler camp_fk_etiqueta_uno camp_fk_etiqueta_dos camp_fk_etiqueta_tres camp_fk_etiqueta_cuatro camp_fk_calificacion camp_fk_proceso_judicial camp_fk_dano_vivienda camp_fk_recomienda_inquilino camp_comentario_adicional camp_fecha_registro camp_fk_registrador camp_drogas camp_estado camp_estadoText camp_fk_conducta',
+  tb_solicitante: 'camp_id camp_email camp_cedula camp_telefono_uno camp_nombre camp_apellido_uno camp_apellido_dos camp_nacimiento camp_nacionalidad camp_sexo camp_provincia camp_canton camp_distrito camp_barrio',
+  users: 'user_id user_email firstname lastname nombre_completo status document telephone img_user access date_added user_password_hash',
+  tb_resenador: 'camp_id_resenador camp_identificacion_resenador',
+};
+const filasOrigen = new Map();
 async function mysqlAll(table) {
+  if (filasOrigen.has(table)) return filasOrigen.get(table);
   if (!(await mysqlTableExists(table))) return null;
-  return mysqlRows(`SELECT * FROM \`${table}\``);
+  const columnas = COLUMNAS_ORIGEN[table].split(' ').map((c) => `\`${c}\``).join(', ');
+  const rows = await mysqlRows(`SELECT ${columnas} FROM \`${table}\` ORDER BY 1`);
+  filasOrigen.set(table, rows);
+  return rows;
 }
 
-/**
- * Upsert de una fila. `sql` debe ser el INSERT/ON CONFLICT completo,
- * con sus placeholders ($1..$n) ya en el VALUES.
- */
-async function upsert(sql, row, label) {
-  if (seco) return 0;
+// Advertencias agregadas: no imprimir datos personales ni una línea por fila.
+function avisar(codigo, mensaje, cantidad = 1) {
+  const aviso = resumen.advertencias.find((a) => a.codigo === codigo);
+  if (aviso) aviso.cantidad += cantidad;
+  else resumen.advertencias.push({ codigo, mensaje, cantidad });
+}
+
+// PostgreSQL rejects duplicate conflict keys in one INSERT. Flush on a
+// repeated key so the original merge order is preserved, including COALESCE.
+let lote = null;
+async function guardarLote() {
+  if (!lote) return;
+  const { sql, rows, label } = lote;
+  lote = null;
+  const match = /VALUES\s*(\([\s\S]*?\))\s*ON CONFLICT/.exec(sql);
+  if (!match) throw new Error('INSERT de migración sin formato de lote.');
+  const valores = rows.map((row, i) => match[1].replace(/\$(\d+)/g, (_, n) => `$${Number(n) + i * row.length}`));
+  const consulta = sql.slice(0, match.index) + `VALUES ${valores.join(', ')} ON CONFLICT` + sql.slice(match.index + match[0].length);
   try {
-    await pool.query(sql, row);
-    return 1;
+    await pool.query(consulta, rows.flat());
   } catch (e) {
-    console.error(`  ✗ ${label}: ${e.message}`);
-    return 0;
+    throw new Error(`${label}: no se pudo guardar el lote (código ${e.code ?? 'desconocido'}).`);
   }
 }
 
-/** Solo devuelve el id si existe en el lookup de destino (si no, NULL). */
-const ref = (set, v) => (v == null ? null : (set.has(Number(v)) ? Number(v) : null));
+async function upsert(sql, row, label, clave = row[0]) {
+  if (lote && (lote.sql !== sql || lote.claves.has(clave) || lote.rows.length >= 500)) await guardarLote();
+  lote ??= { sql, rows: [], claves: new Set(), label };
+  lote.rows.push(row);
+  lote.claves.add(clave);
+  return 1;
+}
+
+function ref(mapa, valor) {
+  if (valor == null || valor === '') return null;
+  if (Number(valor) === 0 && !mapa.has(0)) return null;
+  const id = mapa.get(Number(valor));
+  if (id == null) {
+    const tabla = Object.keys(IDS).find((k) => IDS[k] === mapa) ?? 'catalogo';
+    avisar(`referencia_${tabla}`, `${tabla}: referencias legacy sin equivalencia; se dejaron vacías, sin asignar valores de demostración.`);
+  }
+  return id ?? null;
+}
+
+function texto(valor) {
+  return String(valor ?? '').trim() || null;
+}
+
+function fecha(valor, conHora = false) {
+  if (!valor) return null;
+  const s = String(valor);
+  const dia = s.slice(0, 10);
+  const parsed = new Date(`${dia}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dia || dia.startsWith('0000')) {
+    avisar('fecha_invalida', 'Fechas vacías o inválidas del sistema anterior se conservaron como desconocidas.');
+    return null;
+  }
+  // MySQL DATE no pasa por Date/timezone (evita cambiar el día de nacimiento).
+  return conHora ? `${s.replace(' ', 'T')}${zonaLegacy}` : dia;
+}
+
+const zonaLegacy = process.env.LEGACY_MYSQL_TIMEZONE || '-06:00';
+if (!/^[+-](?:0\d|1[0-3]):[0-5]\d$/.test(zonaLegacy)) throw new Error('LEGACY_MYSQL_TIMEZONE debe tener formato ±HH:MM.');
+const identFicha = (r) => texto(r.camp_identificacion) || `LEGACY-${r.camp_id_inquilino}`;
 
 function emailDe(valor) {
   const email = String(valor ?? '').toLowerCase().trim();
-  if (!email.includes('@') || email.startsWith('@') || /\s/.test(email)) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
   return email;
 }
 
@@ -147,7 +225,8 @@ function emailSintetico(email) {
 }
 
 function digitosDe(valor) {
-  return String(valor ?? '').replace(/\D/g, '');
+  const v = texto(valor);
+  return v && /^[0-9 -]+$/.test(v) ? v.replace(/\D/g, '') : '';
 }
 
 function rolDe(texto) {
@@ -179,7 +258,7 @@ function clasificarSecreto(valor) {
   if (/^[a-f0-9]{64}$/i.test(s)) return { tipo: 'sha256' };
   if (s.startsWith('$') || s.length > 72) return { tipo: 'otra' };
   if (s.length < 6) return { tipo: 'corta' };
-  return { tipo: 'plana', clave: s };
+  return { tipo: 'plana', clave: String(valor) };
 }
 
 function assertClasificacion() {
@@ -251,124 +330,18 @@ function bucketClave(secreto) {
   return 'restablecer';
 }
 
-// Ids presentes en destino para cada lookup (se llena en pasoLookups)
-const IDS = {
-  paises: new Set(), provincias: new Set(), cantones: new Set(), distritos: new Set(),
-  barrios: new Set(), calificaciones: new Set(), califPorValor: new Map(),
-  etiquetas: new Set(), tipos_contrato: new Set(), tipos_alquiler: new Set(),
-  tiempos_alquiler: new Set(), danos: new Set(), procesos: new Set(), conductas: new Set(),
-};
-
-async function cargarIdsDestino() {
-  if (seco) return;
-  const mapa = {
-    paises: 'paises', provincias: 'provincias', cantones: 'cantones',
-    distritos: 'distritos', barrios: 'barrios', etiquetas: 'etiquetas',
-    tipos_contrato: 'tipos_contrato', tipos_alquiler: 'tipos_alquiler',
-    tiempos_alquiler: 'tiempos_alquiler', danos_vivienda: 'danos',
-    procesos_judiciales: 'procesos', conductas: 'conductas',
-  };
-  for (const [tabla, clave] of Object.entries(mapa)) {
-    const q = await pool.query(`SELECT id FROM ${tabla}`);
-    IDS[clave] = new Set(q.rows.map((r) => r.id));
-  }
-  const cal = await pool.query(`SELECT id, valor FROM calificaciones`);
-  IDS.calificaciones = new Set(cal.rows.map((r) => r.id));
-  IDS.califPorValor = new Map(cal.rows.map((r) => [r.valor, r.id]));
-}
-
-// ----------------------------------------------------------------------------
-// PASO 1 — Lookups (ids legacy preservados)
-// ----------------------------------------------------------------------------
-
-async function copiarLookup(tabla, destinoSql, cols, secuencia) {
-  const nombre = await mysqlFindTable(tabla);
-  if (!nombre) { console.log(`  · ${tabla.join('/')} no existe en legacy (usa seed local)`); return; }
-  const rows = await mysqlRows(
-    `SELECT ${cols.map((c) => `\`${c[0]}\``).join(', ')} FROM \`${nombre}\``,
-  );
-  let ok = 0;
-  for (const r of rows) {
-    ok += await upsert(destinoSql, cols.map((c) => r[c[0]]), `${nombre}#${r[cols[0][0]]}`);
-  }
-  if (!seco && secuencia) {
-    await pool.query(`SELECT setval(pg_get_serial_sequence('${secuencia}','id'), COALESCE((SELECT max(id) FROM ${secuencia}), 1))`);
-  }
-  console.log(`  ${nombre} → ${ok}/${rows.length} filas`);
-  resumen.lookups[nombre] = rows.length;
-}
-
+let IDS;
 async function pasoLookups() {
-  log('Lookups (geografía CR + dominios)');
-
-  await copiarLookup(['tb_paises'],
-    `INSERT INTO paises (id, iso2, nombre) VALUES ($1,$2,$3)
-     ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre`,
-    [['id', 'id'], ['iso2', 'iso'], ['nombre', 'nombre']], 'paises');
-
-  await copiarLookup(['tb_provincia'],
-    `INSERT INTO provincias (id, codigo, nombre) VALUES ($1,$2,$3)
-     ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre`,
-    [['id', 'camp_id_provincia'], ['codigo', 'camp_provincia'], ['nombre', 'camp_nombre_provincia']], 'provincias');
-
-  await copiarLookup(['tb_canton'],
-    `INSERT INTO cantones (id, provincia_id, codigo, nombre) VALUES ($1,$2,$3,$4)
-     ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['provincia_id', 'camp_idProvincia'], ['codigo', 'camp_codigo'], ['nombre', 'camp_canton']], 'cantones');
-
-  await copiarLookup(['tb_distrito'],
-    `INSERT INTO distritos (id, canton_id, codigo, nombre) VALUES ($1,$2,$3,$4)
-     ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['canton_id', 'camp_idCanton'], ['codigo', 'camp_codigo'], ['nombre', 'camp_distrito']], 'distritos');
-
-  await copiarLookup(['tb_barrio'],
-    `INSERT INTO barrios (id, distrito_id, codigo, nombre) VALUES ($1,$2,$3,$4)
-     ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['distrito_id', 'camp_idDistrito'], ['codigo', 'camp_codigo'], ['nombre', 'camp_barrio']], 'barrios');
-
-  await copiarLookup(['tb_calificacion', 'tb_calificaciones'],
-    `INSERT INTO calificaciones (id, valor, texto) VALUES ($1,$2,$3)
-     ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id_calificacion'], ['valor', 'camp_valor'], ['texto', 'camp_texto']], 'calificaciones');
-
-  await copiarLookup(['tb_etiquetainquilino'],
-    `INSERT INTO etiquetas (id, nombre, tipo) VALUES ($1,$2,'inquilino')
-     ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id_etiquetaInquilino'], ['nombre', 'camp_etiquetaInquilino_nombre']], 'etiquetas');
-
-  await copiarLookup(['tb_conducta'],
-    `INSERT INTO conductas (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id_conducta'], ['nombre', 'camp_conducta']], 'conductas');
-
-  await copiarLookup(['tb_tipoalquiler'],
-    `INSERT INTO tipos_alquiler (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id_tipoAlquiler'], ['nombre', 'camp_tipoAlquiler_nombre']], 'tipos_alquiler');
-
-  await copiarLookup(['tb_tipo_contrato', 'tb_tipos_contrato'],
-    `INSERT INTO tipos_contrato (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id_tipo_contrato'], ['nombre', 'camp_nombre']], 'tipos_contrato');
-
-  await copiarLookup(['tb_tiempo_alquiler', 'tb_tiempoalquiler'],
-    `INSERT INTO tiempos_alquiler (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['nombre', 'camp_nombre']], 'tiempos_alquiler');
-
-  await copiarLookup(['tb_dano_vivienda', 'tb_danovivienda'],
-    `INSERT INTO danos_vivienda (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['nombre', 'camp_nombre']], 'danos_vivienda');
-
-  await copiarLookup(['tb_proceso_judicial', 'tb_procesojudicial'],
-    `INSERT INTO procesos_judiciales (id, nombre) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`,
-    [['id', 'camp_id'], ['nombre', 'camp_nombre']], 'procesos_judiciales');
-
-  // tb_sexo no existe en v2 (columna CHECK): solo se usa para normalizar
-  const sexoTabla = await mysqlFindTable(['tb_sexo']);
-  if (sexoTabla) {
-    const rows = await mysqlRows(`SELECT camp_id_sexo, cam_sexo FROM \`${sexoTabla}\``);
-    console.log(`  ${sexoTabla} → ${rows.length} valores (se normalizan al importar personas)`);
-    resumen.lookups[sexoTabla] = rows.length;
-  }
-
-  await cargarIdsDestino();
+  log('Catálogos y equivalencias legacy');
+  const { mapas, cantidades } = await importarCatalogos({
+    db: pool, buscarTabla: mysqlFindTable, filas: mysqlRows, avisar,
+  });
+  IDS = {
+    ...mapas,
+    danos: mapas.danos_vivienda,
+    procesos: mapas.procesos_judiciales,
+  };
+  resumen.lookups = cantidades;
 }
 
 // ----------------------------------------------------------------------------
@@ -376,8 +349,12 @@ async function pasoLookups() {
 // ----------------------------------------------------------------------------
 
 function normalizaSexo(legacyId, mapa) {
+  if (legacyId == null) return null;
   const v = mapa.get(Number(legacyId));
-  if (!v) return null;
+  if (!v) {
+    avisar('sexo_desconocido', 'Referencias de sexo sin equivalencia se conservaron como desconocidas.');
+    return null;
+  }
   if (/masc|varon|hombr/.test(v)) return 'masculino';
   if (/fem|mujer/.test(v)) return 'femenino';
   return 'otro';
@@ -392,24 +369,23 @@ async function mapaSexo() {
 
 async function mapaDomicilios() {
   const map = new Map();
-  const ubi = await mysqlRows(`SELECT * FROM tb_ubicacion WHERE camp_codi IS NOT NULL`).catch(() => []);
-  if (!ubi.length) return map;
-  const nombres = new Map();
-  for (const t of ['provincias', 'cantones', 'distritos']) {
-    const rows = seco ? [] : (await pool.query(`SELECT id, nombre FROM ${t}`)).rows;
-    nombres.set(t, rows.map((r) => [r.id, r.nombre.toLowerCase()]));
+  if (!(await mysqlTableExists('tb_ubicacion'))) return map;
+  const ubi = await mysqlRows('SELECT * FROM tb_ubicacion WHERE camp_codi IS NOT NULL');
+  const tablas = {};
+  for (const tabla of ['provincias', 'cantones', 'distritos']) {
+    tablas[tabla] = (await pool.query(`SELECT * FROM ${tabla}`)).rows;
   }
-  const buscar = (tabla, n) => {
-    if (n == null || !String(n).trim()) return null;
-    const [id] = nombres.get(tabla)?.find(([, v]) => v === String(n).trim().toLowerCase()) ?? [];
-    return id ?? null;
+  const buscar = (tabla, nombre, padre, padreId) => {
+    if (!texto(nombre) || (padre && padreId == null)) return null;
+    const candidatas = tablas[tabla].filter((r) =>
+      r.nombre.trim().toLowerCase() === texto(nombre).toLowerCase() && (!padre || r[padre] === padreId));
+    return candidatas.length === 1 ? candidatas[0].id : null;
   };
   for (const u of ubi) {
-    map.set(u.camp_codi, {
-      provincia_id: buscar('provincias', u.camp_Provincia),
-      canton_id: buscar('cantones', u.camp_Canton),
-      distrito_id: buscar('distritos', u.camp_Distrito),
-    });
+    const provincia_id = buscar('provincias', u.camp_Provincia);
+    const canton_id = buscar('cantones', u.camp_Canton, 'provincia_id', provincia_id);
+    const distrito_id = buscar('distritos', u.camp_Distrito, 'canton_id', canton_id);
+    map.set(u.camp_codi, { provincia_id, canton_id, distrito_id, ubicacionDestino: true });
   }
   return map;
 }
@@ -420,9 +396,9 @@ const SQL_UPSERT_PERSONA = `
      fecha_nacimiento, sexo, provincia_id, canton_id, distrito_id, barrio_id, foto_url)
   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
   ON CONFLICT (identificacion) DO UPDATE SET
-    nombre = COALESCE(EXCLUDED.nombre, personas.nombre),
+    nombre = COALESCE(NULLIF(EXCLUDED.nombre, 'Sin nombre legacy'), personas.nombre),
     nombre2 = COALESCE(EXCLUDED.nombre2, personas.nombre2),
-    apellido1 = COALESCE(EXCLUDED.apellido1, personas.apellido1),
+    apellido1 = COALESCE(NULLIF(EXCLUDED.apellido1, 'Sin apellido legacy'), personas.apellido1),
     apellido2 = COALESCE(EXCLUDED.apellido2, personas.apellido2),
     pais_id = COALESCE(EXCLUDED.pais_id, personas.pais_id),
     fecha_nacimiento = COALESCE(EXCLUDED.fecha_nacimiento, personas.fecha_nacimiento),
@@ -433,17 +409,21 @@ const SQL_UPSERT_PERSONA = `
     barrio_id = COALESCE(EXCLUDED.barrio_id, personas.barrio_id),
     foto_url = COALESCE(EXCLUDED.foto_url, personas.foto_url)`;
 
+const personasProcesadas = new Set();
 async function upsertPersona(p, sexoMap) {
+  personasProcesadas.add(p.identificacion);
+  if (!texto(p.nombre) || !texto(p.apellido1)) avisar('persona_incompleta', 'Personas sin nombre o apellido se conservaron con una indicación de dato faltante.');
   return upsert(SQL_UPSERT_PERSONA, [
     p.identificacion,
-    p.nombre ?? null, p.nombre2 ?? null, p.apellido1 ?? null, p.apellido2 ?? null,
+    texto(p.nombre) || 'Sin nombre legacy', texto(p.nombre2), texto(p.apellido1) || 'Sin apellido legacy', texto(p.apellido2),
     ref(IDS.paises, p.pais_id),
-    p.fecha_nacimiento ?? null,
-    normalizaSexo(p.sexoId, sexoMap),
-    ref(IDS.provincias, p.provincia_id), ref(IDS.cantones, p.canton_id),
-    ref(IDS.distritos, p.distrito_id), ref(IDS.barrios, p.barrio_id),
+    fecha(p.fecha_nacimiento),
+    p.sexo ?? normalizaSexo(p.sexoId, sexoMap),
+    p.ubicacionDestino ? p.provincia_id : ref(IDS.provincias, p.provincia_id),
+    p.ubicacionDestino ? p.canton_id : ref(IDS.cantones, p.canton_id),
+    p.ubicacionDestino ? p.distrito_id : ref(IDS.distritos, p.distrito_id), ref(IDS.barrios, p.barrio_id),
     p.foto_url ?? null,
-  ], `persona ${p.identificacion}`);
+  ], 'persona legacy');
 }
 
 async function pasoPersonas() {
@@ -457,7 +437,7 @@ async function pasoPersonas() {
     for (const r of tbPersona) {
       const dom = domicilioMap.get(r.camp_fk_domicilio) ?? {};
       n += await upsertPersona({
-        identificacion: r.camp_identificacion,
+        identificacion: texto(r.camp_identificacion) || `PERSONA-LEGACY-${r.camp_id_persona}`,
         nombre: r.camp_nombreUno, nombre2: r.camp_nombreDOs,
         apellido1: r.camp_apellidoUno, apellido2: r.camp_apellidoDos,
         pais_id: r.camp_fk_nacionalidad, fecha_nacimiento: r.camp_fechaNacimiento,
@@ -473,7 +453,7 @@ async function pasoPersonas() {
     let n = 0;
     for (const r of fichas) {
       n += await upsertPersona({
-        identificacion: r.camp_identificacion || `LEGACY-${r.camp_id_inquilino}`,
+        identificacion: identFicha(r),
         nombre: r.camp_nombre, apellido1: r.camp_apellido_uno, apellido2: r.camp_apellido_dos,
         pais_id: r.camp_fk_nacionalidad, fecha_nacimiento: r.camp_nacimiento,
         sexoId: r.camp_fk_sexo,
@@ -490,11 +470,13 @@ async function pasoPersonas() {
   if (solicitantes) {
     let n = 0;
     for (const r of solicitantes) {
-      if (!r.camp_cedula) continue;
+      if (!texto(r.camp_cedula)) {
+        avisar('solicitante_sin_cedula', 'Solicitantes sin cédula se conservaron con un identificador de origen.');
+      }
       n += await upsertPersona({
-        identificacion: r.camp_cedula,
+        identificacion: texto(r.camp_cedula) || `SOLICITANTE-LEGACY-${r.camp_id}`,
         nombre: r.camp_nombre, apellido1: r.camp_apellido_uno, apellido2: r.camp_apellido_dos,
-        fecha_nacimiento: r.camp_nacimiento,
+        fecha_nacimiento: r.camp_nacimiento, pais_id: r.camp_nacionalidad, sexo: r.camp_sexo === 0 ? 'masculino' : r.camp_sexo === 1 ? 'femenino' : null,
         provincia_id: r.camp_provincia, canton_id: r.camp_canton,
         distrito_id: r.camp_distrito, barrio_id: r.camp_barrio,
       }, sexoMap);
@@ -503,7 +485,8 @@ async function pasoPersonas() {
     console.log(`  tb_solicitante → ${n}`);
   } else console.log('  · tb_solicitante no existe');
 
-  if (!seco) {
+  await guardarLote();
+  {
     const q = await pool.query(`SELECT count(*)::int AS n FROM personas`);
     console.log(`  TOTAL personas en destino: ${q.rows[0].n}`);
   }
@@ -519,34 +502,38 @@ async function cargarCuentasLegacy() {
 
   const rows = await mysqlAll('users');
   if (rows) {
-    const vistos = new Set();
     for (const r of rows) {
       const emailReal = emailDe(r.user_email);
       const email = emailReal ?? `u${r.user_id}@legacy.laprotec`;
-      if (vistos.has(email)) continue;
-      vistos.add(email);
       const nombre = [r.firstname, r.lastname].filter(Boolean).join(' ')
         || r.nombre_completo || 'Usuario legacy';
       const inactivo = /inactiv|susp|baja|cancel|venc|expir/i.test(r.status || '');
       const cuenta = cuentaNueva({
         email,
         nombre,
-        identificacion: r.document || null,
+        identificacion: texto(r.document),
         telefono: r.telephone || null,
         avatar: r.img_user || null,
         rol: rolDe(r.access),
         activo: !inactivo && !emailSintetico(email),
-        ultimoAcceso: r.date_added ?? null,
+        ultimoAcceso: fecha(r.date_added, true),
         secreto: clasificarSecreto(r.user_password_hash),
       });
-      if (emailReal) porEmail.set(email, cuenta);
+      if (porEmail.has(email)) {
+        const anterior = porEmail.get(email);
+        const mismoDocumento = texto(anterior.identificacion) === texto(cuenta.identificacion)
+          || (digitosDe(cuenta.identificacion).length >= 6 && digitosDe(cuenta.identificacion) === digitosDe(anterior.identificacion));
+        if (!mismoDocumento) throw new Error(`users#${r.user_id}: correo compartido por identificaciones distintas. Corrija el origen antes de importar.`);
+        avisar('correo_duplicado', 'Se consolidaron filas repetidas con el mismo correo e identificación.');
+        fusionarCuenta(anterior, cuenta, false);
+      } else if (emailReal) porEmail.set(email, cuenta);
       else sinCorreo.push(cuenta);
     }
   } else console.log('  · tabla `users` no existe');
 
   if (await mysqlTableExists('tb_login')) {
     const logins = await mysqlRows(
-      `SELECT camp_fk_persona, camp_clave, camp_activo, camp_fecha_ingreso FROM tb_login`,
+      `SELECT camp_id_login, camp_fk_persona, camp_clave, camp_activo, camp_fecha_ingreso FROM tb_login`,
     );
     const personas = (await mysqlTableExists('tb_persona'))
       ? await mysqlRows(
@@ -571,19 +558,19 @@ async function cargarCuentasLegacy() {
     const solPorCedula = new Map();
     for (const s of solicitantes) {
       const d = digitosDe(s.camp_cedula);
-      if (d.length >= 6 && !solPorCedula.has(d)) solPorCedula.set(d, s);
+      if (d.length >= 6) solPorCedula.set(d, solPorCedula.has(d) ? null : s);
     }
     const permisoPorPersona = new Map(permisos.map((p) => [Number(p.camp_fk_persona), p.camp_nombre]));
     const cuentaPorCedula = new Map();
     for (const cuenta of porEmail.values()) {
       const d = digitosDe(cuenta.identificacion);
-      if (d.length >= 6 && !cuentaPorCedula.has(d)) cuentaPorCedula.set(d, cuenta);
+      if (d.length >= 6) cuentaPorCedula.set(d, cuentaPorCedula.has(d) ? null : cuenta);
     }
 
     let conLogin = 0;
     for (const login of logins) {
-      const persona = personaPorId.get(Number(login.camp_fk_persona));
-      const ident = persona?.camp_identificacion || null;
+      const persona = login.camp_fk_persona == null ? null : personaPorId.get(Number(login.camp_fk_persona));
+      const ident = texto(persona?.camp_identificacion);
       const digitos = digitosDe(ident);
       const sol = (persona?.camp_idSolicitud && solPorId.get(Number(persona.camp_idSolicitud)))
         || (digitos.length >= 6 ? solPorCedula.get(digitos) : null)
@@ -593,20 +580,24 @@ async function cargarCuentasLegacy() {
         .filter(Boolean).join(' ');
       const nombreSol = [sol?.camp_nombre, sol?.camp_apellido_uno, sol?.camp_apellido_dos].filter(Boolean).join(' ');
       const extra = cuentaNueva({
-        email: email ?? `login-${login.camp_fk_persona}@legacy.laprotec`,
+        email: email ?? `login-${login.camp_fk_persona ?? `id-${login.camp_id_login}`}@legacy.laprotec`,
         nombre: nombreSol || nombrePersona || 'Usuario legacy',
         identificacion: ident,
         telefono: sol?.camp_telefono_uno || null,
         rol: rolDe(permisoPorPersona.get(Number(login.camp_fk_persona))),
         activo: Number(login.camp_activo) === 1,
-        ultimoAcceso: login.camp_fecha_ingreso ?? null,
+        ultimoAcceso: fecha(login.camp_fecha_ingreso, true),
         secreto: clasificarSecreto(login.camp_clave),
         esLogin: true,
       });
       const destino = (email && porEmail.get(email))
-        || (digitos.length >= 6 ? cuentaPorCedula.get(digitos) : null)
+        || (!email && digitos.length >= 6 ? cuentaPorCedula.get(digitos) : null)
         || null;
       if (destino) {
+        if (ident && destino.identificacion && ident !== destino.identificacion
+          && !(digitos.length >= 6 && digitos === digitosDe(destino.identificacion))) {
+          throw new Error(`tb_login#${login.camp_fk_persona}: correo asociado a otra identificación. Corrija el origen antes de importar.`);
+        }
         fusionarCuenta(destino, extra, true);
         if (email && emailSintetico(destino.email)) {
           porEmail.delete(destino.email);
@@ -615,7 +606,7 @@ async function cargarCuentasLegacy() {
         }
       } else if (email) {
         porEmail.set(email, extra);
-        if (digitos.length >= 6) cuentaPorCedula.set(digitos, extra);
+        if (digitos.length >= 6) cuentaPorCedula.set(digitos, cuentaPorCedula.has(digitos) ? null : extra);
       } else {
         sinCorreo.push(extra);
       }
@@ -626,12 +617,13 @@ async function cargarCuentasLegacy() {
 
   for (const cuenta of sinCorreo) {
     const digitos = digitosDe(cuenta.identificacion);
-    const ya = [...porEmail.values()].find((c) => digitos.length >= 6 && digitosDe(c.identificacion) === digitos);
+    const candidatas = [...porEmail.values()].filter((c) => digitos.length >= 6 && digitosDe(c.identificacion) === digitos);
+    const ya = candidatas.length === 1 ? candidatas[0] : null;
     if (ya) fusionarCuenta(ya, cuenta, cuenta.esLogin);
     else if (!porEmail.has(cuenta.email)) porEmail.set(cuenta.email, cuenta);
   }
 
-  return [...porEmail.values()];
+  return [...porEmail.values()].map((c) => ({ ...c, activo: c.activo && !emailSintetico(c.email) }));
 }
 
 async function pasoUsuarios() {
@@ -643,6 +635,15 @@ async function pasoUsuarios() {
     resumen.claves[bucketClave(cuenta.secreto)]++;
   }
 
+  const existentes = (await pool.query('SELECT email, identificacion FROM usuarios WHERE lower(email) = ANY($1::text[])', [cuentas.map((c) => c.email)])).rows;
+  for (const actual of existentes) {
+    const cuenta = cuentas.find((c) => c.email === actual.email.toLowerCase());
+    if (actual.email !== cuenta.email) throw new Error('Hay una cuenta de destino con el mismo correo y distinta capitalización. Normalice ese correo antes de importar.');
+    if (actual.identificacion && cuenta.identificacion && actual.identificacion !== cuenta.identificacion
+      && !(digitosDe(actual.identificacion).length >= 6 && digitosDe(actual.identificacion) === digitosDe(cuenta.identificacion))) {
+      throw new Error('Una cuenta de destino comparte correo con otra identificación legacy. Reconcilie esa cuenta antes de importar.');
+    }
+  }
   let n = 0;
   for (const cuenta of cuentas) {
     n += await upsert(
@@ -669,7 +670,7 @@ async function pasoUsuarios() {
          END`,
       [cuenta.email, cuenta.nombre, cuenta.identificacion, cuenta.telefono, cuenta.avatar,
         cuenta.rol, cuenta.activo, cuenta.ultimoAcceso],
-      `usuario ${cuenta.email}`,
+      'usuario legacy',
     );
   }
   resumen.usuarios = n;
@@ -680,59 +681,45 @@ async function pasoUsuarios() {
     `  claves de las activas: ${resumen.claves.bcrypt} hash compatible, ${resumen.claves.anterior} la misma clave, ${resumen.claves.restablecer} tienen que restablecerla`,
   );
 
-  if (!seco) {
+  await guardarLote();
+  {
     const q = await pool.query(`SELECT count(*)::int AS n FROM usuarios`);
     console.log(`  TOTAL usuarios en destino: ${q.rows[0].n}`);
 
-    const l = await pool.query(`
-      UPDATE usuarios u SET persona_id = p.id
-      FROM personas p
-      WHERE p.identificacion = u.identificacion
-        AND u.persona_id IS NULL
-        AND u.identificacion IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM usuarios o WHERE o.persona_id = p.id)`);
-    console.log(`  personas enlazadas a usuarios: ${l.rowCount}`);
-
-    const digitos = await pool.query(`
-      UPDATE usuarios u SET persona_id = m.persona_id
-      FROM (
-        SELECT u2.id AS usuario_id, min(p.id) AS persona_id
-        FROM usuarios u2
-        JOIN personas p
-          ON regexp_replace(p.identificacion, '\\D', '', 'g')
-           = regexp_replace(u2.identificacion, '\\D', '', 'g')
-        WHERE u2.persona_id IS NULL
-          AND u2.identificacion IS NOT NULL
-          AND length(regexp_replace(u2.identificacion, '\\D', '', 'g')) >= 6
+    // Only a unique candidate on BOTH sides may be linked. Duplicate emails
+    // sharing a cédula remain independent accounts, never merged arbitrarily.
+    const enlaces = await pool.query(`
+      WITH candidatos AS (
+        SELECT u.id AS usuario_id, p.id AS persona_id,
+          count(*) OVER (PARTITION BY u.id) AS personas,
+          count(*) OVER (PARTITION BY p.id) AS usuarios
+        FROM usuarios u JOIN personas p ON
+          (CASE WHEN p.identificacion ~ '^[0-9 -]+$'
+            AND length(regexp_replace(p.identificacion, '[^0-9]', '', 'g')) >= 6
+            THEN regexp_replace(p.identificacion, '[^0-9]', '', 'g') ELSE p.identificacion END)
+          = (CASE WHEN u.identificacion ~ '^[0-9 -]+$'
+            AND length(regexp_replace(u.identificacion, '[^0-9]', '', 'g')) >= 6
+            THEN regexp_replace(u.identificacion, '[^0-9]', '', 'g') ELSE u.identificacion END)
+        WHERE u.persona_id IS NULL AND u.identificacion IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM usuarios o WHERE o.persona_id = p.id)
-        GROUP BY u2.id
-        HAVING count(DISTINCT p.id) = 1
-      ) m
-      WHERE u.id = m.usuario_id`);
-    console.log(`  personas enlazadas por cédula sin guiones: ${digitos.rowCount}`);
+      )
+      UPDATE usuarios u SET persona_id = c.persona_id FROM candidatos c
+      WHERE u.id = c.usuario_id AND c.personas = 1 AND c.usuarios = 1
+        AND u.email = ANY($1::text[])`, [cuentas.map((c) => c.email)]);
+    console.log(`  personas enlazadas sin ambigüedad: ${enlaces.rowCount}`);
+    const ambiguas = await pool.query(`SELECT count(*)::int AS n FROM usuarios
+      WHERE persona_id IS NULL AND identificacion IS NOT NULL AND email = ANY($1::text[])`, [cuentas.map((c) => c.email)]);
+    if (ambiguas.rows[0].n) avisar('cuenta_sin_enlace', 'Cuentas sin una persona inequívoca; se conservaron sin asignarles otra identidad.', ambiguas.rows[0].n);
 
-    const s = await pool.query(`SELECT setval(pg_get_serial_sequence('usuarios','id'), COALESCE((SELECT max(id) FROM usuarios), 1))`);
-    void s;
   }
 
-  if (CREAR_ACCOUNTS) await crearCuentasAuth(cuentas);
-  for (const cuenta of cuentas) cuenta.secreto = null;
-}
-
-function mensajeAuthSeguro(mensaje, secreto) {
-  const texto = mensaje || 'error';
-  if (secreto?.clave && texto.includes(secreto.clave)) return 'la clave no fue aceptada';
-  if (secreto?.hash && texto.includes(secreto.hash)) return 'el hash no fue aceptado';
-  return texto;
+  cuentasImportadas = cuentas;
 }
 
 async function idAuthPorEmail(email) {
-  try {
-    const q = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1) LIMIT 1`, [email]);
-    return q.rows[0]?.id ?? null;
-  } catch {
-    return null;
-  }
+  const q = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1)`, [email]);
+  if (q.rows.length > 1) throw new Error('Supabase Auth contiene correos ambiguos.');
+  return q.rows[0]?.id ?? null;
 }
 
 // Crea la identidad de login. Conserva el hash o la clave anterior cuando se puede.
@@ -741,7 +728,8 @@ async function crearCuentasAuth(cuentas) {
   const porEmail = new Map(cuentas.map((c) => [c.email, c]));
   const pendientes = (await pool.query(
     `SELECT id, email, nombre FROM usuarios
-     WHERE auth_user_id IS NULL AND activo AND email NOT LIKE '%@legacy.laprotec'`,
+     WHERE auth_user_id IS NULL AND activo AND email = ANY($1::text[])
+       AND email NOT LIKE '%@legacy.laprotec'`, [cuentas.map((c) => c.email)],
   )).rows;
   let ok = 0;
   let fallo = 0;
@@ -755,13 +743,14 @@ async function crearCuentasAuth(cuentas) {
     if (ya) {
       await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [ya, c.id]);
       ok++;
+      resumen.auth.creadas = ok;
       continue;
     }
 
     const atributos = {
       email: c.email,
       email_confirm: true,
-      user_metadata: { nombre: c.nombre, rol: cuenta?.rol ?? 'propietario' },
+      user_metadata: { nombre: c.nombre },
     };
     let conservo = false;
     if ((secreto.tipo === 'bcrypt' || secreto.tipo === 'argon') && secreto.hash) {
@@ -781,18 +770,23 @@ async function crearCuentasAuth(cuentas) {
       if (id) {
         await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [id, c.id]);
         ok++;
+        resumen.auth.creadas = ok;
         continue;
       }
       fallo++;
-      console.error(`  ✗ ${c.email}: ${mensajeAuthSeguro(error.message, secreto)}`);
+      resumen.auth.fallidas = fallo;
+      avisar('auth_fallida', 'No se pudo crear algún acceso en Supabase Auth. Puede reintentar la importación.');
       continue;
     }
     await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [data.user.id, c.id]);
     ok++;
+    resumen.auth.creadas = ok;
     if (conservo) conservadas++;
     else restablecer++;
     if (ok % 50 === 0) console.log(`  Creando en Supabase Auth: ${ok}/${pendientes.length}`);
   }
+  resumen.auth = { creadas: ok, fallidas: fallo };
+  if (fallo) resumen.estado = 'parcial';
   console.log(`  Auth: ${ok} ok, ${fallo} fallos, ${conservadas} con su clave, ${restablecer} deben restablecerla`);
 }
 
@@ -805,76 +799,64 @@ async function pasoResenas() {
   const fichas = await mysqlAll('tb_inquilinos_no_nacionales');
   if (!fichas) { console.log('  · no hay fichas'); return; }
 
-  // Personas destino (ya importadas en pasoPersonas)
-  const identFicha = (r) => r.camp_identificacion || `LEGACY-${r.camp_id_inquilino}`;
   const idents = [...new Set(fichas.map(identFicha))];
-  const personaMap = new Map();
-  if (!seco && idents.length) {
-    const q = await pool.query(
-      `SELECT id, identificacion FROM personas WHERE identificacion = ANY($1::text[])`,
-      [idents],
-    );
-    for (const r of q.rows) personaMap.set(r.identificacion, r.id);
-  }
-
-  // Autores: registrador (id persona LEGACY) → identificacion → usuario.
-  // Si no hay cuenta real, se crea una fantasma inactiva (no puede entrar).
-  const regIds = [...new Set(fichas.map((r) => Number(r.camp_fk_registrador)).filter(Boolean))];
+  const personaMap = new Map((await pool.query(
+    'SELECT id, identificacion FROM personas WHERE identificacion = ANY($1::text[])', [idents],
+  )).rows.map((r) => [r.identificacion, r.id]));
+  const legacyPersonas = new Map(((await mysqlAll('tb_persona')) ?? []).map((r) => [Number(r.camp_id_persona), r]));
+  const legacyResenadores = new Map(((await mysqlAll('tb_resenador')) ?? []).map((r) => [Number(r.camp_id_resenador), r]));
   const autorMap = new Map();
-  if (!seco && regIds.length) {
-    const legacy = await mysqlRows(
-      `SELECT camp_id_persona, camp_identificacion FROM tb_persona WHERE camp_id_persona IN (?)`,
-      [regIds],
-    );
-    const idents = [...new Set(legacy.map((r) => r.camp_identificacion).filter(Boolean))];
-    if (idents.length) {
-      const q = await pool.query(
-        `SELECT id, identificacion, nombre, apellido1 FROM personas WHERE identificacion = ANY($1::text[])`,
-        [idents],
-      );
-      const porIdent = new Map(q.rows.map((r) => [r.identificacion, r]));
-      for (const lr of legacy) {
-        const pr = porIdent.get(lr.camp_identificacion);
-        if (!pr) continue;
-        const u = await pool.query(
-          `SELECT id FROM usuarios WHERE identificacion = $1 OR persona_id = $2 LIMIT 1`,
-          [pr.identificacion, pr.id],
-        );
-        if (u.rows.length) { autorMap.set(lr.camp_id_persona, u.rows[0].id); continue; }
-        const email = `resena-${pr.id}@legacy.laprotec`;
-        const ins = await pool.query(
-          `INSERT INTO usuarios (email, nombre, persona_id, rol, activo)
-           VALUES ($1,$2,$3,'propietario', false)
-           ON CONFLICT (email) DO NOTHING RETURNING id`,
-          [email, [pr.nombre, pr.apellido1].filter(Boolean).join(' ') || 'Reseñador legacy', pr.id],
-        );
-        const uId = ins.rows[0]?.id ??
-          (await pool.query(`SELECT id FROM usuarios WHERE email = $1`, [email])).rows[0]?.id;
-        if (uId) { autorMap.set(lr.camp_id_persona, uId); resumen.usuarios++; }
-      }
-      const s = await pool.query(`SELECT setval(pg_get_serial_sequence('usuarios','id'), COALESCE((SELECT max(id) FROM usuarios), 1))`);
-      void s;
+  const claveAutor = (ficha) => Number(ficha.camp_fk_registrador)
+    ? `registrador-${Number(ficha.camp_fk_registrador)}` : `ficha-${ficha.camp_id_inquilino}`;
+  const usuarios = (await pool.query(`SELECT u.id, u.identificacion, p.identificacion AS persona_identificacion
+    FROM usuarios u LEFT JOIN personas p ON p.id = u.persona_id`)).rows;
+  const porIdent = new Map();
+  for (const u of usuarios) {
+    for (const ident of new Set([u.identificacion, u.persona_identificacion].filter(Boolean))) {
+      if (!porIdent.has(ident)) porIdent.set(ident, []);
+      porIdent.get(ident).push(u.id);
     }
   }
+  const pendientes = new Map();
+  for (const ficha of fichas) {
+    const clave = claveAutor(ficha);
+    if (autorMap.has(clave) || pendientes.has(clave)) continue;
+    const registrador = Number(ficha.camp_fk_registrador);
+    const identificaciones = [...new Set([
+      texto(legacyPersonas.get(registrador)?.camp_identificacion),
+      texto(legacyResenadores.get(registrador)?.camp_identificacion_resenador),
+    ].filter(Boolean))];
+    const cuentas = identificaciones.length === 1 ? porIdent.get(identificaciones[0]) : null;
+    if (cuentas?.length === 1) autorMap.set(clave, cuentas[0]);
+    else pendientes.set(clave, `autor-${clave}@legacy.laprotec`);
+  }
+  if (pendientes.size) {
+    // No persona_id: placeholders cannot steal the 1:1 link of real accounts.
+    const creados = (await pool.query(`INSERT INTO usuarios (email, nombre, rol, activo)
+      SELECT email, 'Autor legacy sin acceso', 'propietario', false FROM unnest($1::text[]) AS email
+      ON CONFLICT (email) DO UPDATE SET activo = false RETURNING id, email`, [[...pendientes.values()]])).rows;
+    const porEmail = new Map(creados.map((u) => [u.email, u.id]));
+    for (const [clave, email] of pendientes) autorMap.set(clave, porEmail.get(email));
+    resumen.usuarios += pendientes.size;
+    avisar('autor_placeholder', 'Se conservaron reseñas con autores sin cuenta inequívoca bajo perfiles legacy inactivos.', pendientes.size);
+  }
 
-  const siNo = (v) => (v === 0 || v === 1 ? Boolean(v) : null);
+  const siNo = (v) => {
+    if (v === 0 || v === 1) return Boolean(v);
+    if (v != null) avisar('booleano_desconocido', 'Valores distintos de 0/1 en recomienda o drogas se conservaron como desconocidos.');
+    return null;
+  };
 
-  let n = 0, sinPersona = 0, sinAutor = 0;
+  let n = 0;
   const etqRows = [];
+  const conductasRows = [];
 
   for (const r of fichas) {
     const personaId = personaMap.get(identFicha(r)) ?? null;
-    if (!personaId) { sinPersona++; continue; }
-    const autorId = (r.camp_fk_registrador && autorMap.get(Number(r.camp_fk_registrador))) || null;
-    if (!autorId) { sinAutor++; continue; }
+    if (!personaId) throw new Error(`Ficha legacy #${r.camp_id_inquilino}: falta su persona de destino.`);
+    const autorId = autorMap.get(claveAutor(r));
 
-    // Calificación: si el lookup legacy se copió, el id vale; si no, mapear por valor 1-5
-    let califId = null;
-    if (r.camp_fk_calificacion) {
-      const v = Number(r.camp_fk_calificacion);
-      if (IDS.calificaciones.has(v)) califId = v;
-      else if (v >= 1 && v <= 5) califId = IDS.califPorValor.get(v) ?? null;
-    }
+    const califId = ref(IDS.calificaciones, r.camp_fk_calificacion);
 
     // Legacy: 0 pendiente, 1 aceptada, 2 rechazada.
     const estadoNum = r.camp_estado == null || r.camp_estado === '' ? null : Number(r.camp_estado);
@@ -882,15 +864,16 @@ async function pasoResenas() {
       ? 'borrador'
       : estadoNum === 2 || /ocult|inactiv|archiv|elimin|borrad|rechaz/i.test(r.camp_estadoText || '')
         ? 'oculta'
-        : 'publicada';
+        : estadoNum === 1 ? 'publicada' : 'borrador';
+    if (estadoNum == null || ![0, 1, 2].includes(estadoNum)) avisar('estado_desconocido', 'Reseñas sin estado conocido se conservaron como borradores.');
     const nota = (r.camp_estadoText || '').trim() || null;
 
     n += await upsert(
       `INSERT INTO resenas
          (persona_id, autor_id, tipo, calificacion_id, recomienda, drogas,
           dano_vivienda_id, proceso_judicial_id, tipo_contrato_id, tipo_alquiler_id,
-          tiempo_alquiler_id, comentario, detalle_verificacion, estado, fuente, id_fuente)
-       VALUES ($1,$2,'inquilino',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'legacy',$14)
+          tiempo_alquiler_id, comentario, detalle_verificacion, estado, fuente, id_fuente, creado_en)
+       VALUES ($1,$2,'inquilino',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'legacy',$14,COALESCE($15::timestamptz, now()))
        ON CONFLICT (fuente, id_fuente) DO UPDATE SET
          persona_id = EXCLUDED.persona_id,
          autor_id = EXCLUDED.autor_id,
@@ -904,43 +887,46 @@ async function pasoResenas() {
          tiempo_alquiler_id = EXCLUDED.tiempo_alquiler_id,
          comentario = EXCLUDED.comentario,
          detalle_verificacion = EXCLUDED.detalle_verificacion,
-         estado = EXCLUDED.estado`,
+         estado = EXCLUDED.estado,
+         creado_en = EXCLUDED.creado_en`,
       [personaId, autorId, califId, siNo(r.camp_fk_recomienda_inquilino), siNo(r.camp_drogas),
        ref(IDS.danos, r.camp_fk_dano_vivienda), ref(IDS.procesos, r.camp_fk_proceso_judicial),
        ref(IDS.tipos_contrato, r.camp_fk_tipo_contrato), ref(IDS.tipos_alquiler, r.camp_fk_tipo_alquiler),
        ref(IDS.tiempos_alquiler, r.camp_fk_tiempo_alquiler),
-       r.camp_comentario_adicional ?? null, nota, estado, r.camp_id_inquilino],
-      `resena legacy ${r.camp_id_inquilino}`,
+       r.camp_comentario_adicional ?? null, nota, estado, r.camp_id_inquilino, fecha(r.camp_fecha_registro, true)],
+      'reseña legacy', r.camp_id_inquilino,
     );
 
+    const conductaId = ref(IDS.conductas, r.camp_fk_conducta);
+    if (conductaId) conductasRows.push({ legacyId: Number(r.camp_id_inquilino), conductaId });
     for (const col of ['camp_fk_etiqueta_uno', 'camp_fk_etiqueta_dos', 'camp_fk_etiqueta_tres', 'camp_fk_etiqueta_cuatro']) {
       const v = ref(IDS.etiquetas, r[col]);
       if (v) etqRows.push({ legacyId: Number(r.camp_id_inquilino), etiquetaId: v });
     }
   }
+  await guardarLote();
   resumen.resenas = n;
-  console.log(`  importadas: ${n} (sin persona: ${sinPersona}, sin autor: ${sinAutor})`);
+  console.log(`  importadas: ${n}/${fichas.length}`);
 
-  if (!seco && etqRows.length) {
-    const resenas = (await pool.query(
-      `SELECT id, id_fuente FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[])`,
-      [[...new Set(etqRows.map((e) => e.legacyId))]],
-    )).rows;
-    const porFuente = new Map(resenas.map((r) => [r.id_fuente, r.id]));
-    let e = 0;
-    for (const t of etqRows) {
-      const resenaId = porFuente.get(t.legacyId);
-      if (!resenaId) continue;
-      await pool.query(
-        `INSERT INTO resena_etiquetas (resena_id, etiqueta_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-        [resenaId, t.etiquetaId],
-      );
-      e++;
-    }
-    console.log(`  etiquetas vinculadas: ${e}`);
+  await pool.query(`DELETE FROM resena_etiquetas WHERE resena_id IN
+    (SELECT id FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[]))`,
+    [fichas.map((r) => r.camp_id_inquilino)]);
+  if (etqRows.length) {
+    await pool.query(`INSERT INTO resena_etiquetas (resena_id, etiqueta_id)
+      SELECT r.id, x.etiqueta FROM unnest($1::int[], $2::int[]) AS x(legacy, etiqueta)
+      JOIN resenas r ON r.fuente = 'legacy' AND r.id_fuente = x.legacy ON CONFLICT DO NOTHING`,
+      [etqRows.map((e) => e.legacyId), etqRows.map((e) => e.etiquetaId)]);
+  }
+  await pool.query(`DELETE FROM resena_conductas WHERE resena_id IN
+    (SELECT id FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[]))`, [fichas.map((r) => r.camp_id_inquilino)]);
+  if (conductasRows.length) {
+    await pool.query(`INSERT INTO resena_conductas (resena_id, conducta_id)
+      SELECT r.id, x.conducta FROM unnest($1::int[], $2::int[]) AS x(legacy, conducta)
+      JOIN resenas r ON r.fuente = 'legacy' AND r.id_fuente = x.legacy ON CONFLICT DO NOTHING`,
+      [conductasRows.map((c) => c.legacyId), conductasRows.map((c) => c.conductaId)]);
   }
 
-  if (!seco) {
+  {
     const q = await pool.query(`SELECT count(*)::int AS n FROM resenas`);
     console.log(`  TOTAL resenas en destino: ${q.rows[0].n}`);
   }
@@ -952,17 +938,53 @@ async function pasoResenas() {
 
 console.log('=== Migración legacy MySQL → v2 Postgres ===');
 console.log(`Fuente:  ${mysqlCfg.user}@${mysqlCfg.host}:${mysqlCfg.port}/${mysqlCfg.database}`);
-console.log(`Destino: ${seco ? 'SECO (sin escribir)' : 'Postgres vía DATABASE_URL'}`);
+console.log(`Destino: ${seco ? 'SIMULACIÓN (ROLLBACK al terminar)' : 'Postgres vía DATABASE_URL'}`);
 console.log(`Pasos:   ${PASOS.join(', ')}${CREAR_ACCOUNTS ? ' + crear-accounts' : ''}`);
 
+let cuentasImportadas = [];
+let confirmado = false;
+let conectado = false;
 try {
+  await pool.connect();
+  conectado = true;
+  await pool.query('BEGIN');
+  const bloqueo = await pool.query("SELECT pg_try_advisory_xact_lock(736284, 1) AS ok");
+  if (!bloqueo.rows[0].ok) throw new Error('Ya hay una importación en curso en la base de datos.');
+  await pool.query("SET LOCAL statement_timeout = '60s'");
+  await mysqlRows('SET time_zone = ?', [zonaLegacy]);
+  if (!(await mysqlTableExists('tb_persona')) || !(await mysqlTableExists('tb_inquilinos_no_nacionales'))) {
+    throw new Error('El origen no contiene las tablas tb_persona y tb_inquilinos_no_nacionales del esquema legacy.');
+  }
+  for (const tabla of Object.keys(COLUMNAS_ORIGEN)) await mysqlAll(tabla);
   if (PASOS.includes('lookups')) await pasoLookups();
   if (PASOS.includes('personas')) await pasoPersonas();
   if (PASOS.includes('usuarios')) await pasoUsuarios();
   if (PASOS.includes('resenas')) await pasoResenas();
+  resumen.personas = personasProcesadas.size;
+  if (CREAR_ACCOUNTS) await pool.query('SELECT id, email FROM auth.users LIMIT 0');
+  await pool.query(seco ? 'ROLLBACK' : 'COMMIT');
+  confirmado = !seco;
+  if (confirmado) console.log('Datos confirmados en Postgres.');
+  // Auth es un servicio externo: se ejecuta después del COMMIT, es reintentable
+  // y nunca se presenta un fallo suyo como una importación completa.
+  if (CREAR_ACCOUNTS) await crearCuentasAuth(cuentasImportadas);
+  if (resumen.estado === 'parcial') process.exitCode = 2;
   console.log('\n=== Resumen ===');
   console.log(JSON.stringify(resumen, null, 2));
+} catch (error) {
+  if (conectado && !confirmado) await pool.query('ROLLBACK').catch(() => {});
+  if (confirmado) {
+    resumen.estado = 'parcial';
+    avisar('auth_interrumpida', 'Los datos se guardaron, pero la creación de accesos quedó incompleta. Reintente la importación.');
+    process.exitCode = 2;
+    console.log('\n=== Resumen ===');
+    console.log(JSON.stringify(resumen, null, 2));
+  } else {
+    console.error(`No se guardaron los datos de esta importación. ${error.message}`);
+    process.exitCode = 1;
+  }
 } finally {
+  for (const cuenta of cuentasImportadas) cuenta.secreto = null;
   await m.end();
-  if (pool) await pool.end();
+  await pool.end();
 }

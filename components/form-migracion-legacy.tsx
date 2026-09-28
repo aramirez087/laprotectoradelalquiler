@@ -20,7 +20,7 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
 
   useEffect(() => {
     if (!estado?.error && !estado?.mensaje) return
-    if (estado.tipo === 'importacion' && !estado.error) {
+    if (estado.tipo === 'importacion' && estado.resumen) {
       const clave = formRef.current?.elements.namedItem('password')
       if (clave instanceof HTMLInputElement) clave.value = ''
     }
@@ -100,7 +100,7 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
             <input type="checkbox" name="confirmar" value="si" className="mt-1" />
             <span>
               <span className="block font-semibold">Confirmo la importación al registro actual</span>
-              <span className="mt-1 block leading-6 text-ink-soft">El proceso actualiza coincidencias y agrega lo que falte; no borra datos.</span>
+              <span className="mt-1 block leading-6 text-ink-soft">El proceso actualiza coincidencias y agrega lo que falte. Si falla la importación de datos, se revierte el lote completo. Los accesos se crean después.</span>
             </span>
           </label>
         </fieldset>
@@ -108,6 +108,9 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button type="submit" name="modo" value="probar" disabled={pendiente} className="btn-secundario">
             {pendiente ? 'Procesando…' : 'Probar conexión'}
+          </button>
+          <button type="submit" name="modo" value="simular" disabled={pendiente} className="btn-secundario">
+            {pendiente ? 'Procesando…' : 'Simular importación'}
           </button>
           <button type="submit" name="modo" value="importar" disabled={pendiente} className="btn-primario">
             {pendiente ? 'Importando…' : 'Traer datos'}
@@ -149,7 +152,7 @@ export function FormMigracionLegacy({ authDisponible }: { authDisponible: boolea
               <dl className="grid grid-cols-2 gap-2">
                 <DatoDiagnostico etiqueta="Personas" valor={estado.diagnostico.personas} />
                 <DatoDiagnostico etiqueta="Fichas" valor={estado.diagnostico.fichas} />
-                <DatoDiagnostico etiqueta="Usuarios" valor={estado.diagnostico.usuarios} />
+                <DatoDiagnostico etiqueta="Accesos origen" valor={estado.diagnostico.usuarios} />
                 <DatoDiagnostico etiqueta="Tablas" valor={estado.diagnostico.tablas} />
               </dl>
             )}

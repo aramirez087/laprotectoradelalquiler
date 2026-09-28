@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { archivosRuntimeLegacy } from './scripts/legacy-runtime-files.mjs';
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -17,8 +18,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/admin/migracion': [
       './scripts/migrar-legacy.mjs',
-      './node_modules/mysql2/**/*',
-      './node_modules/pg/**/*',
+      './scripts/legacy-catalogos.mjs',
+      ...archivosRuntimeLegacy(),
     ],
   },
 };

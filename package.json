@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "node --experimental-strip-types --import ./tests/register.mjs --test tests/*.test.mjs",
     "db:aplicar": "node scripts/aplicar-esquema.mjs",
-    "db:migrar": "node scripts/migrar-legacy.mjs"
+    "db:migrar": "node scripts/migrar-legacy.mjs",
+    "test:importacion": "node --test tests/integration/migracion-legacy.test.mjs",
+    "test:importacion:bundle": "npm run build && node --test tests/integration/migracion-legacy-bundle.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

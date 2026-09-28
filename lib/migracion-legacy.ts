@@ -3,6 +3,8 @@ import 'server-only'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import mysql from 'mysql2/promise'
+import { resumenDesdeSalida, type ResumenMigracion } from '@/lib/resultado-migracion-legacy'
+export type { ResumenMigracion } from '@/lib/resultado-migracion-legacy'
 
 export type ConexionLegacy = {
   host: string
@@ -10,18 +12,6 @@ export type ConexionLegacy = {
   user: string
   password: string
   database: string
-}
-
-export type ResumenMigracion = {
-  lookups: Record<string, number>
-  personas: number
-  usuarios: number
-  resenas: number
-  claves: {
-    bcrypt: number
-    anterior: number
-    restablecer: number
-  }
 }
 
 export type DiagnosticoLegacy = {
@@ -38,7 +28,8 @@ const TABLAS_DIAGNOSTICO = {
 } as const
 
 const MAX_SALIDA = 2 * 1024 * 1024
-const TIEMPO_LIMITE_MS = 5 * 60 * 1000
+// Dejar margen para cerrar conexiones y responder antes del maxDuration (300 s).
+const TIEMPO_LIMITE_MS = 4 * 60 * 1000
 
 type GlobalMigracion = typeof globalThis & {
   __migracionLegacyEnCurso?: Promise<ResultadoEjecucion>
@@ -51,7 +42,7 @@ type ResultadoEjecucion = {
 
 export function configuracionDestinoLegacy() {
   const databaseUrl =
-    process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING
+    process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL
   return {
     baseDatos: Boolean(databaseUrl),
     auth:
@@ -65,10 +56,14 @@ async function contarSiExiste(
   tablas: readonly string[],
   existentes: Set<string>,
 ) {
-  const tabla = tablas.find((nombre) => existentes.has(nombre))
-  if (!tabla) return null
-  const [filas] = await conexion.query<mysql.RowDataPacket[]>(`SELECT COUNT(*) AS total FROM \`${tabla}\``)
-  return Number(filas[0]?.total ?? 0)
+  const presentes = tablas.filter((nombre) => existentes.has(nombre))
+  if (!presentes.length) return null
+  let total = 0
+  for (const tabla of presentes) {
+    const [filas] = await conexion.query<mysql.RowDataPacket[]>(`SELECT COUNT(*) AS total FROM \`${tabla}\``)
+    total += Number(filas[0]?.total ?? 0)
+  }
+  return total
 }
 
 export async function probarConexionLegacy(datos: ConexionLegacy): Promise<DiagnosticoLegacy> {
@@ -94,43 +89,13 @@ export async function probarConexionLegacy(datos: ConexionLegacy): Promise<Diagn
   }
 }
 
-function resumenDesdeSalida(salida: string): ResumenMigracion {
-  const marcador = '=== Resumen ==='
-  const inicio = salida.lastIndexOf(marcador)
-  if (inicio < 0) throw new Error('La migración terminó sin entregar un resumen.')
-
-  const texto = salida.slice(inicio + marcador.length).trim()
-  const resumen = JSON.parse(texto) as Partial<ResumenMigracion>
-  if (
-    !resumen.lookups ||
-    typeof resumen.personas !== 'number' ||
-    typeof resumen.usuarios !== 'number' ||
-    typeof resumen.resenas !== 'number' ||
-    !resumen.claves
-  ) {
-    throw new Error('La migración entregó un resumen incompleto.')
-  }
-  return resumen as ResumenMigracion
-}
-
-function observacionesDesdeSalida(salida: string) {
-  return salida
-    .split('\n')
-    .map((linea) => linea.trim())
-    .filter(
-      (linea) =>
-        linea.startsWith('✗') ||
-        linea.includes('sin persona:') ||
-        linea.startsWith('Auth:'),
-    )
-    .slice(-12)
-}
-
 function mensajeSeguro(error: string, datos: ConexionLegacy) {
   let limpio = error
   const secretos = [
     datos.password,
     process.env.DATABASE_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_URL_NON_POOLING,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     process.env.SUPABASE_SECRET_KEY,
   ].filter((valor): valor is string => Boolean(valor))
@@ -144,18 +109,19 @@ function mensajeSeguro(error: string, datos: ConexionLegacy) {
   return lineas.join(' ') || 'La migración no pudo completarse.'
 }
 
-function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<ResultadoEjecucion> {
+function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean, simular: boolean): Promise<ResultadoEjecucion> {
   return new Promise((resolve, reject) => {
     const archivo = path.join(process.cwd(), 'scripts', 'migrar-legacy.mjs')
     const argumentos = [archivo]
     if (crearCuentas) argumentos.push('--crear-accounts')
+    if (simular) argumentos.push('--seco')
 
     const proceso = spawn(process.execPath, argumentos, {
       cwd: process.cwd(),
       env: {
         ...process.env,
         DATABASE_URL:
-          process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || '',
+          process.env.DATABASE_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL || '',
         LEGACY_MYSQL_HOST: datos.host,
         LEGACY_MYSQL_PORT: String(datos.port),
         LEGACY_MYSQL_USER: datos.user,
@@ -171,7 +137,7 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<
     let errores = ''
     let excedioSalida = false
     const guardar = (actual: string, trozo: Buffer) => {
-      if (actual.length >= MAX_SALIDA) {
+      if (actual.length + trozo.length > MAX_SALIDA) {
         excedioSalida = true
         return actual
       }
@@ -185,22 +151,28 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<
       errores = guardar(errores, trozo)
     })
 
+    let forzarCierre: ReturnType<typeof setTimeout> | undefined
     const limite = setTimeout(() => {
       proceso.kill('SIGTERM')
+      forzarCierre = setTimeout(() => proceso.kill('SIGKILL'), 5_000)
     }, TIEMPO_LIMITE_MS)
 
     proceso.once('error', (error) => {
       clearTimeout(limite)
+      clearTimeout(forzarCierre)
       reject(new Error(mensajeSeguro(error.message, datos)))
     })
 
     proceso.once('close', (codigo, senal) => {
       clearTimeout(limite)
+      clearTimeout(forzarCierre)
       if (senal) {
-        reject(new Error('La importación superó el límite de 5 minutos y fue detenida.'))
+        reject(new Error(salida.includes('Datos confirmados en Postgres.')
+          ? 'Los datos se guardaron, pero la creación de accesos fue interrumpida. Reintente para completar los accesos.'
+          : 'La importación fue interrumpida. Puede reintentarla sin duplicar registros; para importaciones grandes use el comando db:migrar desde el servidor.'))
         return
       }
-      if (codigo !== 0) {
+      if (codigo !== 0 && codigo !== 2) {
         reject(new Error(mensajeSeguro(errores || salida, datos)))
         return
       }
@@ -210,9 +182,10 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<
       }
 
       try {
+        const resumen = resumenDesdeSalida(salida, codigo)
         resolve({
-          resumen: resumenDesdeSalida(salida),
-          observaciones: observacionesDesdeSalida(`${salida}\n${errores}`),
+          resumen,
+          observaciones: resumen.advertencias.map((a) => `${a.mensaje} (${a.cantidad})`),
         })
       } catch (error) {
         reject(error)
@@ -221,13 +194,13 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean): Promise<
   })
 }
 
-export async function ejecutarMigracionLegacy(datos: ConexionLegacy, crearCuentas: boolean) {
+export async function ejecutarMigracionLegacy(datos: ConexionLegacy, crearCuentas: boolean, simular = false) {
   const estadoGlobal = globalThis as GlobalMigracion
   if (estadoGlobal.__migracionLegacyEnCurso) {
     throw new Error('Ya hay una importación en curso en este servidor. Espere a que termine.')
   }
 
-  const ejecucion = ejecutarProceso(datos, crearCuentas)
+  const ejecucion = ejecutarProceso(datos, crearCuentas, simular)
   estadoGlobal.__migracionLegacyEnCurso = ejecucion
   try {
     return await ejecucion

@@ -15,7 +15,7 @@ import {
 export type EstadoMigracionLegacy = {
   error?: string
   mensaje?: string
-  tipo?: 'conexion' | 'importacion'
+  tipo?: 'conexion' | 'importacion' | 'simulacion'
   diagnostico?: DiagnosticoLegacy
   resumen?: ResumenMigracion
   observaciones?: string[]
@@ -27,7 +27,7 @@ const SchemaConexion = z.object({
   database: z.string().trim().min(1, 'Escriba la base de datos.').max(128),
   user: z.string().trim().min(1, 'Escriba el usuario.').max(128),
   password: z.string().max(512),
-  modo: z.enum(['probar', 'importar']),
+  modo: z.enum(['probar', 'simular', 'importar']),
 })
 
 function mensajeConexion(error: unknown) {
@@ -77,7 +77,7 @@ export async function migrarLegacyAction(
       }
     }
 
-    if (formData.get('confirmar') !== 'si') {
+    if (modo === 'importar' && formData.get('confirmar') !== 'si') {
       return { error: 'Confirme que desea importar los datos antes de continuar.' }
     }
     const destino = configuracionDestinoLegacy()
@@ -87,14 +87,21 @@ export async function migrarLegacyAction(
           'Falta la conexión a Postgres en el servidor. Configure DATABASE_URL o conecte el proyecto de Supabase desde Vercel.',
       }
     }
-    const crearCuentas = formData.get('crearCuentas') === 'on'
+    const crearCuentas = modo === 'importar' && formData.get('crearCuentas') === 'on'
     if (crearCuentas && !destino.auth) {
       return {
         error: 'Para crear accesos faltan la URL y la clave secreta de Supabase en el servidor.',
       }
     }
 
-    const resultado = await ejecutarMigracionLegacy(conexion, crearCuentas)
+    const resultado = await ejecutarMigracionLegacy(conexion, crearCuentas, modo === 'simular')
+    if (modo === 'simular') {
+      return {
+        tipo: 'simulacion',
+        mensaje: 'Simulación terminada. Se validaron los datos y las restricciones del destino; los cambios se revirtieron. Revise las observaciones antes de importar.',
+        ...resultado,
+      }
+    }
     revalidatePath('/admin')
     revalidatePath('/admin/resenas')
     revalidatePath('/admin/usuarios')
@@ -102,7 +109,11 @@ export async function migrarLegacyAction(
     revalidatePath('/fichas')
     return {
       tipo: 'importacion',
-      mensaje: 'Importación terminada. Puede ejecutarla de nuevo sin duplicar registros.',
+      ...(resultado.resumen.estado === 'parcial'
+        ? { error: 'Los datos se importaron, pero faltan accesos en Supabase Auth. Reintente para completarlos.' }
+        : { mensaje: resultado.observaciones.length
+          ? 'Importación terminada con observaciones. Revise los datos que requieren atención.'
+          : 'Importación terminada. Puede ejecutarla de nuevo sin duplicar registros.' }),
       ...resultado,
     }
   } catch (error) {
