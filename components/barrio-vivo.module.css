@@ -1,0 +1,157 @@
+.escena {
+  --barrio-x: 0;
+  --barrio-y: 0;
+  --ventanas: 0;
+  --luz: 0.2;
+  --filtro-sol: none;
+  --filtro-casas: none;
+  position: relative;
+  width: 21rem;
+  max-width: 75vw;
+  aspect-ratio: 2 / 1;
+  flex-shrink: 0;
+  isolation: isolate;
+  user-select: none;
+  pointer-events: none;
+}
+
+.entrada,
+.cielo,
+.casas,
+.sol,
+.ilustracion,
+.ventanas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cielo {
+  transform: translate3d(calc(var(--barrio-x) * -7px), calc(var(--barrio-y) * -4px), 0);
+}
+
+.sol {
+  /* The sun is already detached in the original transparent artwork. */
+  clip-path: ellipse(5.3% 10.6% at 36.4% 26.4%);
+  filter: var(--filtro-sol);
+  transition: filter 1.4s ease;
+}
+
+.aureola {
+  position: absolute;
+  left: 36.4%;
+  top: 26.4%;
+  width: 54%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, #e7bb66 0%, #e7bb6638 35%, #e7bb6600 70%);
+  opacity: var(--luz);
+  transform: translate(-50%, -50%);
+  transition: opacity 1.4s ease;
+}
+
+.casas {
+  transform: perspective(800px) rotateX(calc(var(--barrio-y) * -1.5deg)) rotateY(calc(var(--barrio-x) * 2.5deg)) translate3d(calc(var(--barrio-x) * 2px), calc(var(--barrio-y) * 1px), 0);
+  transform-origin: 50% 85%;
+}
+
+.ilustracion {
+  mask-image: radial-gradient(ellipse 6% 12% at 36.4% 26.4%, transparent 98%, #000 100%);
+  filter: var(--filtro-casas);
+  transition: filter 1.4s ease;
+}
+
+.ventanas {
+  color: #f4cc81;
+}
+
+.ventanas g {
+  opacity: var(--ventanas);
+  transition: opacity 1.4s ease;
+}
+
+.ventanas .ventanaUno {
+  transition-delay: 0.1s;
+}
+
+.ventanas .ventanaDos {
+  transition-delay: 0.25s;
+}
+
+.ventanas .ventanaTres {
+  transition-delay: 0.4s;
+}
+
+:global(:root[data-theme='dark']) .escena {
+  --ventanas: 0.8;
+  --luz: 0.06;
+  --filtro-sol: grayscale(1) brightness(1.12);
+  --filtro-casas: brightness(0.88) saturate(0.85);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme='light']):not([data-theme='dark'])) .escena {
+    --ventanas: 0.8;
+    --luz: 0.06;
+    --filtro-sol: grayscale(1) brightness(1.12);
+    --filtro-casas: brightness(0.88) saturate(0.85);
+  }
+}
+
+@media (max-width: 639px) {
+  .escena {
+    width: 17.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .entrada {
+    animation: revelar 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .sol {
+    animation: amanecer 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes revelar {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes amanecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cielo,
+  .casas {
+    transform: none;
+  }
+
+  .entrada,
+  .sol {
+    animation: none;
+  }
+
+  .sol,
+  .ilustracion,
+  .aureola,
+  .ventanas g {
+    transition: none;
+  }
+}

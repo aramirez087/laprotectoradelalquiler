@@ -1,6 +1,6 @@
 import { Icono } from '@/components/icono'
-import Image from 'next/image'
 import Link from 'next/link'
+import { BarrioVivo } from '@/components/barrio-vivo'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
@@ -14,15 +14,7 @@ export default async function HomePage() {
 
   return (
     <div className="inicio aparecer">
-      <Image
-        src="/images/barrio.webp"
-        alt=""
-        width={1000}
-        height={500}
-        sizes="(max-width: 640px) 280px, 380px"
-        loading="eager"
-        className="ilustracion-inicio"
-      />
+      <BarrioVivo />
       <p className="eyebrow mt-5">Alquilar empieza con confianza</p>
       <h1 className="mt-3 text-[2.85rem] font-medium tracking-[-0.055em] sm:text-[4.25rem]">
         La Protectora
