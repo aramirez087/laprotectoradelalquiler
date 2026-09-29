@@ -1,11 +1,10 @@
 import Link from 'next/link'
-import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { Icono } from '@/components/icono'
 import { BarrioVivo } from '@/components/barrio-vivo'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
-import { contarResenasPublicadas, destinoTrasLogin, obtenerUsuario, puedeConsultar } from '@/lib/dal'
+import { destinoTrasLogin, obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
 
 function CabeceraInicio() {
@@ -28,18 +27,6 @@ function RespaldoComunidad() {
   return <p className="text-ink-soft">Experiencias compartidas. Mejores decisiones.</p>
 }
 
-async function ResenasComunidad() {
-  const total = await contarResenasPublicadas()
-  if (total === null || total === 0) return <RespaldoComunidad />
-
-  return (
-    <p>
-      <span className="dato-resenas-inicio">{new Intl.NumberFormat('es-CR').format(total)}</span>{' '}
-      <span className="font-medium">{total === 1 ? 'reseña publicada' : 'reseñas publicadas'}</span>
-    </p>
-  )
-}
-
 export default async function HomePage() {
   const usuario = await obtenerUsuario()
   if (!usuario) {
@@ -53,13 +40,11 @@ export default async function HomePage() {
           <Link href="/login" className="btn-secundario">Iniciar sesión</Link>
         </div>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
-          Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas.</strong>
+          Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas totalmente gratis.</strong>
         </p>
         <div className="prueba-inicio">
           <Icono nombre="documento" className="h-5 w-5 shrink-0 text-seal" />
-          <Suspense fallback={<RespaldoComunidad />}>
-            <ResenasComunidad />
-          </Suspense>
+          <RespaldoComunidad />
         </div>
         {sinSupabase() && (
           <div className="mt-6 w-full max-w-xl">
