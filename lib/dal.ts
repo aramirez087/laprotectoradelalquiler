@@ -204,9 +204,10 @@ export async function buscarFichas(opts: {
   let query = supabase
     .from('personas')
     .select(
-      '*, provincia:provincias(nombre), resenas(id, estado, calificacion_id, calificacion:calificaciones(valor), creado_en)',
+      '*, provincia:provincias(nombre), resenas!inner(id, estado, calificacion_id, calificacion:calificaciones(valor), creado_en)',
       { count: 'exact' },
     )
+    .eq('resenas.estado', 'publicada')
 
   for (const palabra of palabrasBusqueda(opts.q ?? '')) {
     const filtros = variantesAcento(palabra).flatMap((v) => [
