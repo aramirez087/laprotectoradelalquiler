@@ -41,7 +41,7 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
   return (
     <div className="contenedor space-y-7">
       <CabeceraAdmin titulo="Reseñas" descripcion="Encuentre una experiencia, consulte su estado o gestione su publicación." accion={<Link href="/resenas/nueva" className="btn-primario">Escribir reseña</Link>} />
-      <form method="GET" className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem_auto] sm:items-end" role="search" aria-label="Buscar reseñas">
+      <form method="GET" className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end" role="search" aria-label="Buscar reseñas">
         <div className="min-w-0">
           <label className="etiqueta-campo" htmlFor="q">Nombre, cédula o comentario</label>
           <input id="q" type="search" name="q" defaultValue={q} placeholder="Escriba lo que quiere encontrar" className="campo" />
