@@ -27,6 +27,29 @@
   height: 100%;
 }
 
+.escena::before {
+  content: '';
+  position: absolute;
+  inset: 4% 10% -6%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--seal) 7%, transparent), transparent 70%);
+  z-index: -1;
+}
+
+.escena::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 10%;
+  bottom: 3%;
+  height: 6%;
+  border-radius: 50%;
+  background: var(--seal);
+  filter: blur(9px);
+  opacity: 0.1;
+  z-index: -1;
+}
+
 .cielo {
   transform: translate3d(var(--orbita-x), var(--orbita-y), 0);
 }

@@ -16,21 +16,16 @@ export default async function HomePage() {
   return (
     <div className="inicio">
       <BarrioVivo />
-      <p className="eyebrow mt-5">Una comunidad informada · Costa Rica</p>
-      <h1 className="titulo-inicio mt-4">
-        Alquile con<br />
-        <span className="text-seal">más confianza.</span>
+      <p className="eyebrow contexto-inicio mt-5">Una comunidad informada · Costa Rica</p>
+      <h1 className="titulo-inicio mt-5">
+        Conozca mejor<br />
+        <span className="text-seal">a su inquilino.</span>
       </h1>
       <p className="mt-5 max-w-md text-pretty text-base leading-relaxed text-ink-soft">
         Experiencias de alquiler en Costa Rica, compartidas por quienes las vivieron.
       </p>
-      {!usuario && (
-        <p id="requisito-consulta" className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
-          Para consultar, necesita una cuenta y una experiencia aprobada.
-        </p>
-      )}
-      <form action="/fichas" method="GET" className="mt-7 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
-        <label className="etiqueta-campo mb-2 ml-1" htmlFor="q">
+      <form action="/fichas" method="GET" className="mt-8 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
+        <label className="etiqueta-campo mb-2.5 ml-5" htmlFor="q">
           ¿A quién desea consultar?
         </label>
         <div className="buscador buscador-inicio">
@@ -45,19 +40,24 @@ export default async function HomePage() {
             aria-describedby={usuario ? 'ayuda-busqueda' : 'ayuda-busqueda requisito-consulta'}
           />
           <button type="submit" className="boton-buscar">
-            Buscar
+            Buscar <Icono nombre="flecha" className="h-4 w-4" />
           </button>
         </div>
       </form>
-      <p id="ayuda-busqueda" className="mt-3 inline-flex items-center gap-1.5 text-center text-xs text-ink-soft">
+      {!usuario && (
+        <p id="requisito-consulta" className="mt-4 max-w-md text-xs leading-relaxed text-ink-soft">
+          Para consultar, necesita una cuenta y una reseña aprobada.
+        </p>
+      )}
+      <p id="ayuda-busqueda" className="mt-2 inline-flex items-center gap-1.5 text-center text-xs text-ink-soft">
         <Icono nombre="escudo" className="h-3.5 w-3.5 shrink-0" />
         La cédula completa no se muestra al público.
       </p>
-      <Link href="/resenas/nueva" className="enlace-inicio mt-6">
+      <Link href="/resenas/nueva" className="enlace-inicio mt-5">
         Comparta su experiencia <Icono nombre="flecha" className="h-4 w-4" />
       </Link>
       {!usuario && (
-        <details className="como-funciona mt-3 w-full max-w-md text-left">
+        <details className="como-funciona mt-1 w-full max-w-md text-left">
           <summary className="mx-auto flex w-fit cursor-pointer items-center gap-2 text-sm text-ink-soft">
             Cómo funciona{' '}
             <span className="indicador-detalle" aria-hidden="true">

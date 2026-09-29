@@ -601,6 +601,28 @@ code {
   text-align: center;
 }
 
+.contexto-inicio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--seal-soft) 45%, transparent);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.085em;
+}
+
+.contexto-inicio::before {
+  content: '';
+  width: 0.3rem;
+  height: 0.3rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--seal);
+}
+
 .titulo-inicio {
   font-size: clamp(2.65rem, 6.5vw, 4.5rem);
   font-weight: 500;
@@ -609,13 +631,42 @@ code {
 }
 
 .buscador-inicio {
-  min-height: 3.75rem;
+  min-height: 4.25rem;
   padding-left: 1.25rem;
   border-color: var(--control-line);
-  box-shadow: 0 3px 14px color-mix(in srgb, var(--ink) 4%, transparent);
+  background: color-mix(in srgb, var(--card) 85%, var(--paper));
+  box-shadow:
+    0 2px 3px color-mix(in srgb, var(--ink) 3%, transparent),
+    0 10px 28px -10px color-mix(in srgb, var(--ink) 12%, transparent);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
+}
+
+.buscador-inicio input {
+  min-height: 4rem;
+  font-size: 1rem;
+}
+
+.buscador-inicio .boton-buscar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  min-height: 3.125rem;
+  margin-right: 0.5rem;
+  padding-inline: 1.35rem;
+  transition: background 150ms ease;
+}
+
+.buscador-inicio .boton-buscar svg,
+.enlace-inicio svg {
+  transition: transform 150ms ease;
+}
+
+.buscador-inicio .boton-buscar:hover svg,
+.enlace-inicio:hover svg {
+  transform: translateX(2px);
 }
 
 .boton-buscar {
@@ -641,6 +692,7 @@ code {
   gap: 0.75rem;
   min-height: 2.75rem;
   font-size: 0.875rem;
+  font-weight: 500;
   color: var(--seal);
   text-underline-offset: 5px;
 }
@@ -727,7 +779,10 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .buscador-inicio {
+  .buscador-inicio,
+  .buscador-inicio .boton-buscar,
+  .buscador-inicio .boton-buscar svg,
+  .enlace-inicio svg {
     transition: none;
   }
 }
@@ -1146,6 +1201,11 @@ fieldset {
 }
 
 @media (max-width: 380px) {
+  .contexto-inicio {
+    gap: 0.4rem;
+    padding-inline: 0.65rem;
+    letter-spacing: 0.025em;
+  }
   .titulo-inicio {
     font-size: 2.5rem;
   }
