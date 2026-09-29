@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const origenFacebook = url.searchParams.get('origen') === 'facebook'
   const modo = url.searchParams.get('modo') === 'vincular' ? 'vincular' : 'entrar'
-  const siguiente = destinoInterno(url.searchParams.get('next'), origenFacebook ? '/fichas' : '/restablecer')
+  const siguiente = destinoInterno(url.searchParams.get('next'), origenFacebook ? '/' : '/restablecer')
   const base = url.origin
   const supabase = await createClient()
   const code = url.searchParams.get('code')

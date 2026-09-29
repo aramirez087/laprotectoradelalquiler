@@ -11,12 +11,12 @@ import { sinSupabase } from '@/lib/supabase/server'
 export const metadata = { title: 'Registrarse' }
 
 export default async function RegistroPage(props: PageProps<'/registro'>) {
-  const siguiente = destinoInterno(primer((await props.searchParams).siguiente))
+  const siguiente = destinoInterno(primer((await props.searchParams).siguiente), '/')
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
     if (usuario) {
       if (usuario.rol === 'admin') redirect('/admin')
-      if (await puedeConsultar(usuario)) redirect('/fichas')
+      if (await puedeConsultar(usuario)) redirect('/')
       redirect('/registro/resena')
     }
     if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(siguiente))

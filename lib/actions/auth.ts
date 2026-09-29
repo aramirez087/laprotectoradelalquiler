@@ -390,7 +390,7 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
   })
-  const siguiente = destinoInterno(formData.get('siguiente'))
+  const siguiente = destinoInterno(formData.get('siguiente'), '/')
   redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
 }
 

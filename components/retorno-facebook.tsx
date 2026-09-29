@@ -14,7 +14,7 @@ export function RetornoFacebook() {
       hash.get('error') ||
       ''
     const modo = url.searchParams.get('modo') === 'vincular' ? 'vincular' : 'entrar'
-    const siguiente = url.searchParams.get('next') ?? '/fichas'
+    const siguiente = url.searchParams.get('next') ?? '/'
     if (modo === 'vincular') {
       window.location.replace('/perfil?error=facebook')
       return

@@ -22,7 +22,7 @@ const ROLES = [
 ]
 
 export function RegistroForm({
-  siguiente = '/fichas',
+  siguiente = '/',
   enlaceFacebook = null,
 }: {
   siguiente?: string

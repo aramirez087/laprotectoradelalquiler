@@ -43,7 +43,7 @@ export default async function RegistroResenaPage() {
     )
   }
 
-  if (await puedeConsultar(usuario)) redirect('/fichas')
+  if (await puedeConsultar(usuario)) redirect('/')
 
   let yaEnvio = false
   try {

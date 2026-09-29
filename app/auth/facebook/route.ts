@@ -5,7 +5,7 @@ import { destinoInterno } from '@/lib/util'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const siguiente = destinoInterno(url.searchParams.get('siguiente'))
+  const siguiente = destinoInterno(url.searchParams.get('siguiente'), '/')
   const vincular = url.searchParams.get('modo') === 'vincular'
   const origen = origenPublico(request)
 

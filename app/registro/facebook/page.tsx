@@ -25,8 +25,8 @@ export default async function RegistroFacebookPage(props: {
   if (!user) redirect('/login')
   if (!cuentaCreadaConFacebook(user)) redirect('/registro')
 
-  const pedido = destinoInterno(primer((await props.searchParams).siguiente))
-  const siguiente = esRutaDeAltaFacebook(pedido.split('?')[0] ?? '') ? '/fichas' : pedido
+  const pedido = destinoInterno(primer((await props.searchParams).siguiente), '/')
+  const siguiente = esRutaDeAltaFacebook(pedido.split('?')[0] ?? '') ? '/' : pedido
   if (await altaFacebookLista(user.id)) redirect(siguiente)
 
   const email = user.email?.trim().toLowerCase() ?? ''

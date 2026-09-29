@@ -113,8 +113,16 @@ test('home keeps a submitted first review in the waiting state without inviting 
   assert.doesNotMatch(html, /role="search"|href="\/registro\/resena"|href="\/resenas\/nueva"/)
 })
 
-test('members with approved current access go directly from home to the registry', async () => {
-  await assert.rejects(inicio({ resenas: 1, puedeConsultar: true })(), error => error.ruta === '/fichas')
+test('members with approved current access see the search landing at home', async () => {
+  const html = renderToStaticMarkup(await inicio({ resenas: 1, puedeConsultar: true })())
+  const formulario = html.match(/<form[^>]*>/)?.[0]
+  assert.ok(formulario)
+  assert.match(formulario, /action="\/fichas"/)
+  assert.match(formulario, /method="get"/i)
+  assert.match(formulario, /role="search"/)
+  assert.match(html, /Conozca mejor/)
+  assert.match(html, /<input[^>]*name="q"/)
+  assert.doesNotMatch(html, /Mi primera reseña|Su experiencia está en revisión/)
 })
 
 test('expired approval shows renewal instructions at home instead of treating the member as active', async () => {
@@ -136,16 +144,23 @@ test('inactive members still see their inactive-account state at home', async ()
   assert.doesNotMatch(html, /href="\/registro\/resena"|role="search"/)
 })
 
-function login(resenas) {
+function login(resenas, sesion = usuario) {
+  const { LoginForm } = cargar('components/login-form.tsx', {
+    ...comunes,
+    '@/components/use-form-action': { useFormAction: () => ({ estado: null, pendiente: false, formProps: {} }) },
+    '@/lib/actions/auth': { iniciarSesion: () => {} },
+    '@/components/campo-clave': { CampoClave: () => createElement('input', { name: 'clave', type: 'password' }) },
+    '@/components/mensaje-form': { MensajeForm: () => null },
+  })
   return cargar('app/login/page.tsx', {
     ...comunes,
     'next/headers': { cookies: async () => ({ get: () => undefined }) },
-    '@/lib/dal': { obtenerUsuario: async () => usuario, destinoTrasLogin: destinoConResenas(resenas) },
+    '@/lib/dal': { obtenerUsuario: async () => sesion, destinoTrasLogin: destinoConResenas(resenas, sesion) },
     '@/lib/facebook-alta': { altaFacebookPendiente: async () => false },
-    '@/lib/facebook-auth': {},
+    '@/lib/facebook-auth': { authFacebookHabilitado: () => false, mensajeErrorFacebook: () => null },
     '@/lib/correo-recordado': { COOKIE_CORREO: 'correo', correoRecordado: () => '' },
-    '@/components/marco-acceso': {},
-    '@/components/login-form': {},
+    '@/components/marco-acceso': { MarcoAcceso: ({ children }) => createElement('main', null, children) },
+    '@/components/login-form': { LoginForm },
   }).default
 }
 
@@ -158,12 +173,19 @@ test('signed-in login preserves safe destinations after a submission and rejects
   for (const [siguiente, esperado] of [
     ['/fichas?q=Ana', '/fichas?q=Ana'],
     ['/perfil#mis-resenas', '/perfil#mis-resenas'],
-    ['https://example.com', '/fichas'],
-    ['//example.com', '/fichas'],
-    [undefined, '/fichas'],
+    ['https://example.com', '/'],
+    ['//example.com', '/'],
+    [undefined, '/'],
   ]) {
     await assert.rejects(login(1)({ searchParams: Promise.resolve({ siguiente }) }),
       error => error.ruta === esperado)
+  }
+})
+
+test('public login form defaults to the search home and preserves explicit search destinations', async () => {
+  for (const [siguiente, esperado] of [[undefined, '/'], ['/fichas?q=Ana', '/fichas?q=Ana']]) {
+    const html = renderToStaticMarkup(await login(0, null)({ searchParams: Promise.resolve({ siguiente }) }))
+    assert.ok(html.includes(`<input type="hidden" name="siguiente" value="${esperado}"/>`))
   }
 })
 
@@ -181,9 +203,9 @@ function registro({ sesion = usuario, puedeConsultar = false } = {}) {
   }).default
 }
 
-test('members with approved current access bypass registration and go directly to the registry', async () => {
+test('members with approved current access bypass registration and go directly to the search home', async () => {
   await assert.rejects(registro({ puedeConsultar: true })({ searchParams: Promise.resolve({}) }),
-    error => error.ruta === '/fichas')
+    error => error.ruta === '/')
 })
 
 test('registration preserves public, first-review, inactive and administrator entry paths', async () => {
@@ -235,16 +257,16 @@ test('first-review page routes existing submissions to the profile before exposi
 
 test('members with approved current access bypass the first-review page before loading or editing onboarding data', async () => {
   const primera = primeraResena([{ id: 1, estado: 'publicada' }], { puedeConsultar: true })
-  await assert.rejects(primera.pagina(), error => error.ruta === '/fichas')
+  await assert.rejects(primera.pagina(), error => error.ruta === '/')
   assert.equal(primera.resenasConsultadas(), false)
   assert.equal(primera.perfilCompletado(), false)
 })
 
-test('a stale first-review login destination still sends an approved member to the registry without a form', async () => {
+test('a stale first-review login destination still sends an approved member to the search home without a form', async () => {
   await assert.rejects(login(1)({ searchParams: Promise.resolve({ siguiente: '/registro/resena' }) }),
     error => error.ruta === '/registro/resena')
   const primera = primeraResena([{ id: 1, estado: 'publicada' }], { puedeConsultar: true })
-  await assert.rejects(primera.pagina(), error => error.ruta === '/fichas')
+  await assert.rejects(primera.pagina(), error => error.ruta === '/')
   assert.equal(primera.perfilCompletado(), false)
 })
 
@@ -301,4 +323,22 @@ test('public navigation offers account entry without search or review links', ()
   const html = renderToStaticMarkup(createElement(Nav, { usuario: null, tema: 'claro' }))
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
   assert.deepEqual(destinos.sort(), ['/', '/login', '/registro'])
+})
+
+test('signed-in navigation returns to the search home and marks search pages as current', () => {
+  for (const [ruta, activo] of [['/', true], ['/fichas', true], ['/fichas/7', true], ['/perfil', false]]) {
+    const { Nav } = cargar('components/nav.tsx', {
+      ...comunes,
+      'next/navigation': { usePathname: () => ruta },
+      '@/lib/actions/auth': { cerrarSesion: '/salir' },
+      '@/components/marca': { Marca: () => 'La Protectora del Alquiler' },
+      '@/components/selector-tema': { SelectorTema: () => null },
+    })
+    const html = renderToStaticMarkup(createElement(Nav, { usuario, tema: 'claro' }))
+    const enlace = html.match(/<a[^>]*>Consultar reseñas<\/a>/)?.[0]
+    assert.ok(enlace)
+    assert.match(enlace, /href="\/"/)
+    assert.equal(enlace.includes('aria-current="page"'), activo, ruta)
+    assert.equal(enlace.includes('enlace-nav-activo'), activo, ruta)
+  }
 })

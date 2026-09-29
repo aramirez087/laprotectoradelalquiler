@@ -14,7 +14,7 @@ export const metadata = { title: 'Iniciar sesión' }
 
 export default async function LoginPage(props: PageProps<'/login'>) {
   const searchParams = await props.searchParams
-  const siguiente = destinoInterno(primer(searchParams.siguiente))
+  const siguiente = destinoInterno(primer(searchParams.siguiente), '/')
   const correo = correoRecordado((await cookies()).get(COOKIE_CORREO)?.value)
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()

@@ -17,7 +17,7 @@ export default async function RetornoFacebookPage(props: {
   if (!authFacebookHabilitado()) redirect('/login')
 
   const params = await props.searchParams
-  const siguiente = primer(params.next) || '/fichas'
+  const siguiente = primer(params.next) || '/'
   const modo = primer(params.modo) === 'vincular' ? 'vincular' : 'entrar'
   const descripcion = primer(params.error_description) || primer(params.error)
   if (descripcion) redirect(rutaTrasFalloFacebook(descripcion, modo, siguiente))

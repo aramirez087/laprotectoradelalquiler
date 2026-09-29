@@ -56,7 +56,7 @@ export function Nav({
     <>
       {usuario ? (
         <>
-          <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
+          <Link href="/" aria-current={actual('/') ?? actual('/fichas')} className={path === '/' ? clase('/') : clase('/fichas')}>
             Consultar reseñas
           </Link>
           <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
