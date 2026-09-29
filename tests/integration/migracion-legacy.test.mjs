@@ -96,6 +96,9 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
     await variant.query(await readFile('db/seeds.sql', 'utf8'));
     await source.query('RENAME TABLE tb_persona TO tb_persona_fuera');
     try {
+      await source.query(`INSERT INTO tb_inquilinos_no_nacionales
+        (camp_id_inquilino,camp_identificacion,camp_fk_registrador,camp_comentario_adicional,camp_fecha_registro,camp_estado)
+        VALUES (15,'404040404',1,'última ficha de autor sin persona','2018-01-01 12:00:00',0)`);
       assert.equal(await existeTablaLegacy(source, 'tb_persona'), false);
       const antes = await snapshot(variant);
       const simulated = await run(['--seco'], { DATABASE_URL: databaseUrl });
@@ -108,15 +111,29 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       const imported = await run([], { DATABASE_URL: databaseUrl });
       assert.equal(imported.code, 0, imported.stderr);
       assert.equal(imported.resumen.resenas, 5);
+      assert.deepEqual(imported.resumen.fichas, { leidas: 6, archivadas: 6, consolidadas: 1, conservadas: 0 });
       const reviews = (await variant.query(`SELECT r.id_fuente, p.identificacion, p.nombre, u.email, u.activo
         FROM resenas r JOIN personas p ON p.id=r.persona_id JOIN usuarios u ON u.id=r.autor_id
         WHERE r.fuente='legacy' ORDER BY r.id_fuente`)).rows;
       assert.equal(reviews.length, 5);
       assert.equal(reviews[0].identificacion, '303030303');
       assert.equal(reviews[0].nombre, 'María');
-      assert.equal(reviews[3].email, 'autor-registrador-2@legacy.laprotec', 'do not assume a registrador is a users.user_id');
-      assert.equal(reviews[3].activo, false);
-      assert.equal(reviews[4].email, 'unique@example.test', 'tb_resenador still provides an unambiguous author identity');
+      assert.equal(reviews.find((r) => r.id_fuente === 13).email, 'autor-registrador-2@legacy.laprotec', 'do not assume a registrador is a users.user_id');
+      assert.equal(reviews.find((r) => r.id_fuente === 13).activo, false);
+      assert.equal(reviews.find((r) => r.id_fuente === 14).email, 'unique@example.test', 'tb_resenador still provides an unambiguous author identity');
+      const unresolved = (await variant.query(`SELECT r.id,r.id_fuente,r.comentario,u.email,u.activo
+        FROM resenas r JOIN personas p ON p.id=r.persona_id JOIN usuarios u ON u.id=r.autor_id
+        WHERE r.fuente='legacy' AND p.identificacion='404040404'`)).rows;
+      assert.equal(unresolved.length, 1);
+      assert.equal(unresolved[0].id_fuente, 15);
+      assert.equal(unresolved[0].comentario, 'última ficha de autor sin persona');
+      assert.equal(unresolved[0].email, 'autor-registrador-1@legacy.laprotec');
+      assert.equal(unresolved[0].activo, false);
+      const unresolvedOriginals = (await variant.query(`SELECT id_fuente,resena_id FROM privado.resenas_legacy_originales
+        WHERE id_fuente IN (11,15) ORDER BY id_fuente`)).rows;
+      assert.deepEqual(unresolvedOriginals, [
+        { id_fuente: 11, resena_id: unresolved[0].id }, { id_fuente: 15, resena_id: unresolved[0].id },
+      ]);
       const orphan = (await variant.query("SELECT activo, identificacion, persona_id, auth_user_id FROM usuarios WHERE email='login-2@legacy.laprotec'")).rows[0];
       assert.deepEqual(orphan, { activo: false, identificacion: null, persona_id: null, auth_user_id: null });
 
@@ -125,6 +142,7 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       assert.equal(repeated.code, 0, repeated.stderr);
       assert.deepEqual(await snapshot(variant), committed);
     } finally {
+      await source.query('DELETE FROM tb_inquilinos_no_nacionales WHERE camp_id_inquilino=15');
       await source.query('RENAME TABLE tb_persona_fuera TO tb_persona');
       await variant.end();
       await target.query('DROP DATABASE import_without_personas');
@@ -258,6 +276,31 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
         ['raw field 23', 'raw field 23 revised']);
       assert.ok(versions.filter((r) => [14,20,21,22,23].includes(r.id_fuente)).every((r) => r.resena_id === latest.id));
 
+      // A changed nonwinning original creates a new pair without rewriting the
+      // historical link of the already archived version for the old person.
+      await source.query(`UPDATE tb_inquilinos_no_nacionales
+        SET camp_identificacion='808080808',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=20`);
+      const movedOriginal = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(movedOriginal.code, 0, movedOriginal.stderr);
+      assert.equal(movedOriginal.resumen.resenas, 6);
+      const newPair = (await variant.query(`SELECT r.id,p.identificacion FROM resenas r
+        JOIN personas p ON p.id=r.persona_id WHERE r.fuente='legacy' AND r.id_fuente=20`)).rows[0];
+      assert.equal(newPair.identificacion, '808080808');
+      assert.notEqual(newPair.id, latest.id);
+      const movedVersions = (await archived()).filter((r) => r.id_fuente === 20);
+      assert.equal(movedVersions.length, 2);
+      assert.equal(movedVersions.find((r) => r.datos.camp_identificacion === '606060606').resena_id, latest.id);
+      assert.equal(movedVersions.find((r) => r.datos.camp_identificacion === '808080808').resena_id, newPair.id);
+      const afterMove = await completeSnapshot();
+      await source.query(`UPDATE tb_inquilinos_no_nacionales
+        SET camp_identificacion='909090909',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=20`);
+      const unsafeMove = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(unsafeMove.code, 1, 'an already canonical source cannot silently move to another person');
+      assert.match(unsafeMove.stderr, /cambió de propietario o persona/);
+      assert.deepEqual(await completeSnapshot(), afterMove);
+      await source.query(`UPDATE tb_inquilinos_no_nacionales
+        SET camp_identificacion='808080808',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=20`);
+
       // Imported originals must not replace a review already authored in the app.
       const native = (await variant.query(`INSERT INTO personas (identificacion,nombre,apellido1)
         VALUES ('707070707','Persona','Nativa') RETURNING id`)).rows[0];
@@ -275,11 +318,11 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
         (25,'707070707','Persona','Nativa',500,'original más reciente','2025-01-01 12:00:00',1,90,91)`);
       const preserved = await run([], { DATABASE_URL: databaseUrl });
       assert.equal(preserved.code, 0, preserved.stderr);
-      assert.equal(preserved.resumen.resenas, 5);
-      assert.deepEqual(preserved.resumen.fichas, { leidas: 11, archivadas: 11, consolidadas: 5, conservadas: 1 });
+      assert.equal(preserved.resumen.resenas, 6);
+      assert.deepEqual(preserved.resumen.fichas, { leidas: 11, archivadas: 11, consolidadas: 4, conservadas: 1 });
       assert.deepEqual((await variant.query('SELECT * FROM resenas WHERE id=$1', [nativeReview.id])).rows[0], nativeReview);
       assert.deepEqual(await relationships(nativeReview.id), nativeTags);
-      assert.equal((await variant.query("SELECT count(*)::int AS n FROM resenas WHERE fuente='legacy' OR id=$1", [nativeReview.id])).rows[0].n, 6);
+      assert.equal((await variant.query("SELECT count(*)::int AS n FROM resenas WHERE fuente='legacy' OR id=$1", [nativeReview.id])).rows[0].n, 7);
       assert.deepEqual((await archived()).filter((r) => [24,25].includes(r.id_fuente)).map((r) => r.resena_id),
         [nativeReview.id, nativeReview.id]);
 
@@ -305,7 +348,7 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       await variant.query(`ALTER TABLE privado.resenas_legacy_originales ADD CONSTRAINT reject_test_archive
         CHECK (datos->>'camp_comentario_adicional' <> 'FAIL-ARCHIVE')`);
       await source.query(`UPDATE tb_inquilinos_no_nacionales
-        SET camp_comentario_adicional='FAIL-ARCHIVE',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=20`);
+        SET camp_comentario_adicional='FAIL-ARCHIVE',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=21`);
       await source.query(`UPDATE tb_inquilinos_no_nacionales
         SET camp_comentario_adicional='must also roll back',camp_fecha_registro='2024-01-01 12:00:00' WHERE camp_id_inquilino=23`);
       const beforeFailure = await completeSnapshot();

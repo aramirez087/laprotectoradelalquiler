@@ -364,4 +364,84 @@ test('temporary consultation access: stacking, cap, moderation and RLS', { timeo
       assert.equal((await db.query('SELECT id FROM resenas')).rowCount, 1)
     } finally { await other.end() }
   })
+  await t.test('legacy originals remain private after upgrades, with RLS as defense in depth', async () => {
+    await seed()
+    await db.query(importMigration)
+    await db.query(`INSERT INTO privado.resenas_legacy_originales(id_fuente,huella,datos)
+      VALUES (10,repeat('a',64),'{"camp_comentario_adicional":"Original privado"}')`)
+    // Reapplying the migration must revoke grants inherited from an older setup.
+    await db.query('GRANT ALL ON privado.resenas_legacy_originales TO anon, authenticated')
+    await db.query(importMigration)
+    assert.equal((await db.query(`SELECT relrowsecurity FROM pg_class
+      WHERE oid='privado.resenas_legacy_originales'::regclass`)).rows[0].relrowsecurity, true)
+    for (const role of ['anon', 'authenticated']) {
+      const privileges = (await db.query(`SELECT
+        has_table_privilege($1,'privado.resenas_legacy_originales','SELECT') AS lectura,
+        has_table_privilege($1,'privado.resenas_legacy_originales','INSERT') AS escritura,
+        has_table_privilege($1,'privado.resenas_legacy_originales','UPDATE') AS cambios,
+        has_table_privilege($1,'privado.resenas_legacy_originales','DELETE') AS borrado`, [role])).rows[0]
+      assert.deepEqual(privileges, { lectura: false, escritura: false, cambios: false, borrado: false })
+      await db.query(`SET ROLE ${role}`)
+      try {
+        await assert.rejects(db.query('SELECT * FROM privado.resenas_legacy_originales'), (error) => error.code === '42501')
+      } finally { await db.query('RESET ROLE') }
+    }
+    // Even an accidental read/write grant cannot expose or alter originals.
+    await db.query('GRANT SELECT, INSERT ON privado.resenas_legacy_originales TO authenticated')
+    try {
+      await asUser(uid, async () => {
+        assert.equal((await db.query('SELECT * FROM privado.resenas_legacy_originales')).rowCount, 0)
+        await assert.rejects(db.query(`INSERT INTO privado.resenas_legacy_originales(id_fuente,huella,datos)
+          VALUES (11,repeat('b',64),'{}')`), /row-level security/)
+      })
+    } finally { await db.query(importMigration) }
+    assert.equal((await db.query('SELECT * FROM privado.resenas_legacy_originales')).rowCount, 1)
+  })
+  await t.test('only a privileged import can retain historical approval on an updated legacy review', async () => {
+    await seed()
+    await db.query('BEGIN')
+    try {
+      await db.query(importMigration)
+      await review('2020-01-31T12:00:00Z', 'borrador', 7)
+      await db.query("UPDATE resenas SET fuente=NULL WHERE id=5; UPDATE resenas SET creado_en='2099-01-01T00:00:00Z' WHERE id=6")
+      // Temporarily allow an ordinary SQL role to moderate so a forged flag
+      // reaches the trigger's privilege check. These permissions roll back.
+      await db.query(`GRANT UPDATE(estado), SELECT(primera_aprobacion_en) ON resenas TO authenticated;
+        CREATE POLICY test_legacy_approval_read ON resenas FOR SELECT TO authenticated USING (true);
+        CREATE POLICY test_legacy_approval_update ON resenas FOR UPDATE TO authenticated USING (true) WITH CHECK (true);`)
+      const publish = async (id, flag, role = 'postgres') => {
+        await db.query("SELECT set_config('laprotec.importacion_legacy',$1,true)", [flag ? 'on' : 'off'])
+        await db.query(`SET LOCAL ROLE ${role}`)
+        try {
+          return (await db.query(`UPDATE resenas SET estado='publicada' WHERE id=$1
+            RETURNING primera_aprobacion_en, now() AS actual`, [id])).rows[0]
+        } finally { await db.query('RESET ROLE') }
+      }
+      for (const [id, role] of [[1, 'postgres'], [3, 'service_role']]) {
+        const imported = await publish(id, true, role)
+        assert.equal(imported.primera_aprobacion_en.toISOString(), '2020-01-31T12:00:00.000Z')
+        const receipt = (await db.query('SELECT aprobada_en FROM privado.aportes_consulta WHERE resena_id=$1', [id])).rows[0]
+        assert.deepEqual(receipt.aprobada_en, imported.primera_aprobacion_en)
+      }
+      for (const [id, flag, role] of [
+        [2, false, 'postgres'],
+        [4, true, 'authenticated'],
+        [5, true, 'postgres'],
+        [6, true, 'postgres'],
+        [7, false, 'service_role'],
+      ]) {
+        const moderated = await publish(id, flag, role)
+        assert.deepEqual(moderated.primera_aprobacion_en, moderated.actual,
+          'manual moderation, a forged ordinary-role flag, native reviews and future dates must use now')
+      }
+      const before = (await db.query('SELECT primera_aprobacion_en FROM resenas WHERE id=1')).rows[0]
+      await db.query("UPDATE resenas SET estado='oculta', primera_aprobacion_en=now(), creado_en=now() WHERE id=1")
+      const repeated = await publish(1, true)
+      assert.deepEqual(repeated.primera_aprobacion_en, before.primera_aprobacion_en)
+      assert.deepEqual((await db.query('SELECT aprobada_en FROM privado.aportes_consulta WHERE resena_id=1')).rows[0].aprobada_en,
+        before.primera_aprobacion_en)
+      assert.equal((await db.query(`SELECT prosecdef FROM pg_proc
+        WHERE oid='privado.registrar_primera_aprobacion()'::regprocedure`)).rows[0].prosecdef, false)
+    } finally { await db.query('ROLLBACK') }
+  })
 })
