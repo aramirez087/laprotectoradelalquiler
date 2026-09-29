@@ -183,28 +183,6 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
 
       <Paso
         numero="2"
-        titulo="Ubique la experiencia"
-        texto="La fecha permite distinguir este alquiler de otras experiencias."
-      >
-        <div>
-          <label htmlFor="fechaInicio" className="etiqueta-campo">Inicio del alquiler *</label>
-          <input
-            {...atributosError('fechaInicio')}
-            id="fechaInicio"
-            name="fechaInicio"
-            type="date"
-            required
-            className="campo sm:max-w-xs"
-            aria-describedby={errorCampo('fechaInicio') ? 'error-fechaInicio ayuda-inicio' : 'ayuda-inicio'}
-          />
-          <ErrorCampo nombre="fechaInicio" mensaje={errorCampo('fechaInicio')} />
-          <p id="ayuda-inicio" className="mt-2 text-xs text-ink-soft">
-            Use la fecha en que comenzó este alquiler. No puede ser una fecha futura.
-          </p>
-        </div>
-      </Paso>
-      <Paso
-        numero="3"
         titulo="Comparta lo que ocurrió"
         texto="Describa hechos concretos y que pueda respaldar. Evite incluir teléfonos, direcciones u otros datos personales."
       >
@@ -246,7 +224,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
-            ? 'Puede seguir la revisión en su perfil. Cada experiencia distinta aprobada suma 3 meses de consulta, hasta 12 meses acumulados. Varias reseñas del mismo alquiler cuentan como una sola experiencia.'
+            ? 'Puede seguir la revisión en su perfil. La primera reseña aprobada sobre cada inquilino suma 3 meses de consulta, hasta 12 meses acumulados. Solo puede enviar una reseña por inquilino.'
             : 'Como administración, la reseña se publica de inmediato.'}
         </p>
         <button type="submit" disabled={pendiente} className="btn-primario shrink-0">

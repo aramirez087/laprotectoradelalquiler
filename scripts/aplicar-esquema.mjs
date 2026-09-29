@@ -30,6 +30,7 @@ const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
   if (soloAccesoConsultas) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'resenas-unicas.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'acceso-temporal-consultas.sql'), 'utf8'));
     console.log('✓ Acceso temporal a consultas actualizado; los datos se conservan.');
   } else if (soloInvitaciones) {

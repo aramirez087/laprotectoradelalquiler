@@ -1,6 +1,6 @@
 -- Acceso temporal: aplicar antes de desplegar la aplicación. Conserva los datos.
--- Cada primera aprobación suma 3 meses al saldo vigente, con un máximo de
--- 12 meses desde esa aprobación. Editar o volver a publicar no suma tiempo.
+-- La primera aprobación por autor e inquilino suma 3 meses al saldo vigente,
+-- con un máximo de 12 meses desde esa aprobación. Repetir inquilino no suma tiempo.
 BEGIN;
 
 ALTER TABLE public.resenas ADD COLUMN IF NOT EXISTS primera_aprobacion_en timestamptz;
@@ -43,7 +43,7 @@ CREATE TRIGGER trg_resenas_primera_aprobacion
   FOR EACH ROW EXECUTE FUNCTION privado.registrar_primera_aprobacion();
 
 -- Un recibo inmutable por primera aprobación. Conservamos el recibo al borrar
--- la reseña para que reenviar el mismo alquiler no reinicie su recompensa.
+-- la reseña para que volver a reseñar al mismo inquilino no reinicie su recompensa.
 -- No lleva FK a resenas/personas por ese motivo; borrar la cuenta sí lo elimina.
 CREATE TABLE IF NOT EXISTS privado.aportes_consulta (
   resena_id integer PRIMARY KEY,
@@ -105,15 +105,15 @@ SET search_path = pg_catalog
 SET timezone = 'UTC'
 AS $$
   WITH RECURSIVE experiencias AS (
-    -- Un alquiler es autor + persona + tipo + fecha de inicio. Los registros
-    -- antiguos sin fecha se agrupan juntos. Moderación verifica su veracidad.
-    -- La primera fecha incluye recibos borrados/ocultos para no premiar reenvíos.
-    SELECT a.autor_id, a.persona_id, a.tipo, a.fecha_inicio_alquiler,
+    -- Un aporte es autor + persona, sin distinguir fechas ni tipos de reseña.
+    -- Se aplica también al historial: las fechas registradas se conservan.
+    -- La primera aprobación incluye recibos borrados/ocultos para no premiar reenvíos.
+    SELECT a.autor_id, a.persona_id,
       min(a.aprobada_en) AS aprobada_en, min(a.resena_id) AS orden
     FROM privado.aportes_consulta a
     LEFT JOIN public.resenas r ON r.id = a.resena_id AND r.autor_id = a.autor_id
     WHERE a.autor_id = ANY(p_usuario_ids)
-    GROUP BY a.autor_id, a.persona_id, a.tipo, a.fecha_inicio_alquiler
+    GROUP BY a.autor_id, a.persona_id
     HAVING bool_or(r.estado = 'publicada')
   ), resenas_ordenadas AS (
     SELECT autor_id, aprobada_en,

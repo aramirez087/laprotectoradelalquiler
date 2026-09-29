@@ -98,7 +98,7 @@ export default async function PerfilPage(props: {
       {enviada && (
         <p role="status" className="aviso aviso-ok">
           Recibimos su reseña. Puede seguir su estado en «Mis reseñas».
-          {' '}El tiempo de consulta se suma cuando se aprueba una experiencia distinta; el envío todavía no cambia su permiso.
+          {' '}El tiempo de consulta se suma cuando se aprueba su reseña sobre otro inquilino; el envío todavía no cambia su permiso.
         </p>
       )}
       <PanelPermiso acceso={acceso} ahoraServidor={horaServidor()} />
@@ -112,7 +112,7 @@ export default async function PerfilPage(props: {
             </Link>
           )}
         </div>
-        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. El contador de experiencias aprobadas agrupa las reseñas del mismo alquiler.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. Puede tener una sola reseña por inquilino. Otros propietarios también pueden reseñar a esa persona.</p>
         {aviso ? (
           <div className="expediente space-y-4">
             <p role="alert" className="aviso aviso-error">{aviso} Sus aportes siguen guardados. Intente cargar esta página de nuevo.</p>
@@ -155,7 +155,7 @@ export default async function PerfilPage(props: {
                   <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
                 </div>
                 <p className="text-xs leading-relaxed text-ink-soft">
-                  {r.estado === 'borrador' ? 'En revisión. Todavía no suma tiempo de consulta.' : r.estado === 'oculta' ? 'No aporta tiempo de consulta.' : 'Publicada. Cada experiencia distinta cuenta una sola vez para su permiso.'}
+                  {r.estado === 'borrador' ? 'En revisión. Todavía no suma tiempo de consulta.' : r.estado === 'oculta' ? 'No aporta tiempo de consulta.' : 'Publicada. Su reseña sobre este inquilino cuenta una sola vez para su permiso.'}
                 </p>
                 {r.estado === 'oculta' && r.detalle_verificacion && <p className="rounded-lg bg-alerta-soft p-3 text-sm leading-relaxed text-alerta"><strong className="font-semibold">Motivo de la revisión:</strong> {r.detalle_verificacion}</p>}
                 <details className="border-t border-line pt-3">

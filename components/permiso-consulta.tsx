@@ -114,7 +114,7 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
           </>
         )}
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">{mensajeAcceso(actual)}</p>
-        {porVencer && <p className="mt-3 text-sm font-medium text-alerta">Su acceso vence pronto. Una experiencia distinta, una vez aprobada, puede ampliarlo.</p>}
+        {porVencer && <p className="mt-3 text-sm font-medium text-alerta">Su acceso vence pronto. Su primera reseña aprobada sobre otro inquilino puede ampliarlo.</p>}
       </div>
       {normal && (
         <>
@@ -131,14 +131,14 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
             ))}
           </dl>
           <div className="space-y-3">
-            <p className="text-sm leading-relaxed"><strong className="font-semibold">Una experiencia nueva aprobada = 3 meses.</strong> Puede acumular hasta 12 meses de acceso.</p>
+            <p className="text-sm leading-relaxed"><strong className="font-semibold">Su primera reseña aprobada sobre cada inquilino = 3 meses.</strong> Puede acumular hasta 12 meses de acceso.</p>
             <details>
               <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-seal">Cómo gana tiempo de consulta</summary>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-soft">
-              <li><strong className="font-semibold text-ink">3 meses por cada experiencia distinta aprobada.</strong> El tiempo empieza cuando se aprueba, no al enviar la reseña.</li>
+              <li><strong className="font-semibold text-ink">3 meses por su primera reseña aprobada sobre cada inquilino.</strong> El tiempo empieza cuando se aprueba, no al enviar la reseña.</li>
               <li>Conserva el tiempo que le queda y puede acumular hasta <strong className="font-semibold text-ink">12 meses</strong> desde la nueva aprobación. Si ya venció, vuelve a empezar con 3 meses.</li>
-              <li>Varias reseñas del mismo alquiler cuentan como un solo aporte. Editarlas o reenviarlas no suma tiempo.</li>
-              <li>Las experiencias positivas y negativas reciben el mismo reconocimiento. Una reseña rechazada o eliminada deja de contar si era la única publicada de ese alquiler.</li>
+              <li>Solo puede enviar una reseña por inquilino. Otros propietarios pueden reseñar a esa misma persona. Editar o volver a publicar su reseña no suma tiempo.</li>
+              <li>Las experiencias positivas y negativas reciben el mismo reconocimiento. Una reseña rechazada o eliminada deja de contar si era su única reseña publicada sobre ese inquilino.</li>
               </ul>
             </details>
           </div>

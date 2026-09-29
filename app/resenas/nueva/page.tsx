@@ -93,7 +93,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         <p className="eyebrow mb-3">Aporte a la comunidad</p>
         <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          Identifique al inquilino, indique cuándo comenzó el alquiler y cuente qué ocurrió.
+          Identifique al inquilino y cuente qué ocurrió.
         </p>
         {usuario.rol !== 'admin' && (
           <p className="mt-2 text-sm text-ink-soft">

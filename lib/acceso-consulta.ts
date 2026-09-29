@@ -3,7 +3,7 @@ export type MotivoAcceso = 'ninguna' | 'revision' | 'rechazada' | 'vencida' | 'v
 export interface AccesoConsulta {
   usuario_id: number
   puede_consultar: boolean
-  /** Experiencias distintas con al menos una reseña publicada. */
+  /** Inquilinos distintos con al menos una reseña publicada de este autor. */
   aprobadas: number
   pendientes: number
   rechazadas: number
@@ -12,9 +12,9 @@ export interface AccesoConsulta {
   motivo: MotivoAcceso
 }
 
-export const REGLAS_CONSULTA = 'Cada experiencia de alquiler distinta, aprobada por administración, suma 3 meses. El tiempo no utilizado se acumula, hasta un máximo de 12 meses desde la última experiencia nueva aprobada. Editar o reenviar el mismo alquiler no suma tiempo.'
+export const REGLAS_CONSULTA = 'Su primera reseña sobre cada inquilino, aprobada por administración, suma 3 meses. El tiempo no utilizado se acumula, hasta un máximo de 12 meses desde la última aprobación sobre un inquilino nuevo para usted. Solo puede enviar una reseña por inquilino. Editarla o volver a publicarla no suma tiempo.'
 
-export const BENEFICIO_CONSULTA = 'Una experiencia nueva aprobada le da 3 meses para consultar. Puede acumular hasta 12 meses de acceso.'
+export const BENEFICIO_CONSULTA = 'Su primera reseña aprobada sobre cada inquilino le da 3 meses para consultar. Puede acumular hasta 12 meses de acceso.'
 
 /** Solo presentación. La autorización siempre la decide Postgres. */
 export function accesoEnPantalla(acceso: AccesoConsulta, ahora: number): AccesoConsulta {
@@ -59,7 +59,7 @@ export function mensajeAcceso(acceso: AccesoConsulta): string {
     case 'administracion': return 'Su cuenta de administración no necesita una reseña para acceder.'
     case 'inactiva': return 'Su cuenta está inactiva.'
     case 'vigente': return `Puede consultar hasta el ${fechaVencimiento(acceso.vence_en!)} (hora de Costa Rica).`
-    case 'vencida': return `Su permiso de consulta venció${acceso.vence_en ? ` el ${fechaVencimiento(acceso.vence_en)} (hora de Costa Rica)` : ''}. ${acceso.pendientes > 0 ? 'Tiene una reseña en revisión. La aprobación inicial de una nueva experiencia renueva el acceso.' : 'Comparta una nueva experiencia y espere su aprobación para renovar el acceso.'}`
+    case 'vencida': return `Su permiso de consulta venció${acceso.vence_en ? ` el ${fechaVencimiento(acceso.vence_en)} (hora de Costa Rica)` : ''}. ${acceso.pendientes > 0 ? 'Tiene una reseña en revisión. La primera aprobación sobre un inquilino que usted aún no ha reseñado renueva el acceso.' : 'Comparta una experiencia con un inquilino que usted aún no ha reseñado y espere su aprobación para renovar el acceso.'}`
     case 'revision': return 'Su reseña está en revisión. El permiso de consulta comienza cuando administración la apruebe.'
     case 'rechazada': return 'Revise el motivo del rechazo en su perfil. Necesita una reseña aprobada para consultar.'
     case 'error': return 'No pudimos verificar su permiso de consulta. Intente de nuevo en un momento.'

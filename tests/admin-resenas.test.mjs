@@ -61,6 +61,10 @@ test('expected database validation becomes a useful admin error', async () => {
   const a = admin({ error: { code: 'P0001', message } })
   await assert.rejects(a.editarResena(input), (error) => error instanceof a.AvisoAdmin && error.message === message)
 })
+test('moving a review cannot give its author a second review of the target tenant', async () => {
+  const a = admin({ error: { code: '23505', message: 'duplicate key violates unique constraint "resenas_autor_persona_unica"' } })
+  await assert.rejects(a.editarResena(input), (error) => error instanceof a.AvisoAdmin && /propietario ya tiene una reseña/.test(error.message))
+})
 
 function actions(config = {}, correo = {}) {
   const backend = admin(config)

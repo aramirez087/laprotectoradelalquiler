@@ -35,34 +35,43 @@ La dirección visual y las reglas de interacción están en [design.md](design.m
 ### Permiso temporal de consulta
 
 Antes de desplegar esta versión sobre una base existente, ejecute
-`npm run db:acceso-consultas`. Aplica solamente
-`db/acceso-temporal-consultas.sql`, en una transacción y sin borrar datos.
+`npm run db:acceso-consultas`. Aplica `db/resenas-unicas.sql` y
+`db/acceso-temporal-consultas.sql`, cada una en una transacción y sin borrar datos.
 Requiere las políticas de seguridad del esquema actual
 (`db/seguridad-acceso.sql` en instalaciones antiguas). En bases nuevas,
-`schema.sql` ya incluye la misma migración.
+`schema.sql` ya incluye ambas migraciones.
 
-Solo cuentan las experiencias con al menos una reseña actualmente publicada.
-Cada experiencia de alquiler distinta suma 3 meses al vencimiento vigente. Si
+Cada propietario puede tener una sola reseña por persona, sea pendiente, publicada
+o rechazada. Otros propietarios pueden reseñar a esa persona. Un índice único sobre
+`(autor_id, persona_id)` aplica la regla incluso en envíos simultáneos, importaciones
+y cambios de persona desde administración. Si ya hay duplicados, la migración se
+detiene e indica cómo listarlos; deben revisarse antes de reintentar. No los borra
+ni elige automáticamente qué relato conservar.
+
+Solo cuentan los pares autor–inquilino con al menos una reseña actualmente publicada.
+La primera aprobación de cada par suma 3 meses al vencimiento vigente. Si
 el permiso ya venció, los 3 meses comienzan en la nueva aprobación. El tiempo
 no utilizado se acumula, pero el vencimiento nunca puede superar 12 meses desde
-la aprobación de la experiencia nueva más reciente. Se suman meses naturales
+la primera aprobación del par autor–inquilino más reciente. Se suman meses naturales
 en UTC, ajustando al último día del mes cuando corresponda. Al llegar al instante
 de vencimiento se deniega la consulta. Administración activa está exenta;
 las cuentas inactivas no consultan.
 
 El trigger registra la primera aprobación y un recibo privado inmutable.
-Un alquiler se identifica por autor, persona, tipo de reseña y fecha de inicio.
-Varias reseñas del mismo alquiler cuentan una sola vez, desde su primera
+Un aporte se identifica por autor y persona, independientemente del tipo de
+reseña o la fecha de inicio. Varias reseñas del mismo autor sobre un inquilino
+cuentan una sola vez, desde su primera
 aprobación, incluso al borrar la original y reenviarla. Editar datos o rechazar
 y aprobar de nuevo tampoco reinicia el plazo. Al rechazar o eliminar la última
-reseña publicada de una experiencia, se recalcula el permiso sin ese aporte.
+reseña publicada de un par autor–inquilino, se recalcula el permiso sin ese aporte.
 Los recibos no guardan el relato y se eliminan al borrar la cuenta del autor.
 
-El formulario pide la fecha de inicio; administración verifica que la experiencia
-y la fecha sean reales, independientemente de si el relato es positivo o negativo.
-Cambiar la fecha en un reenvío no demuestra que sea otro alquiler. Las reseñas
-históricas sin fecha del mismo autor, persona y tipo cuentan como una experiencia;
-la migración no inventa períodos de alquiler que no estén documentados.
+El formulario no pide fecha de inicio. Administración verifica la experiencia,
+independientemente de si el relato es positivo o negativo. Otro alquiler con el
+mismo inquilino no genera una segunda recompensa para ese autor. La migración
+aplica esta regla también a las reseñas históricas, con o sin fecha, y conserva
+las fechas registradas. Al agrupar aportes antes separados por fecha o tipo,
+el saldo de acceso existente puede reducirse o vencer; no se reinicia el plazo.
 Las reseñas publicadas existentes y las importaciones legacy usan su fecha
 de creación, porque no existe un historial anterior de aprobación. La
 migración no concede un período nuevo a reseñas antiguas.

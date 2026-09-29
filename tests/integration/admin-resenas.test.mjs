@@ -44,11 +44,12 @@ test('admin review mutations are atomic and restricted to active admins', { time
       INSERT INTO usuarios (email,nombre,rol,activo) VALUES
         ('admin@example.test','Admin','admin',true),
         ('author@example.test','Author','propietario',true),
-        ('inactive@example.test','Inactive','admin',false);
+        ('inactive@example.test','Inactive','admin',false),
+        ('other@example.test','Other author','propietario',true);
       INSERT INTO personas (identificacion,nombre,apellido1) VALUES
         ('102340567','Ana','Solís'),('202340567','Beatriz','Vargas'),('LEGACY-42','Carlos','Legacy');
       INSERT INTO resenas (persona_id,autor_id,comentario,anonima) VALUES
-        (1,2,'Original A',true),(1,2,'Original B',false),(3,2,'Legacy',false);`)
+        (1,2,'Original A',true),(1,4,'Original B',false),(3,2,'Legacy',false);`)
   }
   const edit = async (overrides = {}) => {
     const p = { admin: 1, id: 1, cedula: '102340567', nombre: 'Ana', comentario: 'Updated', ...overrides }

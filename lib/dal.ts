@@ -441,6 +441,9 @@ export async function crearResena(input: {
     })
     .select('id')
     .single()
+  if (eResena?.code === '23505' && eResena.message.includes('resenas_autor_persona_unica')) {
+    throw new Error('No puede enviar otra reseña sobre esta persona. Ya tiene una; puede verla en su perfil.')
+  }
   if (eResena) throw eResena
 
   // 3) Etiquetas

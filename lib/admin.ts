@@ -296,6 +296,9 @@ type ResultadoCambioResena = {
 }
 
 function errorCambioResena(error: { code?: string; message: string }) {
+  if (error.code === '23505' && error.message.includes('resenas_autor_persona_unica')) {
+    return new AvisoAdmin('Ese propietario ya tiene una reseña sobre la persona de destino.')
+  }
   if (error.code === '23505') return new AvisoAdmin('Esa cédula ya identifica a otro inquilino.')
   const mensajes = [
     'No puede administrar reseñas con esta cuenta.',
