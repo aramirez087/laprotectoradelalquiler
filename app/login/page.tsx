@@ -30,7 +30,7 @@ export default async function LoginPage(props: PageProps<'/login'>) {
       texto={
         siguiente.startsWith('/resenas/nueva')
           ? 'Inicie sesión para compartir su experiencia de alquiler.'
-          : 'Entre con su correo y clave. Si aún no ha enviado una reseña, le llevaremos a su primera reseña.'
+          : 'Entre con su correo y clave. Con su acceso vigente, irá directamente a consultas.'
       }
     >
       {sinSupabase() ? (

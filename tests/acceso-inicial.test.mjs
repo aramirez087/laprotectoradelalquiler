@@ -51,13 +51,13 @@ const comunes = {
   '@/components/aviso-configuracion': { AvisoConfiguracion: () => null },
 }
 
-function destinoConResenas(resenas) {
+function destinoConResenas(resenas, sesion = usuario) {
   const db = {
     from: () => {
       const consulta = {
         select: () => consulta,
         eq: () => consulta,
-        maybeSingle: async () => ({ data: usuario, error: null }),
+        maybeSingle: async () => ({ data: sesion, error: null }),
         then: resolver => resolver({ count: resenas, error: null }),
       }
       return consulta
@@ -78,16 +78,16 @@ const pendiente = {
   rechazadas: 0, ultima_aprobacion_en: null, vence_en: null, motivo: 'revision',
 }
 
-function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false } = {}) {
+function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false, estadoAcceso = pendiente } = {}) {
   return cargar('app/page.tsx', {
     ...comunes,
     '@/lib/dal': {
       obtenerUsuario: async () => sesion,
-      destinoTrasLogin: destinoConResenas(resenas),
+      destinoTrasLogin: destinoConResenas(resenas, sesion),
       puedeConsultar: async () => puedeConsultar,
     },
     '@/components/espera-aprobacion': {
-      EsperaAprobacion: () => createElement(EstadoAcceso, { acceso: pendiente }),
+      EsperaAprobacion: () => createElement(EstadoAcceso, { acceso: estadoAcceso }),
     },
   }).default
 }
@@ -113,13 +113,27 @@ test('home keeps a submitted first review in the waiting state without inviting 
   assert.doesNotMatch(html, /role="search"|href="\/registro\/resena"|href="\/resenas\/nueva"/)
 })
 
-test('approved members can search the registry from home', async () => {
-  const html = renderToStaticMarkup(await inicio({ resenas: 1, puedeConsultar: true })())
-  const formulario = html.match(/<form[^>]*>/)?.[0] ?? ''
-  assert.match(formulario, /action="\/fichas"/)
-  assert.match(formulario, /role="search"/)
-  assert.match(html, /name="q"/)
+test('members with approved current access go directly from home to the registry', async () => {
+  await assert.rejects(inicio({ resenas: 1, puedeConsultar: true })(), error => error.ruta === '/fichas')
+})
+
+test('expired approval shows renewal instructions at home instead of treating the member as active', async () => {
+  const html = renderToStaticMarkup(await inicio({
+    resenas: 1,
+    estadoAcceso: { ...pendiente, aprobadas: 1, pendientes: 0, motivo: 'vencida' },
+  })())
+  assert.match(html, /Su permiso de consulta venció/)
   assert.match(html, /href="\/resenas\/nueva"/)
+  assert.doesNotMatch(html, /href="\/registro\/resena"|role="search"/)
+})
+
+test('inactive members still see their inactive-account state at home', async () => {
+  const html = renderToStaticMarkup(await inicio({
+    sesion: { ...usuario, activo: false },
+    estadoAcceso: { ...pendiente, motivo: 'inactiva' },
+  })())
+  assert.match(html, /Su cuenta está inactiva/)
+  assert.doesNotMatch(html, /href="\/registro\/resena"|role="search"/)
 })
 
 function login(resenas) {
@@ -153,20 +167,54 @@ test('signed-in login preserves safe destinations after a submission and rejects
   }
 })
 
-function primeraResena(resenas = []) {
+function registro({ sesion = usuario, puedeConsultar = false } = {}) {
+  return cargar('app/registro/page.tsx', {
+    ...comunes,
+    '@/lib/dal': {
+      obtenerUsuario: async () => sesion,
+      puedeConsultar: async () => puedeConsultar,
+    },
+    '@/lib/facebook-alta': { altaFacebookPendiente: async () => false },
+    '@/lib/facebook-auth': { authFacebookHabilitado: () => false },
+    '@/components/marco-acceso': { MarcoAcceso: ({ children }) => createElement('main', null, children) },
+    '@/components/registro-form': { RegistroForm: () => createElement('form', { 'aria-label': 'Crear cuenta' }) },
+  }).default
+}
+
+test('members with approved current access bypass registration and go directly to the registry', async () => {
+  await assert.rejects(registro({ puedeConsultar: true })({ searchParams: Promise.resolve({}) }),
+    error => error.ruta === '/fichas')
+})
+
+test('registration preserves public, first-review, inactive and administrator entry paths', async () => {
+  const html = renderToStaticMarkup(await registro({ sesion: null })({ searchParams: Promise.resolve({}) }))
+  assert.match(html, /<form aria-label="Crear cuenta"/)
+  for (const [sesion, puedeConsultar, esperado] of [
+    [usuario, false, '/registro/resena'],
+    [{ ...usuario, activo: false }, false, '/registro/resena'],
+    [{ ...usuario, rol: 'admin' }, true, '/admin'],
+  ]) {
+    await assert.rejects(registro({ sesion, puedeConsultar })({ searchParams: Promise.resolve({}) }),
+      error => error.ruta === esperado)
+  }
+})
+
+function primeraResena(resenas = [], { sesion = usuario, puedeConsultar = false } = {}) {
   let perfilCompletado = false
+  let resenasConsultadas = false
   const pagina = cargar('app/registro/resena/page.tsx', {
     ...comunes,
     '@/lib/actions/resenas': { crearResenaAction: () => {} },
     '@/lib/dal': {
-      requireUsuario: async () => usuario,
-      listarResenasDe: async () => resenas,
+      requireUsuario: async () => sesion,
+      puedeConsultar: async () => puedeConsultar,
+      listarResenasDe: async () => { resenasConsultadas = true; return resenas },
       completarPerfilRegistro: async () => { perfilCompletado = true },
     },
     '@/components/form-resena': { FormResena: () => createElement('form', { 'aria-label': 'Escribir reseña' }) },
     '@/components/pasos-registro': cargar('components/pasos-registro.tsx'),
   }).default
-  return { pagina, perfilCompletado: () => perfilCompletado }
+  return { pagina, perfilCompletado: () => perfilCompletado, resenasConsultadas: () => resenasConsultadas }
 }
 
 test('first-review page presents the review as the second registration step', async () => {
@@ -183,6 +231,41 @@ test('first-review page routes existing submissions to the profile before exposi
     await assert.rejects(primera.pagina(), error => error.ruta === '/perfil')
     assert.equal(primera.perfilCompletado(), false)
   }
+})
+
+test('members with approved current access bypass the first-review page before loading or editing onboarding data', async () => {
+  const primera = primeraResena([{ id: 1, estado: 'publicada' }], { puedeConsultar: true })
+  await assert.rejects(primera.pagina(), error => error.ruta === '/fichas')
+  assert.equal(primera.resenasConsultadas(), false)
+  assert.equal(primera.perfilCompletado(), false)
+})
+
+test('a stale first-review login destination still sends an approved member to the registry without a form', async () => {
+  await assert.rejects(login(1)({ searchParams: Promise.resolve({ siguiente: '/registro/resena' }) }),
+    error => error.ruta === '/registro/resena')
+  const primera = primeraResena([{ id: 1, estado: 'publicada' }], { puedeConsultar: true })
+  await assert.rejects(primera.pagina(), error => error.ruta === '/fichas')
+  assert.equal(primera.perfilCompletado(), false)
+})
+
+test('an expired published review keeps the existing-submission profile guard', async () => {
+  const primera = primeraResena([{ id: 1, estado: 'publicada' }], { puedeConsultar: false })
+  await assert.rejects(primera.pagina(), error => error.ruta === '/perfil')
+  assert.equal(primera.perfilCompletado(), false)
+})
+
+test('the first-review page keeps administrator and inactive-account guards ahead of access routing', async () => {
+  const admin = primeraResena([], { sesion: { ...usuario, rol: 'admin' }, puedeConsultar: true })
+  await assert.rejects(admin.pagina(), error => error.ruta === '/admin')
+  assert.equal(admin.resenasConsultadas(), false)
+  assert.equal(admin.perfilCompletado(), false)
+
+  const inactiva = primeraResena([], { sesion: { ...usuario, activo: false } })
+  const html = renderToStaticMarkup(await inactiva.pagina())
+  assert.match(html, /Su cuenta está inactiva/)
+  assert.doesNotMatch(html, /<form/)
+  assert.equal(inactiva.resenasConsultadas(), false)
+  assert.equal(inactiva.perfilCompletado(), false)
 })
 
 test('registration forms only offer owner and agency account types', () => {

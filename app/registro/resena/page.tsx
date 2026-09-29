@@ -4,6 +4,7 @@ import { crearResenaAction } from '@/lib/actions/resenas'
 import {
   completarPerfilRegistro,
   listarResenasDe,
+  puedeConsultar,
   requireUsuario,
 } from '@/lib/dal'
 import { FormResena } from '@/components/form-resena'
@@ -41,6 +42,8 @@ export default async function RegistroResenaPage() {
       </div>
     )
   }
+
+  if (await puedeConsultar(usuario)) redirect('/fichas')
 
   let yaEnvio = false
   try {

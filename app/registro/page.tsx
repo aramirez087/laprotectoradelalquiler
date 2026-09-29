@@ -3,7 +3,7 @@ import { MarcoAcceso } from '@/components/marco-acceso'
 import { destinoInterno, primer } from '@/lib/util'
 import { RegistroForm } from '@/components/registro-form'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
-import { obtenerUsuario } from '@/lib/dal'
+import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { altaFacebookPendiente } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
 import { sinSupabase } from '@/lib/supabase/server'
@@ -14,7 +14,11 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   const siguiente = destinoInterno(primer((await props.searchParams).siguiente))
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
-    if (usuario) redirect(usuario.rol === 'admin' ? '/admin' : '/registro/resena')
+    if (usuario) {
+      if (usuario.rol === 'admin') redirect('/admin')
+      if (await puedeConsultar(usuario)) redirect('/fichas')
+      redirect('/registro/resena')
+    }
     if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(siguiente))
   }
   return (
