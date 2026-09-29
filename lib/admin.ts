@@ -62,6 +62,23 @@ export interface FilaAdminUsuario {
   ultimo_acceso: string | null
   creado_en: string
   facebook: string | null
+  tieneLogin: boolean
+  esLegacy: boolean
+  puedeConsultar: boolean | null
+  registro: string
+}
+
+export type FiltroTipoUsuario = 'cuentas' | 'legacy' | 'todos'
+export type FiltroEstadoUsuario = 'todos' | 'activas' | 'inactivas'
+export type FiltroLoginUsuario = 'todos' | 'creado' | 'pendiente'
+
+export interface ResumenUsuariosAdmin {
+  cuentas: number
+  legacy: number
+  activas: number
+  inactivas: number
+  conLogin: number
+  sinLogin: number
 }
 
 export interface FilaConteo {
@@ -403,12 +420,48 @@ export async function conteoPorUsuario(q: string) {
   return filas
 }
 
-export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
+const PATRON_CORREO_LEGACY = '%@legacy.laprotec'
+
+async function resumenUsuarios(db: Cliente): Promise<ResumenUsuariosAdmin> {
+  const contar = () => db.from('usuarios').select('id', { count: 'exact', head: true })
+  const cuentas = () => contar().not('email', 'ilike', PATRON_CORREO_LEGACY)
+  const resultados = await Promise.all([
+    cuentas(),
+    contar().ilike('email', PATRON_CORREO_LEGACY),
+    cuentas().eq('activo', true),
+    cuentas().eq('activo', false),
+    cuentas().not('auth_user_id', 'is', null),
+    cuentas().is('auth_user_id', null),
+  ])
+  for (const resultado of resultados) {
+    if (resultado.error) throw resultado.error
+    if (typeof resultado.count !== 'number') throw new AvisoAdmin('No pudimos verificar el resumen de usuarios.')
+  }
+  const [reales, legacy, activas, inactivas, conLogin, sinLogin] = resultados.map((resultado) => resultado.count as number)
+  return { cuentas: reales, legacy, activas, inactivas, conLogin, sinLogin }
+}
+
+export async function buscarUsuarios(opts: {
+  q?: string
+  pagina?: number
+  tipo?: FiltroTipoUsuario
+  estado?: FiltroEstadoUsuario
+  login?: FiltroLoginUsuario
+}): Promise<{ filas: FilaAdminUsuario[]; total: number; resumen: ResumenUsuariosAdmin }> {
   const { db } = await exigirAdmin()
   const pagina = Math.max(1, opts.pagina ?? 1)
+  const tipo = opts.tipo ?? 'cuentas'
+  const estado = opts.estado ?? 'todos'
+  const login = opts.login ?? 'todos'
   let consulta = db
     .from('usuarios')
-    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en', { count: 'exact' })
+    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en, auth_user_id', { count: 'exact' })
+
+  if (tipo === 'cuentas') consulta = consulta.not('email', 'ilike', PATRON_CORREO_LEGACY)
+  else if (tipo === 'legacy') consulta = consulta.ilike('email', PATRON_CORREO_LEGACY)
+  if (estado !== 'todos') consulta = consulta.eq('activo', estado === 'activas')
+  if (login === 'creado') consulta = consulta.not('auth_user_id', 'is', null)
+  else if (login === 'pendiente') consulta = consulta.is('auth_user_id', null)
 
   const q = textoPlano(opts.q ?? '')
   if (q.length >= 2) {
@@ -419,9 +472,13 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   }
 
   const desde = (pagina - 1) * POR_PAGINA
-  const { data, error, count } = await consulta.order('nombre', { ascending: true }).range(desde, desde + POR_PAGINA - 1)
+  const [{ data, error, count }, resumen] = await Promise.all([
+    consulta.order('nombre', { ascending: true }).order('id', { ascending: true }).range(desde, desde + POR_PAGINA - 1),
+    resumenUsuarios(db),
+  ])
   if (error) throw error
-  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook' | 'registro'>>
+  const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook' | 'registro' | 'tieneLogin' | 'esLegacy' | 'puedeConsultar'> & { auth_user_id: string | null }>
+  if (!base.length) return { filas: [], total: count ?? 0, resumen }
   const ids = base.map((fila) => fila.id)
   const [perfiles, resultadoAccesos] = await Promise.all([
     facebookPorUsuario(db, ids),
@@ -432,11 +489,16 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   return {
     filas: base.map((fila) => {
       const acceso = accesos.get(fila.id)
-      return { ...fila, facebook: perfiles.get(fila.id) ?? null,
+      const { auth_user_id: authUserId, ...perfil } = fila
+      return { ...perfil, facebook: perfiles.get(fila.id) ?? null,
+        tieneLogin: Boolean(authUserId),
+        esLegacy: fila.email.toLowerCase().endsWith('@legacy.laprotec'),
+        puedeConsultar: typeof acceso?.puede_consultar === 'boolean' ? acceso.puede_consultar : null,
         registro: acceso ? mensajeAcceso(acceso) : 'No se pudo verificar el permiso de consulta',
       }
     }),
     total: count ?? 0,
+    resumen,
   }
 }
 
