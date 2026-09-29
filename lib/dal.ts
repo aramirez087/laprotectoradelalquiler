@@ -261,6 +261,21 @@ export async function buscarFichas(opts: {
   return { fichas, total: count ?? 0 }
 }
 
+/** Único agregado público del registro: no devuelve filas ni datos personales. */
+export async function contarResenasPublicadas(): Promise<number | null> {
+  try {
+    const admin = createAdmin()
+    if (!admin) return null
+    const { count, error } = await admin
+      .from('resenas')
+      .select('id', { count: 'exact', head: true })
+      .eq('estado', 'publicada')
+    return error || count === null ? null : count
+  } catch {
+    return null
+  }
+}
+
 export async function resumenRegistro(): Promise<{ personas: number; resenas: number } | null> {
   if (sinSupabase()) return null
   const usuario = await obtenerUsuario()

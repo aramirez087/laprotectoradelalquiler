@@ -83,6 +83,7 @@ function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false, estadoA
     ...comunes,
     '@/lib/dal': {
       obtenerUsuario: async () => sesion,
+      contarResenasPublicadas: async () => null,
       destinoTrasLogin: destinoConResenas(resenas, sesion),
       puedeConsultar: async () => puedeConsultar,
     },
@@ -97,7 +98,7 @@ test('public home offers sign-in and registration before any search or review fo
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
   assert.deepEqual(destinos.sort(), ['/login', '/registro'])
   assert.match(html, /Iniciar sesión/)
-  assert.match(html, /Registrarse/)
+  assert.match(html, /Unirme a La Protectora/)
   assert.match(html, /propietarios y agencias/i)
   assert.doesNotMatch(html, /role="search"|type="search"|<form/)
 })

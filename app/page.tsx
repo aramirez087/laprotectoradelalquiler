@@ -1,42 +1,60 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { Icono } from '@/components/icono'
 import { BarrioVivo } from '@/components/barrio-vivo'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
-import { destinoTrasLogin, obtenerUsuario, puedeConsultar } from '@/lib/dal'
+import { contarResenasPublicadas, destinoTrasLogin, obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
+
+function RespaldoComunidad() {
+  return <p>Una comunidad que comparte.<br /><span className="text-ink-soft">Más información para decidir mejor.</span></p>
+}
+
+async function ResenasComunidad() {
+  const total = await contarResenasPublicadas()
+  if (total === null || total === 0) return <RespaldoComunidad />
+
+  return (
+    <p>
+      <span className="dato-resenas-inicio">{new Intl.NumberFormat('es-CR').format(total)}</span>{' '}
+      <span className="font-medium">{total === 1 ? 'reseña publicada' : 'reseñas publicadas'}</span>
+      <span className="mt-1 block text-ink-soft">Experiencias compartidas para su próximo alquiler.</span>
+    </p>
+  )
+}
 
 export default async function HomePage() {
   const usuario = await obtenerUsuario()
   if (!usuario) {
     return (
-      <div className="inicio">
+      <div className="inicio inicio-publico">
         <BarrioVivo />
         <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
-        <h1 className="titulo-inicio mt-5">
-          Inicie sesión<br />
-          <span className="text-seal">o regístrese.</span>
+        <h1 className="titulo-inicio titulo-inicio-publico mt-5">
+          Proteja su propiedad.<br />
+          <span className="text-seal">Alquile con confianza.</span>
         </h1>
-        <p className="mt-5 max-w-md text-pretty text-base leading-relaxed text-ink-soft">
-          Un espacio exclusivo para propietarios y agencias que comparten experiencias sobre sus alquileres.
+        <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
+          Antes de entregar las llaves, conozca las experiencias de otros propietarios y agencias con sus inquilinos.
+          Una comunidad que comparte para que usted decida mejor.
         </p>
-        <div className="mt-8 grid w-full max-w-md gap-5 sm:grid-cols-2 sm:gap-4">
-          <div>
-            <p className="mb-2 text-sm text-ink-soft">¿Ya tiene cuenta?</p>
-            <Link href="/login" className="btn-primario w-full">Iniciar sesión</Link>
-          </div>
-          <div>
-            <p className="mb-2 text-sm text-ink-soft">¿Es su primera visita?</p>
-            <Link href="/registro" className="btn-secundario w-full">Registrarse</Link>
-          </div>
+        <div className="acciones-inicio mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Link href="/registro" className="btn-primario">
+            Unirme a La Protectora <Icono nombre="flecha" className="h-4 w-4 shrink-0" />
+          </Link>
+          <Link href="/login" className="btn-secundario">Iniciar sesión</Link>
         </div>
-        <p className="mt-6 max-w-md text-sm leading-relaxed text-ink-soft">
-          Si ya tiene acceso vigente, entrará directamente a consultas. Si es nuevo, le guiaremos para escribir su primera reseña.
+        <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
+          Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas.</strong>
         </p>
-        <p className="mt-3 max-w-md text-xs leading-relaxed text-ink-soft">
-          Su primera reseña aprobada le da 3 meses para consultar el registro.
-        </p>
+        <div className="prueba-inicio">
+          <Icono nombre="documento" className="h-5 w-5 shrink-0 text-seal" />
+          <Suspense fallback={<RespaldoComunidad />}>
+            <ResenasComunidad />
+          </Suspense>
+        </div>
         {sinSupabase() && (
           <div className="mt-6 w-full max-w-xl">
             <AvisoConfiguracion />
