@@ -23,6 +23,7 @@ export class SinClaveAdmin extends AvisoAdmin {
 }
 
 const POR_PAGINA = 20
+const PATRON_CORREO_LEGACY = '%@legacy.laprotec'
 
 const SELECT_RESENA = `
   id, anonima, estado, comentario, detalle_verificacion, creado_en, fecha_inicio_alquiler,
@@ -111,6 +112,7 @@ export interface ResumenAdmin {
   rechazadas: number
   publicadas: number
   usuarios: number
+  autoresLegacy: number
   denuncias: number
 }
 
@@ -265,7 +267,8 @@ export async function consultarResenas(opts: {
 async function contar(consulta: PromiseLike<{ count: number | null; error: { message: string } | null }>) {
   const { count, error } = await consulta
   if (error) throw error
-  return count ?? 0
+  if (typeof count !== 'number') throw new AvisoAdmin('No pudimos verificar los totales del registro.')
+  return count
 }
 
 export async function resumenAdmin(): Promise<ResumenAdmin> {
@@ -274,16 +277,17 @@ export async function resumenAdmin(): Promise<ResumenAdmin> {
   const rango = rangoInclusivo(hoy, hoy)
   const resenas = () => db.from('resenas').select('id', { count: 'exact', head: true })
 
-  const [hoyN, revision, rechazadas, publicadas, usuarios, denuncias] = await Promise.all([
+  const [hoyN, revision, rechazadas, publicadas, usuarios, autoresLegacy, denuncias] = await Promise.all([
     contar(resenas().gte('creado_en', rango.inicio).lt('creado_en', rango.fin)),
     contar(resenas().eq('estado', 'borrador')),
     contar(resenas().eq('estado', 'oculta')),
     contar(resenas().eq('estado', 'publicada')),
-    contar(db.from('usuarios').select('id', { count: 'exact', head: true })),
+    contar(db.from('usuarios').select('id', { count: 'exact', head: true }).not('email', 'ilike', PATRON_CORREO_LEGACY)),
+    contar(db.from('usuarios').select('id', { count: 'exact', head: true }).ilike('email', PATRON_CORREO_LEGACY)),
     contar(db.from('denuncias').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente')),
   ])
 
-  return { hoy: hoyN, revision, rechazadas, publicadas, usuarios, denuncias }
+  return { hoy: hoyN, revision, rechazadas, publicadas, usuarios, autoresLegacy, denuncias }
 }
 
 export async function decidirResena(input: { id: number; estado: EstadoResena; nota: string }) {
@@ -419,8 +423,6 @@ export async function conteoPorUsuario(q: string) {
 
   return filas
 }
-
-const PATRON_CORREO_LEGACY = '%@legacy.laprotec'
 
 async function resumenUsuarios(db: Cliente): Promise<ResumenUsuariosAdmin> {
   const contar = () => db.from('usuarios').select('id', { count: 'exact', head: true })

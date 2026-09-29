@@ -11,7 +11,7 @@ const TARJETAS = [
   { clave: 'hoy', etiqueta: 'Reseñas de hoy', detalle: 'Ver la actividad del día', href: '/admin/reportes' },
   { clave: 'publicadas', etiqueta: 'Reseñas publicadas', detalle: 'Disponibles en el registro', href: '/admin/resenas?estado=publicada' },
   { clave: 'rechazadas', etiqueta: 'Reseñas rechazadas', detalle: 'Consultar decisiones anteriores', href: '/admin/rechazadas' },
-  { clave: 'usuarios', etiqueta: 'Usuarios', detalle: 'Gestionar cuentas y permisos', href: '/admin/usuarios' },
+  { clave: 'usuarios', etiqueta: 'Cuentas reales', detalle: 'Activas e inactivas, con o sin inicio de sesión creado', href: '/admin/usuarios' },
 ] as const
 
 export default async function AdminPage() {
@@ -39,6 +39,15 @@ export default async function AdminPage() {
             </Link>
           ))}
         </div>
+      )}
+      {resumen && resumen.autoresLegacy > 0 && (
+        <p className="text-sm leading-6 text-ink-soft">
+          Además, se conservan{' '}
+          <Link href="/admin/usuarios?tipo=legacy" className="enlace-texto font-medium">
+            {formatoNumero(resumen.autoresLegacy)} {resumen.autoresLegacy === 1 ? 'autor legacy' : 'autores legacy'}
+          </Link>{' '}
+          para mantener la autoría de las reseñas. No se incluyen en el total de cuentas reales.
+        </p>
       )}
       {resumen && resumen.revision === 0 && resumen.denuncias === 0 && <p className="aviso aviso-ok">Todo al día: no hay reseñas ni denuncias pendientes de revisión.</p>}
     </div>
