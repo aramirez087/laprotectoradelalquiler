@@ -6,6 +6,9 @@
 //   node scripts/migrar-legacy.mjs --seco           # valida todo en una transacción que se revierte
 //   node scripts/migrar-legacy.mjs --pasos=lookups,personas,usuarios,resenas
 //   node scripts/migrar-legacy.mjs --crear-accounts # crea identidades en Supabase Auth
+//   node scripts/migrar-legacy.mjs --solo-accesos --crear-accounts # enlaza perfiles ya importados
+//   Añadir --limite-auth=100 --tiempo-auth=150 para un lote de accesos desde la UI.
+//   --despues-auth=<id> continúa el lote anterior, sin bloquearse en cuentas fallidas.
 //   node scripts/migrar-legacy.mjs --probar-claves   # solo verifica el detector de claves
 //
 // Variables de entorno:
@@ -28,16 +31,36 @@ import { configuracionPostgres } from './postgres-config.mjs';
 import { existeTablaLegacy } from './legacy-tablas.mjs';
 
 const args = process.argv.slice(2);
-if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves'].includes(a) && !a.startsWith('--pasos='))) {
+if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves', '--solo-accesos'].includes(a)
+  && !['--pasos=', '--limite-auth=', '--tiempo-auth=', '--despues-auth='].some((prefijo) => a.startsWith(prefijo)))) {
   throw new Error('Opción de migración desconocida.');
 }
 const seco = args.includes('--seco');
+const SOLO_ACCESOS = args.includes('--solo-accesos');
 const pasoArg = args.find((a) => a.startsWith('--pasos='));
+if (SOLO_ACCESOS && (!args.includes('--crear-accounts') || seco || pasoArg)) {
+  throw new Error('--solo-accesos requiere --crear-accounts y no admite --pasos ni --seco.');
+}
+function limiteAuth(nombre, maximo) {
+  const valores = args.filter((a) => a.startsWith(`${nombre}=`));
+  if (!valores.length) return Infinity;
+  const valor = valores[0].slice(nombre.length + 1);
+  if (valores.length !== 1 || !/^\d+$/.test(valor) || Number(valor) < 1 || Number(valor) > maximo
+    || !args.includes('--crear-accounts') || seco) throw new Error(`${nombre} requiere --crear-accounts y un entero entre 1 y ${maximo}.`);
+  return Number(valor);
+}
+const LIMITE_AUTH = limiteAuth('--limite-auth', 1000);
+const TIEMPO_AUTH_MS = limiteAuth('--tiempo-auth', 3600) * 1000;
+const cursores = args.filter((a) => a.startsWith('--despues-auth='));
+const valorCursor = cursores[0]?.slice('--despues-auth='.length) ?? '0';
+if (cursores.length > 1 || !/^\d+$/.test(valorCursor) || Number(valorCursor) > 2147483647
+  || (cursores.length && !SOLO_ACCESOS)) throw new Error('--despues-auth requiere --solo-accesos y un entero entre 0 y 2147483647.');
+const DESPUES_AUTH = Number(valorCursor);
 const ordenPasos = ['lookups', 'personas', 'usuarios', 'resenas'];
 const solicitados = pasoArg ? pasoArg.split('=').pop().split(',') : ordenPasos;
 if (solicitados.some((paso) => !ordenPasos.includes(paso))) throw new Error('Paso de migración desconocido.');
 // Importar una etapa incluye sus dependencias para no borrar referencias.
-const PASOS = ordenPasos.slice(0, Math.max(...solicitados.map((p) => ordenPasos.indexOf(p))) + 1);
+const PASOS = SOLO_ACCESOS ? [] : ordenPasos.slice(0, Math.max(...solicitados.map((p) => ordenPasos.indexOf(p))) + 1);
 const CREAR_ACCOUNTS = args.includes('--crear-accounts') && !seco;
 
 // Carga .env.local (convención Next.js) y, si existe, .env; no sobreescribe lo ya definido
@@ -77,6 +100,15 @@ if (CREAR_ACCOUNTS && (!SUPABASE_URL_ADMIN || !SUPABASE_KEY_ADMIN)) {
   console.error('--crear-accounts requiere NEXT_PUBLIC_SUPABASE_URL (o SUPABASE_URL) y SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)');
   process.exit(1);
 }
+if (CREAR_ACCOUNTS) {
+  const destino = new URL(process.env.DATABASE_URL);
+  const auth = new URL(SUPABASE_URL_ADMIN);
+  const refAuth = /^([a-z0-9]+)\.supabase\.co$/.exec(auth.hostname)?.[1];
+  const refDb = /^db\.([a-z0-9]+)\.supabase\.co$/.exec(destino.hostname)?.[1]
+    ?? (destino.hostname.endsWith('.pooler.supabase.com')
+      ? /^postgres\.([a-z0-9]+)$/.exec(decodeURIComponent(destino.username))?.[1] : null);
+  if (refAuth && refDb && refAuth !== refDb) throw new Error('La conexión Postgres y Supabase Auth corresponden a proyectos distintos. Revise la configuración del servidor.');
+}
 
 const m = await mysql.createPool(mysqlCfg);
 // Un único cliente: BEGIN/COMMIT y todas las escrituras comparten conexión.
@@ -84,6 +116,10 @@ const pool = new pg.Client({ ...configuracionPostgres(process.env.DATABASE_URL),
 const supabaseAdmin = CREAR_ACCOUNTS
   ? (await import('@supabase/supabase-js')).createClient(SUPABASE_URL_ADMIN, SUPABASE_KEY_ADMIN, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: (url, opciones = {}) => fetch(url, {
+        ...opciones,
+        signal: AbortSignal.any([AbortSignal.timeout(15_000), ...(opciones.signal ? [opciones.signal] : [])]),
+      }) },
     })
   : null;
 
@@ -250,12 +286,18 @@ function rangoRol(rol) {
 function clasificarSecreto(valor) {
   const s = String(valor ?? '').trim();
   if (!s) return { tipo: 'vacio' };
-  if (/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(s)) return { tipo: 'bcrypt', hash: s };
-  if (/^\$argon2(id|i|d)\$/.test(s)) return { tipo: 'argon', hash: s };
+  const bcrypt = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/.exec(s);
+  if (bcrypt && Number(bcrypt[1]) >= 4 && Number(bcrypt[1]) <= 31) return { tipo: 'bcrypt', hash: s };
+  const argon = /^\$argon2(?:id|i)\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/.exec(s);
+  if (argon && Number(argon[1]) > 0 && Number(argon[1]) <= 1024 * 1024
+    && Number(argon[2]) > 0 && Number(argon[2]) <= 20 && Number(argon[3]) > 0 && Number(argon[3]) <= 16
+    && [argon[4], argon[5]].every((v) => Buffer.from(v, 'base64').toString('base64').replace(/=+$/, '') === v)) {
+    return { tipo: 'argon', hash: s };
+  }
   if (/^[a-f0-9]{32}$/i.test(s)) return { tipo: 'md5' };
   if (/^[a-f0-9]{40}$/i.test(s)) return { tipo: 'sha1' };
   if (/^[a-f0-9]{64}$/i.test(s)) return { tipo: 'sha256' };
-  if (s.startsWith('$') || s.length > 72) return { tipo: 'otra' };
+  if (s.startsWith('$') || Buffer.byteLength(String(valor), 'utf8') > 72) return { tipo: 'otra' };
   if (s.length < 6) return { tipo: 'corta' };
   return { tipo: 'plana', clave: String(valor) };
 }
@@ -265,6 +307,9 @@ function assertClasificacion() {
     ['$2y$10$' + 'a'.repeat(53), 'bcrypt'],
     ['$2a$10$' + 'a'.repeat(53), 'bcrypt'],
     ['$argon2id$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA', 'argon'],
+    ['$argon2d$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA', 'otra'],
+    ['$argon2id$v=16$m=1,t=1,p=1$c2FsdA$aGFzaA', 'otra'],
+    ['$2a$99$' + 'a'.repeat(53), 'otra'],
     ['a'.repeat(32), 'md5'],
     ['a'.repeat(40), 'sha1'],
     ['ab', 'corta'],
@@ -272,6 +317,7 @@ function assertClasificacion() {
     ['', 'vacio'],
     ['$P$Bhashdesconocido', 'otra'],
     ['x'.repeat(80), 'otra'],
+    ['é'.repeat(37), 'otra'],
   ];
   for (const [valor, tipo] of casos) {
     const obtuvo = clasificarSecreto(valor).tipo;
@@ -495,7 +541,7 @@ async function pasoPersonas() {
 // PASO 3 — Usuarios
 // ----------------------------------------------------------------------------
 
-async function cargarCuentasLegacy() {
+async function cargarCuentasLegacy(tolerarConflictos = false) {
   const porEmail = new Map();
   const sinCorreo = [];
 
@@ -522,7 +568,11 @@ async function cargarCuentasLegacy() {
         const anterior = porEmail.get(email);
         const mismoDocumento = texto(anterior.identificacion) === texto(cuenta.identificacion)
           || (digitosDe(cuenta.identificacion).length >= 6 && digitosDe(cuenta.identificacion) === digitosDe(anterior.identificacion));
-        if (!mismoDocumento) throw new Error(`users#${r.user_id}: correo compartido por identificaciones distintas. Corrija el origen antes de importar.`);
+        if (!mismoDocumento) {
+          if (!tolerarConflictos) throw new Error(`users#${r.user_id}: correo compartido por identificaciones distintas. Corrija el origen antes de importar.`);
+          anterior.conflicto = true;
+          continue;
+        }
         avisar('correo_duplicado', 'Se consolidaron filas repetidas con el mismo correo e identificación.');
         fusionarCuenta(anterior, cuenta, false);
       } else if (emailReal) porEmail.set(email, cuenta);
@@ -595,7 +645,9 @@ async function cargarCuentasLegacy() {
       if (destino) {
         if (ident && destino.identificacion && ident !== destino.identificacion
           && !(digitos.length >= 6 && digitos === digitosDe(destino.identificacion))) {
-          throw new Error(`tb_login#${login.camp_fk_persona}: correo asociado a otra identificación. Corrija el origen antes de importar.`);
+          if (!tolerarConflictos) throw new Error(`tb_login#${login.camp_fk_persona}: correo asociado a otra identificación. Corrija el origen antes de importar.`);
+          destino.conflicto = true;
+          continue;
         }
         fusionarCuenta(destino, extra, true);
         if (email && emailSintetico(destino.email)) {
@@ -715,78 +767,180 @@ async function pasoUsuarios() {
   cuentasImportadas = cuentas;
 }
 
-async function idAuthPorEmail(email) {
-  const q = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1)`, [email]);
-  if (q.rows.length > 1) throw new Error('Supabase Auth contiene correos ambiguos.');
-  return q.rows[0]?.id ?? null;
+function conflictoAcceso() {
+  const error = new Error('La identidad del acceso requiere revisión.');
+  error.code = 'CONFLICTO_ACCESO';
+  return error;
 }
 
-// Crea la identidad de login. Conserva el hash o la clave anterior cuando se puede.
-// Si no, la cuenta queda creada y la persona elige clave en /recuperar.
+function mismaIdentidad(actual, origen) {
+  if (!actual || !origen || actual === origen) return true;
+  const digitos = digitosDe(actual);
+  return digitos.length >= 6 && digitos === digitosDe(origen);
+}
+
+async function idAuthPorEmail(email, usuarioId) {
+  const q = await pool.query(`SELECT id FROM auth.users WHERE lower(email) = lower($1)`, [email]);
+  if (q.rows.length > 1) throw conflictoAcceso();
+  const id = q.rows[0]?.id;
+  if (!id) return null;
+  const propietario = await pool.query('SELECT id FROM usuarios WHERE auth_user_id = $1 AND id <> $2', [id, usuarioId]);
+  if (propietario.rows.length) throw conflictoAcceso();
+  return id;
+}
+
+function claveAleatoria() {
+  // ASCII y menos de 72 bytes, con todas las clases de caracteres requeridas.
+  return `aA1!${crypto.randomBytes(48).toString('base64url')}`;
+}
+
+function requiereNuevaClave(error) {
+  return error?.code === 'weak_password'
+    || /(?:password.*(?:too short|too long|at least|weak|strength|requirements|leaked)|(?:unsupported|invalid|incompatible).*password.?hash|password.?hash.*(?:unsupported|invalid|incompatible))/i.test(error?.message ?? '');
+}
+
+async function crearAcceso(c, secreto) {
+  const atributos = { email: emailDe(c.email), email_confirm: true, user_metadata: { nombre: c.nombre } };
+  let conservo = false;
+  if ((secreto.tipo === 'bcrypt' || secreto.tipo === 'argon') && secreto.hash) {
+    atributos.password_hash = secreto.hash;
+    conservo = true;
+  } else if (secreto.tipo === 'plana' && secreto.clave) {
+    atributos.password = secreto.clave;
+    conservo = true;
+  } else atributos.password = claveAleatoria();
+
+  let respuesta = await supabaseAdmin.auth.admin.createUser(atributos);
+  // Reintentar solo un rechazo explícito de la clave, nunca un error de red,
+  // permisos o configuración. No modificar ninguna identidad ya existente.
+  if (respuesta.error && conservo && requiereNuevaClave(respuesta.error)) {
+    delete atributos.password_hash;
+    atributos.password = claveAleatoria();
+    conservo = false;
+    respuesta = await supabaseAdmin.auth.admin.createUser(atributos);
+  }
+  return { ...respuesta, conservo };
+}
+
+// Cada ejecución audita todos los perfiles del destino. Crear un acceso solo
+// cambia auth_user_id; nunca reactiva, cambia roles ni reimporta un perfil.
 async function crearCuentasAuth(cuentas) {
   const porEmail = new Map(cuentas.map((c) => [c.email, c]));
-  const pendientes = (await pool.query(
-    `SELECT id, email, nombre FROM usuarios
-     WHERE auth_user_id IS NULL AND activo AND email = ANY($1::text[])
-       AND email NOT LIKE '%@legacy.laprotec'`, [cuentas.map((c) => c.email)],
-  )).rows;
-  let ok = 0;
-  let fallo = 0;
-  let conservadas = 0;
-  let restablecer = 0;
-  console.log(`  Creando en Supabase Auth: 0/${pendientes.length}`);
-  for (const c of pendientes) {
-    const cuenta = porEmail.get(c.email.toLowerCase());
-    const secreto = cuenta?.secreto ?? secretoVacio();
-    const ya = await idAuthPorEmail(c.email);
-    if (ya) {
-      await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [ya, c.id]);
-      ok++;
-      resumen.auth.creadas = ok;
-      continue;
+  const todos = (await pool.query(`SELECT id, email, nombre, identificacion, auth_user_id, activo FROM usuarios ORDER BY id`)).rows;
+  const perfiles = SOLO_ACCESOS ? todos : todos.filter((c) => porEmail.has(emailDe(c.email)));
+  const porCorreoDestino = new Map();
+  for (const c of todos) {
+    const email = emailDe(c.email);
+    if (email) porCorreoDestino.set(email, (porCorreoDestino.get(email) ?? 0) + 1);
+  }
+  const acceso = {
+    total: perfiles.length, existentes: 0, inactivas: 0, sinCorreo: 0, sinOrigen: 0,
+    conflictos: 0, elegibles: 0, creadas: 0, enlazadas: 0, pendientes: 0,
+    fallidas: 0, conservadas: 0, restablecer: 0, siguienteId: 0,
+  };
+  if (SOLO_ACCESOS) resumen.accesos = acceso;
+  const pendientes = [];
+  for (const c of perfiles) {
+    const email = emailDe(c.email);
+    const origen = porEmail.get(email);
+    if (c.auth_user_id) acceso.existentes++;
+    else if (!email || emailSintetico(email)) acceso.sinCorreo++;
+    else if (!c.activo) acceso.inactivas++;
+    else if (!origen) acceso.sinOrigen++;
+    else if (origen.conflicto || porCorreoDestino.get(email) > 1 || !mismaIdentidad(c.identificacion, origen.identificacion)) acceso.conflictos++;
+    else {
+      pendientes.push(c);
+      acceso.elegibles++;
     }
-
-    const atributos = {
-      email: c.email,
-      email_confirm: true,
-      user_metadata: { nombre: c.nombre },
-    };
-    let conservo = false;
-    if ((secreto.tipo === 'bcrypt' || secreto.tipo === 'argon') && secreto.hash) {
-      atributos.password_hash = secreto.hash;
-      conservo = true;
-    } else if (secreto.tipo === 'plana' && secreto.clave) {
-      atributos.password = secreto.clave;
-      conservo = true;
-    } else {
-      atributos.password = crypto.randomBytes(24).toString('base64url');
+  }
+  const actualizarResumen = () => {
+    acceso.pendientes = acceso.elegibles - acceso.creadas - acceso.enlazadas;
+    resumen.auth = { creadas: acceso.creadas + acceso.enlazadas, fallidas: acceso.fallidas };
+    resumen.estado = acceso.pendientes || acceso.fallidas || acceso.conflictos || (SOLO_ACCESOS && acceso.sinOrigen)
+      ? 'parcial' : 'completada';
+  };
+  const inicio = Date.now();
+  let intentadas = 0;
+  const lotePendientes = pendientes.filter((c) => Number(c.id) > DESPUES_AUTH);
+  console.log(`  Accesos elegibles: ${pendientes.length}; perfiles ya enlazados: ${acceso.existentes}`);
+  for (const [indice, candidato] of lotePendientes.entries()) {
+    // Reservar dos peticiones de 15 s (clave original y alternativa) y cierre.
+    if (intentadas >= LIMITE_AUTH || Date.now() - inicio + 35_000 >= TIEMPO_AUTH_MS) {
+      acceso.siguienteId = indice ? Number(lotePendientes[indice - 1].id) : DESPUES_AUTH;
+      break;
     }
-
-    const { data, error } = await supabaseAdmin.auth.admin.createUser(atributos);
-    if (error) {
-      const duplicado = /already|registered|duplicate/i.test(error.message);
-      const id = duplicado ? await idAuthPorEmail(c.email) : null;
-      if (id) {
-        await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [id, c.id]);
-        ok++;
-        resumen.auth.creadas = ok;
+    intentadas++;
+    let transaccion = false;
+    try {
+      await pool.query('BEGIN');
+      transaccion = true;
+      await pool.query("SET LOCAL statement_timeout = '15s'");
+      // Protege el mismo perfil entre procesos/instancias. La conexión directa
+      // conserva el bloqueo solo durante esta cuenta, también con pooler.
+      const bloqueo = await pool.query('SELECT pg_try_advisory_xact_lock(736285, hashtext($1)) AS ok', [String(candidato.id)]);
+      if (!bloqueo.rows[0].ok) {
+        await pool.query('ROLLBACK');
+        transaccion = false;
         continue;
       }
-      fallo++;
-      resumen.auth.fallidas = fallo;
-      avisar('auth_fallida', 'No se pudo crear algún acceso en Supabase Auth. Puede reintentar la importación.');
-      continue;
+      const c = (await pool.query(`SELECT id, email, nombre, identificacion, auth_user_id, activo FROM usuarios WHERE id = $1 FOR UPDATE`, [candidato.id])).rows[0];
+      if (!c || !c.activo || emailDe(c.email) !== emailDe(candidato.email)) throw conflictoAcceso();
+      if (c.auth_user_id) {
+        // Otro lote terminó esta cuenta desde que se tomó la instantánea.
+        acceso.elegibles--;
+        acceso.existentes++;
+        await pool.query('COMMIT');
+        transaccion = false;
+        continue;
+      }
+      const cuenta = porEmail.get(emailDe(c.email));
+      if (!cuenta || cuenta.conflicto || !mismaIdentidad(c.identificacion, cuenta.identificacion)) throw conflictoAcceso();
+      let id = await idAuthPorEmail(c.email, c.id);
+      let creada = false;
+      let conservo = false;
+      if (!id) {
+        const respuesta = await crearAcceso(c, cuenta.secreto ?? secretoVacio());
+        if (respuesta.error) {
+          const duplicado = ['email_exists', 'user_already_exists'].includes(respuesta.error.code)
+            || /already|registered|duplicate/i.test(respuesta.error.message);
+          id = duplicado ? await idAuthPorEmail(c.email, c.id) : null;
+          if (!id) throw new Error('No se pudo crear el acceso.');
+        } else {
+          // También detecta configuración Auth/Postgres de proyectos distintos
+          // cuando se usan dominios propios y no se puede comparar el project ref.
+          const idDestino = await idAuthPorEmail(c.email, c.id);
+          if (!respuesta.data?.user?.id || idDestino !== respuesta.data.user.id) throw conflictoAcceso();
+          id = idDestino;
+          creada = true;
+          conservo = respuesta.conservo;
+        }
+      }
+      const enlace = await pool.query(`UPDATE usuarios SET auth_user_id = $1
+        WHERE id = $2 AND auth_user_id IS NULL AND activo AND email = $3`, [id, c.id, c.email]);
+      if (enlace.rowCount !== 1) throw conflictoAcceso();
+      await pool.query('COMMIT');
+      transaccion = false;
+      if (creada) {
+        acceso.creadas++;
+        if (conservo) acceso.conservadas++;
+        else acceso.restablecer++;
+      } else acceso.enlazadas++;
+    } catch (error) {
+      if (transaccion) await pool.query('ROLLBACK').catch(() => {});
+      if (error.code === 'CONFLICTO_ACCESO' || error.code === '23505') {
+        acceso.elegibles--;
+        acceso.conflictos++;
+      } else acceso.fallidas++;
     }
-    await pool.query(`UPDATE usuarios SET auth_user_id = $1 WHERE id = $2`, [data.user.id, c.id]);
-    ok++;
-    resumen.auth.creadas = ok;
-    if (conservo) conservadas++;
-    else restablecer++;
-    if (ok % 50 === 0) console.log(`  Creando en Supabase Auth: ${ok}/${pendientes.length}`);
+    actualizarResumen();
+    if (intentadas % 50 === 0) console.log(`  Accesos procesados: ${intentadas}/${pendientes.length}`);
   }
-  resumen.auth = { creadas: ok, fallidas: fallo };
-  if (fallo) resumen.estado = 'parcial';
-  console.log(`  Auth: ${ok} ok, ${fallo} fallos, ${conservadas} con su clave, ${restablecer} deben restablecerla`);
+  actualizarResumen();
+  if (acceso.conflictos) avisar('auth_conflicto', 'Perfiles con identidades o correos en conflicto requieren revisión; no se cambió su acceso.', acceso.conflictos);
+  if (SOLO_ACCESOS && acceso.sinOrigen) avisar('auth_sin_origen', 'Perfiles sin acceso y sin coincidencia en el origen se conservaron; revise su procedencia.', acceso.sinOrigen);
+  if (acceso.fallidas) avisar('auth_fallida', 'No se pudieron completar algunos accesos. Reintente el lote; si persiste, revise la configuración de Auth.', acceso.fallidas);
+  if (acceso.pendientes) avisar('auth_pendiente', 'Quedan accesos elegibles pendientes. Continúe con otro lote.', acceso.pendientes);
+  console.log(`  Auth: ${acceso.creadas} creadas, ${acceso.enlazadas} enlazadas, ${acceso.fallidas} fallos, ${acceso.pendientes} pendientes; ${acceso.conservadas} con su clave, ${acceso.restablecer} deben restablecerla`);
 }
 
 // ----------------------------------------------------------------------------
@@ -1012,7 +1166,7 @@ async function pasoResenas() {
 console.log('=== Migración legacy MySQL → v2 Postgres ===');
 console.log(`Fuente:  ${mysqlCfg.user}@${mysqlCfg.host}:${mysqlCfg.port}/${mysqlCfg.database}`);
 console.log(`Destino: ${seco ? 'SIMULACIÓN (ROLLBACK al terminar)' : 'Postgres vía DATABASE_URL'}`);
-console.log(`Pasos:   ${PASOS.join(', ')}${CREAR_ACCOUNTS ? ' + crear-accounts' : ''}`);
+console.log(`Pasos:   ${SOLO_ACCESOS ? 'solo accesos de perfiles existentes' : PASOS.join(', ')}${CREAR_ACCOUNTS ? ' + crear-accounts' : ''}`);
 
 let cuentasImportadas = [];
 let confirmado = false;
@@ -1025,22 +1179,29 @@ try {
   if (!bloqueo.rows[0].ok) throw new Error('Ya hay una importación en curso en la base de datos.');
   await pool.query("SET LOCAL statement_timeout = '60s'");
   await mysqlRows('SET time_zone = ?', [zonaLegacy]);
-  if (!(await mysqlTableExists('tb_inquilinos_no_nacionales'))) {
-    throw new Error('El origen no contiene la tabla de fichas tb_inquilinos_no_nacionales. Revise la base de datos seleccionada.');
+  if (SOLO_ACCESOS) {
+    if (!(await mysqlTableExists('users')) && !(await mysqlTableExists('tb_login'))) {
+      throw new Error('El origen no contiene las tablas de accesos users ni tb_login. Revise la base de datos seleccionada.');
+    }
+    cuentasImportadas = await cargarCuentasLegacy(true);
+  } else {
+    if (!(await mysqlTableExists('tb_inquilinos_no_nacionales'))) {
+      throw new Error('El origen no contiene la tabla de fichas tb_inquilinos_no_nacionales. Revise la base de datos seleccionada.');
+    }
+    if (!(await mysqlTableExists('tb_persona'))) {
+      avisar('sin_tb_persona', 'El origen no contiene tb_persona. Las personas se obtuvieron de las fichas y solicitantes disponibles; los accesos y autores sin identidad comprobable se conservaron como perfiles legacy inactivos.');
+    }
+    for (const tabla of Object.keys(COLUMNAS_ORIGEN)) await mysqlAll(tabla);
+    if (PASOS.includes('lookups')) await pasoLookups();
+    if (PASOS.includes('personas')) await pasoPersonas();
+    if (PASOS.includes('usuarios')) await pasoUsuarios();
+    if (PASOS.includes('resenas')) await pasoResenas();
   }
-  if (!(await mysqlTableExists('tb_persona'))) {
-    avisar('sin_tb_persona', 'El origen no contiene tb_persona. Las personas se obtuvieron de las fichas y solicitantes disponibles; los accesos y autores sin identidad comprobable se conservaron como perfiles legacy inactivos.');
-  }
-  for (const tabla of Object.keys(COLUMNAS_ORIGEN)) await mysqlAll(tabla);
-  if (PASOS.includes('lookups')) await pasoLookups();
-  if (PASOS.includes('personas')) await pasoPersonas();
-  if (PASOS.includes('usuarios')) await pasoUsuarios();
-  if (PASOS.includes('resenas')) await pasoResenas();
   resumen.personas = personasProcesadas.size;
   if (CREAR_ACCOUNTS) await pool.query('SELECT id, email FROM auth.users LIMIT 0');
   await pool.query(seco ? 'ROLLBACK' : 'COMMIT');
   confirmado = !seco;
-  if (confirmado) console.log('Datos confirmados en Postgres.');
+  if (confirmado) console.log(SOLO_ACCESOS ? 'Perfiles conservados. Completando accesos.' : 'Datos confirmados en Postgres.');
   // Auth es un servicio externo: se ejecuta después del COMMIT, es reintentable
   // y nunca se presenta un fallo suyo como una importación completa.
   if (CREAR_ACCOUNTS) await crearCuentasAuth(cuentasImportadas);
@@ -1051,7 +1212,9 @@ try {
   if (conectado && !confirmado) await pool.query('ROLLBACK').catch(() => {});
   if (confirmado) {
     resumen.estado = 'parcial';
-    avisar('auth_interrumpida', 'Los datos se guardaron, pero la creación de accesos quedó incompleta. Reintente la importación.');
+    avisar('auth_interrumpida', SOLO_ACCESOS
+      ? 'La creación de accesos quedó incompleta. Reintente el lote; los perfiles se conservaron.'
+      : 'Los datos se guardaron, pero la creación de accesos quedó incompleta. Reintente la importación.');
     process.exitCode = 2;
     console.log('\n=== Resumen ===');
     console.log(JSON.stringify(resumen, null, 2));

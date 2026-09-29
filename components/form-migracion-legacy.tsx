@@ -17,11 +17,12 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
   const [estado, action, pendiente] = useActionState(migrarLegacyAction, undefined)
   const formRef = useRef<HTMLFormElement>(null)
   const resultadoRef = useRef<HTMLDivElement>(null)
+  const origenLote = useRef<string | null>(null)
   const [modo, setModo] = useState('')
 
   useEffect(() => {
     if (!estado?.error && !estado?.mensaje) return
-    if (estado.tipo === 'importacion' && estado.resumen) {
+    if (estado.resumen && (estado.tipo === 'importacion' || (estado.tipo === 'usuarios' && estado.resumen.accesos?.pendientes === 0))) {
       const clave = formRef.current?.elements.namedItem('password')
       if (clave instanceof HTMLInputElement) clave.value = ''
     }
@@ -33,15 +34,29 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
     if (pendiente) return
     const submitter = (event.nativeEvent as SubmitEvent).submitter
     const datos = new FormData(event.currentTarget, submitter)
+    const origen = JSON.stringify(['host', 'port', 'database', 'user'].map((campo) => datos.get(campo)))
+    if (datos.get('modo') === 'usuarios') {
+      datos.set('despuesDeAuth', String(origenLote.current === origen ? estado?.resumen?.accesos?.siguienteId ?? 0 : 0))
+      origenLote.current = origen
+    } else origenLote.current = null
     setModo(String(datos.get('modo') ?? ''))
     startTransition(() => action(datos))
   }
 
   const resumen = estado?.resumen
   const simulacion = resumen?.estado === 'simulacion'
+  const soloUsuarios = estado?.tipo === 'usuarios'
+  const accesos = resumen?.accesos
   const totalLookups = resumen
     ? Object.values(resumen.lookups).reduce((total, cantidad) => total + cantidad, 0)
     : 0
+  const textoPendiente = modo === 'probar'
+    ? 'Comprobando la conexión al sistema anterior…'
+    : modo === 'simular'
+      ? 'Validando los datos y el destino. La simulación puede tardar unos minutos.'
+      : modo === 'usuarios'
+        ? 'Revisando usuarios importados y creando el siguiente lote de accesos. Espere el resultado para continuar.'
+        : 'Importando los datos. Mantenga esta página abierta hasta ver el resultado.'
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
@@ -92,7 +107,7 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
                 <span>
                   <span className="block font-semibold">Crear accesos en Supabase Auth</span>
                   <span className="mt-1 block leading-6 text-ink-soft">
-                    Además de perfiles y reseñas, crea el inicio de sesión para las cuentas activas con correo real.
+                    Solo aplica a Importar datos: además de perfiles y reseñas, crea el inicio de sesión de las cuentas activas con correo real.
                     {!authDisponible && ' Falta configurar la URL o la clave secreta de Supabase.'}
                   </span>
                 </span>
@@ -108,8 +123,8 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
           <label className="flex items-start gap-3 rounded-lg bg-[var(--alerta-soft)] p-4 text-sm">
             <input type="checkbox" name="confirmar" value="si" className="mt-1" />
             <span>
-              <span className="block font-semibold">Confirmo la importación al registro actual</span>
-              <span className="mt-1 block leading-6 text-ink-soft">El proceso actualiza coincidencias y agrega lo que falte. Si falla la importación de datos, se revierte el lote completo. Los accesos se crean después.</span>
+              <span className="block font-semibold">Confirmo la operación en el registro actual</span>
+              <span className="mt-1 block leading-6 text-ink-soft">Importar datos agrega o actualiza registros. Crear accesos pendientes habilita el inicio de sesión de usuarios ya importados.</span>
             </span>
           </label>
         </fieldset>
@@ -125,8 +140,36 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
             {pendiente && modo === 'importar' ? 'Importando…' : '3. Importar datos'}
           </button>
         </div>
+
+        <div className="space-y-3 border-t border-line pt-5">
+          <div>
+            <h3 className="text-base font-semibold">Accesos de usuarios ya importados</h3>
+            <p className="mt-1 text-sm leading-6 text-ink-soft">
+              Revisa los perfiles del registro actual y crea accesos para las cuentas activas con correo real
+              que coincidan con el sistema anterior. Conserva las claves compatibles e indica cuántas necesitan restablecerse.
+              Las cuentas que ya tienen acceso conservan su clave actual. Las cuentas inactivas y los autores sin correo
+              se muestran por separado.
+            </p>
+            <p className="text-sm leading-6 text-ink-soft">
+              Use la conexión y la confirmación de arriba. Cada lote procesa hasta 100 cuentas.
+              Si quedan pendientes, repita este paso: continúa con las que faltan. El resultado muestra el avance
+              y las cuentas que necesitan revisión. Los perfiles y reseñas importados se conservan.
+            </p>
+          </div>
+          <button
+            type="submit"
+            name="modo"
+            value="usuarios"
+            disabled={pendiente || !destinoDisponible || !authDisponible}
+            className="btn-primario w-full sm:w-auto"
+            aria-describedby={[!destinoDisponible ? 'destino-no-disponible' : '', !authDisponible ? 'auth-no-disponible' : ''].filter(Boolean).join(' ') || undefined}
+          >
+            {pendiente && modo === 'usuarios' ? 'Creando accesos…' : 'Crear accesos pendientes'}
+          </button>
+          {!authDisponible && <p id="auth-no-disponible" className="text-sm text-ink-soft">Para crear accesos faltan la URL y la clave secreta de Supabase en el servidor.</p>}
+        </div>
         {!destinoDisponible && <p id="destino-no-disponible" className="text-sm text-ink-soft">Puede probar la conexión. La simulación y la importación estarán disponibles cuando se configure el destino.</p>}
-        {pendiente && <p role="status" className="aviso">{modo === 'probar' ? 'Comprobando la conexión al sistema anterior…' : modo === 'simular' ? 'Validando los datos y el destino. La simulación puede tardar unos minutos.' : 'Importando los datos. Mantenga esta página abierta hasta ver el resultado.'}</p>}
+        {pendiente && <p role="status" className="aviso">{textoPendiente}</p>}
       </form>
 
       <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
@@ -169,7 +212,28 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
               </dl>
             )}
 
-            {resumen && (
+            {accesos && soloUsuarios && (
+              <>
+                <p className="text-sm leading-6 text-ink-soft">El conteo incluye todos los perfiles del registro actual. Los autores sin correo conservan sus reseñas; no son cuentas habilitadas para entrar.</p>
+                <dl className="grid grid-cols-2 gap-2">
+                  <DatoDiagnostico etiqueta="Perfiles revisados" valor={accesos.total} />
+                  <DatoDiagnostico etiqueta="Ya tenían acceso" valor={accesos.existentes} />
+                  <DatoDiagnostico etiqueta="Sin correo utilizable" valor={accesos.sinCorreo} />
+                  <DatoDiagnostico etiqueta="Cuentas inactivas" valor={accesos.inactivas} />
+                  <DatoDiagnostico etiqueta="Sin coincidencia en origen" valor={accesos.sinOrigen} />
+                  <DatoDiagnostico etiqueta="Identidad por revisar" valor={accesos.conflictos} />
+                  <DatoDiagnostico etiqueta="Creados en este lote" valor={accesos.creadas} />
+                  <DatoDiagnostico etiqueta="Accesos existentes enlazados" valor={accesos.enlazadas} />
+                  <DatoDiagnostico etiqueta="Pendientes" valor={accesos.pendientes} />
+                  <DatoDiagnostico etiqueta="Fallidos en este lote" valor={accesos.fallidas} />
+                  <DatoDiagnostico etiqueta="Claves conservadas en este lote" valor={accesos.conservadas} />
+                  <DatoDiagnostico etiqueta="Deben elegir clave nueva" valor={accesos.restablecer} />
+                </dl>
+                <p className="text-sm leading-6 text-ink-soft">Quienes deban elegir una clave nueva pueden usar Entrar → ¿Olvidó su clave? Las claves de accesos ya existentes no se cambian.</p>
+              </>
+            )}
+
+            {resumen && !soloUsuarios && (
               <>
                 {simulacion && <p className="text-sm leading-6 text-ink-soft">Estas cifras muestran lo que haría la importación. La simulación no guarda datos ni originales.</p>}
                 <dl className="grid grid-cols-2 gap-2">

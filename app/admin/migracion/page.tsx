@@ -14,8 +14,8 @@ export default function MigracionLegacyPage() {
         <p className="eyebrow mb-3">Administración · Migración</p>
         <h1 className="text-3xl sm:text-4xl">Traer datos del sistema anterior</h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-          Conecte la base MySQL anterior y copie catálogos, personas, usuarios y reseñas al registro actual.
-          La importación puede tardar algunos minutos.
+          Conecte la base MySQL anterior. Puede copiar catálogos, personas, usuarios y reseñas,
+          o completar los accesos de usuarios ya importados. La clave de MySQL se usa en esta operación y no se guarda.
         </p>
       </header>
 

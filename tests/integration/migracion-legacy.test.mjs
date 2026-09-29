@@ -7,6 +7,7 @@ import test from 'node:test';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { existeTablaLegacy } from '../../scripts/legacy-tablas.mjs';
+import { resumenDesdeSalida } from '../../lib/resultado-migracion-legacy.ts';
 
 const exec = promisify(execFile);
 const docker = async (...args) => (await exec('docker', args)).stdout.trim();
@@ -78,7 +79,7 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
     try { r = { code: 0, ...await exec(process.execPath, ['scripts/migrar-legacy.mjs', ...args], { env: { ...env, ...overrides }, maxBuffer: 2 * 1024 * 1024 }) }; }
     catch (error) { r = error; }
     const marker = '=== Resumen ===';
-    return { ...r, resumen: r.stdout.includes(marker) ? JSON.parse(r.stdout.split(marker).pop()) : null };
+    return { ...r, resumen: r.stdout.includes(marker) ? resumenDesdeSalida(r.stdout, r.code) : null };
   };
   const snapshot = async (db = target) => (await db.query(`SELECT jsonb_build_object(
     'personas',(SELECT jsonb_agg(p ORDER BY id) FROM personas p),
@@ -521,5 +522,262 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       assert.equal((await target.query("SELECT count(*)::int AS n FROM usuarios WHERE auth_user_id IS NOT NULL")).rows[0].n, 3);
       assert.deepEqual(requests.sort(), ['one@example.test', 'two@example.test', 'two@example.test', 'unique@example.test']);
     } finally { await new Promise((resolve) => server.close(resolve)); }
+  });
+
+  await t.test('access-only provisioning reconciles imported profiles without overwriting current data or passwords', async () => {
+    await target.query('CREATE DATABASE import_access_only');
+    const databaseUrl = `postgres://postgres@127.0.0.1:${pgPort}/import_access_only`;
+    const variant = new pg.Client({ connectionString: databaseUrl });
+    await variant.connect();
+    const extra = [
+      ['linked', '810000001', 'legacy-linked'],
+      ['collision', '810000002', 'legacy-collision'],
+      ['conflict', '810000003', 'legacy-conflict'],
+      ['weak', '810000004', 'legacy-weak'],
+      ['detached', '810000005', 'legacy-detached'],
+      ['failed', '810000006', 'legacy-failed'],
+    ];
+    const requests = [];
+    let rejectFailure = true;
+    const server = createServer(async (req, res) => {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      requests.push(body);
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-Supabase-Api-Version', '2024-01-01');
+      if (body.email === 'weak@example.test' && body.password === 'legacy-weak') {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ code: 'weak_password', msg: 'Password should contain a number and a symbol.' }));
+        return;
+      }
+      if (body.email === 'failed@example.test' && rejectFailure) {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ code: 'email_address_invalid', msg: 'Fixture rejection unrelated to password.' }));
+        return;
+      }
+      const id = `10000000-0000-4000-8000-${String(requests.length).padStart(12, '0')}`;
+      await variant.query('INSERT INTO auth.users (id,email,encrypted_password) VALUES ($1,$2,$3)', [id, body.email, body.password_hash ?? body.password]);
+      res.end(JSON.stringify({ id, email: body.email, aud: 'authenticated', role: 'authenticated' }));
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const authEnv = { DATABASE_URL: databaseUrl, SUPABASE_URL: `http://127.0.0.1:${server.address().port}`, SUPABASE_SECRET_KEY: 'test-only-key' };
+    const args = ['--solo-accesos', '--crear-accounts', '--limite-auth=100', '--tiempo-auth=150'];
+    let sourceTablesRenamed = false;
+    try {
+      await variant.query(await readFile('schema.sql', 'utf8'));
+      await variant.query(await readFile('db/seeds.sql', 'utf8'));
+      await variant.query('CREATE SCHEMA auth; CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$SELECT NULL::text$$; CREATE TABLE auth.users (id uuid PRIMARY KEY, email text UNIQUE, encrypted_password text)');
+      for (let i = 0; i < extra.length; i++) {
+        const [name, document, password] = extra[i];
+        await source.query(`INSERT INTO users
+          (user_id,firstname,lastname,document,telephone,age,status,date_added,img_user,observaciones,access,id_resenador,resenador,nombre_completo,user_email,user_password_hash)
+          VALUES (?,?,'Importado',?,'',50,'activo','2020-01-01','','','propietario','','','',?,?)`,
+        [20000 + i, name, document, `${name}@example.test`, password]);
+      }
+      const imported = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(imported.code, 0, imported.stderr);
+      await variant.query(`UPDATE usuarios SET activo=false,rol='inquilino',nombre='Inactivo actual' WHERE email='one@example.test';
+        UPDATE usuarios SET rol='admin',nombre='Administrador actual',telefono='8888-8888' WHERE email='two@example.test';
+        UPDATE usuarios SET identificacion='819999999' WHERE email='conflict@example.test'`);
+      const currentAuth = '20000000-0000-4000-8000-000000000001';
+      const existingAuth = '20000000-0000-4000-8000-000000000002';
+      const occupiedAuth = '20000000-0000-4000-8000-000000000003';
+      await variant.query(`INSERT INTO auth.users VALUES
+        ($1,'unique@example.test','current-password-hash'),
+        ($2,'linked@example.test','existing-password-hash'),
+        ($3,'collision@example.test','occupied-password-hash')`, [currentAuth, existingAuth, occupiedAuth]);
+      await variant.query("UPDATE usuarios SET auth_user_id=$1 WHERE email='unique@example.test'", [currentAuth]);
+      await variant.query("INSERT INTO usuarios (email,nombre,auth_user_id) VALUES ('auth-owner@example.test','Current owner',$1)", [occupiedAuth]);
+      // This profile was part of the completed import, but is absent from the
+      // source now. It must be reported, never silently treated as provisioned.
+      await source.query("DELETE FROM users WHERE user_email='detached@example.test'");
+      // A source account added after that import must not create a new profile.
+      await source.query(`INSERT INTO users
+        (user_id,firstname,lastname,document,telephone,age,status,date_added,img_user,observaciones,access,id_resenador,resenador,nombre_completo,user_email,user_password_hash)
+        VALUES (20010,'New','Source','810000010','',50,'activo','2020-01-01','','','propietario','','','','source-only@example.test','source-password')`);
+      const before = await snapshot(variant);
+      const oldAuth = (await variant.query('SELECT * FROM auth.users ORDER BY id')).rows;
+      // No catalog or review table is needed to finish access for imported users.
+      await source.query('RENAME TABLE tb_inquilinos_no_nacionales TO access_fichas_fuera, tb_paises TO access_paises_fuera');
+      sourceTablesRenamed = true;
+      const first = await run(args, authEnv);
+      assert.equal(first.code, 2, first.stderr);
+      const coverage = first.resumen.accesos;
+      assert.equal(coverage.total, before.usuarios.length);
+      assert.equal(coverage.total, coverage.existentes + coverage.inactivas + coverage.sinCorreo + coverage.sinOrigen + coverage.conflictos + coverage.elegibles);
+      assert.equal(coverage.sinOrigen, 4, 'the detached imported profile and three unrelated seed profiles are reported');
+      assert.equal(coverage.conflictos, 2);
+      assert.equal(coverage.enlazadas, 1);
+      assert.equal(coverage.creadas, 2);
+      assert.equal(coverage.fallidas, 1);
+      assert.equal(coverage.pendientes, 1);
+      assert.equal(coverage.conservadas, 1);
+      assert.equal(coverage.restablecer, 1);
+      assert.equal(first.resumen.personas, 0);
+      assert.equal(first.resumen.usuarios, 0);
+      assert.equal(first.resumen.resenas, 0);
+      const after = await snapshot(variant);
+      const withoutAccess = (s) => ({
+        ...s,
+        usuarios: s.usuarios.map((u) => Object.fromEntries(Object.entries(u).filter(([key]) => !['auth_user_id', 'actualizado_en'].includes(key)))),
+      });
+      assert.deepEqual(withoutAccess(after), withoutAccess(before), 'only auth links and their update timestamp may change');
+      assert.deepEqual((await variant.query('SELECT * FROM auth.users WHERE id=ANY($1::uuid[]) ORDER BY id', [[currentAuth, existingAuth, occupiedAuth]])).rows, oldAuth, 'existing Auth credentials stay intact');
+      assert.equal(after.usuarios.find((u) => u.email === 'linked@example.test').auth_user_id, existingAuth);
+      assert.equal(after.usuarios.find((u) => u.email === 'collision@example.test').auth_user_id, null);
+      assert.equal(after.usuarios.find((u) => u.email === 'one@example.test').auth_user_id, null);
+      assert.equal(after.usuarios.some((u) => u.email === 'source-only@example.test'), false);
+      assert.deepEqual(requests.map((r) => r.email).sort(), ['failed@example.test', 'two@example.test', 'weak@example.test', 'weak@example.test']);
+      const weakRequests = requests.filter((r) => r.email === 'weak@example.test');
+      assert.equal(weakRequests[0].password, 'legacy-weak');
+      assert.notEqual(weakRequests[1].password, 'legacy-weak');
+      assert.ok(weakRequests[1].password.length >= 32);
+      assert.equal(weakRequests[1].password_hash, undefined);
+
+      rejectFailure = false;
+      const requestCount = requests.length;
+      const retry = await run(args, authEnv);
+      assert.equal(retry.resumen.accesos.creadas, 1);
+      assert.equal(retry.resumen.accesos.pendientes, 0);
+      assert.equal(retry.resumen.accesos.fallidas, 0);
+      assert.deepEqual(requests.slice(requestCount).map((r) => r.email), ['failed@example.test'], 'retries skip every successfully linked account');
+      assert.deepEqual(withoutAccess(await snapshot(variant)), withoutAccess(before));
+    } finally {
+      if (sourceTablesRenamed) await source.query('RENAME TABLE access_fichas_fuera TO tb_inquilinos_no_nacionales, access_paises_fuera TO tb_paises');
+      await source.query('DELETE FROM users WHERE user_id BETWEEN 20000 AND 20010');
+      await new Promise((resolve) => server.close(resolve));
+      await variant.end();
+      await target.query('DROP DATABASE import_access_only');
+    }
+  });
+
+  await t.test('access-only batches advance through more than 100 already imported users and refuse a missing account source', async () => {
+    await target.query('CREATE DATABASE import_access_batches');
+    const databaseUrl = `postgres://postgres@127.0.0.1:${pgPort}/import_access_batches`;
+    const variant = new pg.Client({ connectionString: databaseUrl });
+    await variant.connect();
+    const requests = [];
+    const rejectedEmails = new Set();
+    const server = createServer(async (req, res) => {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      requests.push(body.email);
+      res.setHeader('Content-Type', 'application/json');
+      if (rejectedEmails.has(body.email)) {
+        res.statusCode = 422;
+        res.end(JSON.stringify({ error_code: 'email_address_invalid', msg: 'Persistent fixture rejection.' }));
+        return;
+      }
+      const id = `30000000-0000-4000-8000-${String(requests.length).padStart(12, '0')}`;
+      await variant.query('INSERT INTO auth.users VALUES ($1,$2)', [id, body.email]);
+      res.end(JSON.stringify({ id, email: body.email, aud: 'authenticated', role: 'authenticated' }));
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const authEnv = { DATABASE_URL: databaseUrl, SUPABASE_URL: `http://127.0.0.1:${server.address().port}`, SUPABASE_SECRET_KEY: 'test-only-key' };
+    const args = ['--solo-accesos', '--crear-accounts', '--limite-auth=100', '--tiempo-auth=150'];
+    let sourceAccountsRenamed = false;
+    try {
+      await variant.query(await readFile('schema.sql', 'utf8'));
+      await variant.query(await readFile('db/seeds.sql', 'utf8'));
+      await variant.query('CREATE SCHEMA auth; CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$SELECT NULL::text$$; CREATE TABLE auth.users (id uuid PRIMARY KEY, email text UNIQUE)');
+      const rows = Array.from({ length: 105 }, (_, i) => [30000 + i, `Batch ${i}`, String(820000000 + i), `batch-${i}@example.test`]);
+      for (const [id, name, document, email] of rows) {
+        await source.query(`INSERT INTO users
+          (user_id,firstname,lastname,document,telephone,age,status,date_added,img_user,observaciones,access,id_resenador,resenador,nombre_completo,user_email,user_password_hash)
+          VALUES (?,?,'Importado',?,'',50,'activo','2020-01-01','','','propietario','','','',?,'batch-password')`, [id, name, document, email]);
+      }
+      const imported = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(imported.code, 0, imported.stderr);
+      await variant.query("UPDATE usuarios SET activo=false WHERE email IN ('admin@laprotec.test','propietario@laprotec.test','inquilino@laprotec.test')");
+      const beforeProvisioning = await snapshot(variant);
+      const mismatchedProject = await run(args, {
+        ...authEnv,
+        SUPABASE_URL: 'https://aaaaaaaaaaaaaaaaaaaa.supabase.co',
+        DATABASE_URL: 'postgresql://postgres.bbbbbbbbbbbbbbbbbbbb:test@aws-0-us-east-1.pooler.supabase.com:5432/postgres',
+      });
+      assert.notEqual(mismatchedProject.code, 0);
+      assert.match(mismatchedProject.stderr, /proyectos distintos/);
+      assert.equal(requests.length, 0);
+      assert.deepEqual(await snapshot(variant), beforeProvisioning);
+      await variant.query('SELECT pg_advisory_lock(736284,1)');
+      try {
+        const locked = await run(args, authEnv);
+        assert.notEqual(locked.code, 0);
+        assert.match(locked.stderr, /importación en curso/);
+        assert.equal(requests.length, 0);
+      } finally { await variant.query('SELECT pg_advisory_unlock(736284,1)'); }
+      const shortDeadline = await run(['--solo-accesos', '--crear-accounts', '--limite-auth=100', '--tiempo-auth=1'], authEnv);
+      assert.equal(shortDeadline.code, 2, shortDeadline.stderr);
+      assert.equal(shortDeadline.resumen.accesos.pendientes, 108);
+      assert.equal(shortDeadline.resumen.accesos.creadas, 0);
+      assert.equal(shortDeadline.resumen.accesos.fallidas, 0);
+      assert.equal(requests.length, 0, 'insufficient deadline returns remaining work before calling Auth');
+      assert.deepEqual(await snapshot(variant), beforeProvisioning);
+      const first = await run(args, authEnv);
+      assert.equal(first.code, 2, first.stderr);
+      assert.equal(first.resumen.accesos.elegibles, 108);
+      assert.equal(first.resumen.accesos.creadas, 100);
+      assert.equal(first.resumen.accesos.pendientes, 8);
+      assert.equal(first.resumen.accesos.fallidas, 0);
+      assert.ok(first.resumen.accesos.siguienteId > 0);
+      assert.equal(requests.length, 100);
+      const second = await run([...args, `--despues-auth=${first.resumen.accesos.siguienteId}`], authEnv);
+      assert.equal(second.code, 0, second.stderr);
+      assert.equal(second.resumen.accesos.existentes, 100);
+      assert.equal(second.resumen.accesos.creadas, 8);
+      assert.equal(second.resumen.accesos.pendientes, 0);
+      assert.equal(second.resumen.accesos.siguienteId, 0);
+      assert.equal(requests.length, 108);
+      assert.equal(new Set(requests).size, 108, 'already completed identities are never created again');
+      const completed = await snapshot(variant);
+      const third = await run(args, authEnv);
+      assert.equal(third.code, 0, third.stderr);
+      assert.equal(third.resumen.accesos.creadas, 0);
+      assert.equal(third.resumen.accesos.elegibles, 0);
+      assert.equal(requests.length, 108);
+      assert.deepEqual(await snapshot(variant), completed);
+
+      // Re-open only three disposable fixture accounts. Two permanent failures
+      // must not consume every future batch and starve the valid account after them.
+      const lastEmails = ['batch-102@example.test', 'batch-103@example.test', 'batch-104@example.test'];
+      await variant.query('UPDATE usuarios SET auth_user_id=NULL WHERE email=ANY($1::text[])', [lastEmails]);
+      await variant.query('DELETE FROM auth.users WHERE email=ANY($1::text[])', [lastEmails]);
+      for (const email of lastEmails.slice(0, 2)) rejectedEmails.add(email);
+      const failureBatchArgs = ['--solo-accesos', '--crear-accounts', '--limite-auth=2', '--tiempo-auth=150'];
+      const blocked = await run(failureBatchArgs, authEnv);
+      assert.equal(blocked.code, 2, blocked.stderr);
+      assert.equal(blocked.resumen.accesos.fallidas, 2);
+      assert.equal(blocked.resumen.accesos.pendientes, 3);
+      assert.ok(blocked.resumen.accesos.siguienteId > 0);
+      const continued = await run([...failureBatchArgs, `--despues-auth=${blocked.resumen.accesos.siguienteId}`], authEnv);
+      assert.equal(continued.code, 2, continued.stderr);
+      assert.equal(continued.resumen.accesos.creadas, 1);
+      assert.equal(continued.resumen.accesos.pendientes, 2);
+      assert.equal(continued.resumen.accesos.siguienteId, 0, 'the end of the scan restarts later retries at the beginning');
+      assert.deepEqual(requests.slice(108), lastEmails, 'continuing after failures reaches the valid later account');
+      rejectedEmails.clear();
+      const recovered = await run(args, authEnv);
+      assert.equal(recovered.code, 0, recovered.stderr);
+      assert.equal(recovered.resumen.accesos.creadas, 2);
+      assert.equal(recovered.resumen.accesos.pendientes, 0);
+      assert.equal(requests.length, 113);
+      const recoveredSnapshot = await snapshot(variant);
+
+      await source.query('RENAME TABLE users TO access_users_fuera, tb_login TO access_login_fuera');
+      sourceAccountsRenamed = true;
+      const missingSource = await run(args, authEnv);
+      assert.notEqual(missingSource.code, 0);
+      assert.equal(requests.length, 113);
+      assert.deepEqual(await snapshot(variant), recoveredSnapshot);
+      assert.match(missingSource.stderr, /users|tb_login|origen/i);
+    } finally {
+      if (sourceAccountsRenamed) await source.query('RENAME TABLE access_users_fuera TO users, access_login_fuera TO tb_login');
+      await source.query('DELETE FROM users WHERE user_id BETWEEN 30000 AND 30104');
+      await new Promise((resolve) => server.close(resolve));
+      await variant.end();
+      await target.query('DROP DATABASE import_access_batches');
+    }
   });
 });

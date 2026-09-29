@@ -160,11 +160,25 @@ reciben notificaciones.
    npm run db:migrar
    # crea las identidades en Supabase Auth y conserva la clave cuando se puede:
    npm run db:migrar -- --crear-accounts
+   # si los perfiles ya se importaron, complete solo los accesos pendientes:
+   npm run db:migrar -- --solo-accesos --crear-accounts
    ```
 
    El módulo **Importar datos** también ofrece **Simular importación**.
    Tanto la simulación como la importación requieren `DATABASE_URL` (o las
    variables de la integración `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL`).
+   **Crear accesos pendientes** revisa todos los perfiles actuales y procesa
+   hasta 100 cuentas por lote, sin volver a importar datos. Necesita la conexión
+   MySQL para comprobar identidades y recuperar las claves compatibles.
+   Conserva los accesos existentes, las cuentas inactivas y los autores sin
+   correo. Muestra por separado las coincidencias ausentes, los conflictos y
+   los fallos. Repita el botón mientras haya pendientes: continúa después del
+   último intento y vuelve al inicio al terminar el recorrido para reintentar
+   los fallos. Recargar la página reinicia el recorrido, pero omite los accesos
+   ya completados. Si una clave anterior no es compatible o Auth la rechaza
+   por su política de contraseñas, esa cuenta debe usar **¿Olvidó su clave?**.
+   Los conteos de claves conservadas y restablecimientos corresponden al lote
+   actual; las cuentas previamente enlazadas conservan su clave de Auth.
    El importador y `db:aplicar` verifican la cadena TLS y el nombre del servidor.
    La CA pública de Supabase se incluye en el despliegue: no necesita una nueva
    variable ni descargarla en cada ejecución. Las URLs con `sslmode=require`

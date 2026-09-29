@@ -15,7 +15,7 @@ import {
 export type EstadoMigracionLegacy = {
   error?: string
   mensaje?: string
-  tipo?: 'conexion' | 'importacion' | 'simulacion'
+  tipo?: 'conexion' | 'importacion' | 'simulacion' | 'usuarios'
   diagnostico?: DiagnosticoLegacy
   resumen?: ResumenMigracion
   observaciones?: string[]
@@ -27,7 +27,8 @@ const SchemaConexion = z.object({
   database: z.string().trim().min(1, 'Escriba la base de datos.').max(128),
   user: z.string().trim().min(1, 'Escriba el usuario.').max(128),
   password: z.string().max(512),
-  modo: z.enum(['probar', 'simular', 'importar']),
+  modo: z.enum(['probar', 'simular', 'importar', 'usuarios']),
+  despuesDeAuth: z.coerce.number().int().min(0).max(2147483647).default(0),
 })
 
 function mensajeConexion(error: unknown) {
@@ -61,12 +62,13 @@ export async function migrarLegacyAction(
     user: formData.get('user'),
     password: formData.get('password') ?? '',
     modo: formData.get('modo'),
+    despuesDeAuth: formData.get('despuesDeAuth') ?? 0,
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Revise los datos de conexión.' }
   }
 
-  const { modo, ...conexion } = parsed.data
+  const { modo, despuesDeAuth, ...conexion } = parsed.data
   try {
     if (modo === 'probar') {
       const diagnostico = await probarConexionLegacy(conexion)
@@ -87,7 +89,7 @@ export async function migrarLegacyAction(
       }
     }
 
-    if (modo === 'importar' && formData.get('confirmar') !== 'si') {
+    if ((modo === 'importar' || modo === 'usuarios') && formData.get('confirmar') !== 'si') {
       return { error: 'Confirme que desea importar los datos antes de continuar.' }
     }
     const destino = configuracionDestinoLegacy()
@@ -97,14 +99,20 @@ export async function migrarLegacyAction(
           'Falta la conexión a Postgres en el servidor. Configure DATABASE_URL o conecte el proyecto de Supabase desde Vercel.',
       }
     }
-    const crearCuentas = modo === 'importar' && formData.get('crearCuentas') === 'on'
+    const crearCuentas = modo === 'usuarios' || (modo === 'importar' && formData.get('crearCuentas') === 'on')
     if (crearCuentas && !destino.auth) {
       return {
         error: 'Para crear accesos faltan la URL y la clave secreta de Supabase en el servidor.',
       }
     }
 
-    const resultado = await ejecutarMigracionLegacy(conexion, crearCuentas, modo === 'simular')
+    const resultado = await ejecutarMigracionLegacy(
+      conexion,
+      crearCuentas,
+      modo === 'simular',
+      modo === 'usuarios' ? 'usuarios' : undefined,
+      modo === 'usuarios' ? despuesDeAuth : 0,
+    )
     if (modo === 'simular') {
       return {
         tipo: 'simulacion',
@@ -117,6 +125,21 @@ export async function migrarLegacyAction(
     revalidatePath('/admin/usuarios')
     revalidatePath('/admin/reportes')
     revalidatePath('/fichas')
+    if (modo === 'usuarios') {
+      const accesos = resultado.resumen.accesos
+      if (!accesos) return { tipo: 'usuarios', error: 'No recibimos el conteo de accesos. Revise el resultado antes de continuar.' }
+      const requiereRevision = accesos.fallidas + accesos.conflictos + accesos.sinOrigen > 0
+        || (resultado.resumen.estado === 'parcial' && accesos.pendientes === 0)
+      return {
+        tipo: 'usuarios',
+        ...(requiereRevision
+          ? { error: 'Lote terminado con cuentas que requieren atención. Revise los conteos y las observaciones antes de continuar.' }
+          : { mensaje: accesos.pendientes > 0
+            ? `Lote terminado. Quedan ${accesos.pendientes} accesos pendientes. Repita Crear accesos pendientes para continuar.`
+            : 'Revisión terminada. Todas las cuentas elegibles tienen acceso. Las cuentas existentes conservan su clave actual.' }),
+        ...resultado,
+      }
+    }
     return {
       tipo: 'importacion',
       ...(resultado.resumen.estado === 'parcial'

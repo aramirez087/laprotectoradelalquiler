@@ -107,10 +107,18 @@ function mensajeSeguro(error: string, datos: ConexionLegacy) {
   return lineas.join(' ') || 'La migración no pudo completarse.'
 }
 
-function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean, simular: boolean): Promise<ResultadoEjecucion> {
+function ejecutarProceso(
+  datos: ConexionLegacy,
+  crearCuentas: boolean,
+  simular: boolean,
+  pasos?: 'usuarios',
+  despuesDeAuth = 0,
+): Promise<ResultadoEjecucion> {
   return new Promise((resolve, reject) => {
     const archivo = path.join(process.cwd(), 'scripts', 'migrar-legacy.mjs')
     const argumentos = [archivo]
+    // Cada petición termina un lote; el vínculo guardado en usuarios permite continuar.
+    if (pasos === 'usuarios') argumentos.push('--solo-accesos', '--limite-auth=100', '--tiempo-auth=150', `--despues-auth=${despuesDeAuth}`)
     if (crearCuentas) argumentos.push('--crear-accounts')
     if (simular) argumentos.push('--seco')
 
@@ -165,7 +173,9 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean, simular: 
       clearTimeout(limite)
       clearTimeout(forzarCierre)
       if (senal) {
-        reject(new Error(salida.includes('Datos confirmados en Postgres.')
+        reject(new Error(pasos === 'usuarios'
+          ? 'El lote de accesos fue interrumpido. Los accesos completados se conservan; repita Crear accesos pendientes para continuar.'
+          : salida.includes('Datos confirmados en Postgres.')
           ? 'Los datos se guardaron, pero la creación de accesos fue interrumpida. Reintente para completar los accesos.'
           : 'La importación fue interrumpida. Puede reintentarla sin duplicar registros; para importaciones grandes use el comando db:migrar desde el servidor.'))
         return
@@ -192,13 +202,19 @@ function ejecutarProceso(datos: ConexionLegacy, crearCuentas: boolean, simular: 
   })
 }
 
-export async function ejecutarMigracionLegacy(datos: ConexionLegacy, crearCuentas: boolean, simular = false) {
+export async function ejecutarMigracionLegacy(
+  datos: ConexionLegacy,
+  crearCuentas: boolean,
+  simular = false,
+  pasos?: 'usuarios',
+  despuesDeAuth = 0,
+) {
   const estadoGlobal = globalThis as GlobalMigracion
   if (estadoGlobal.__migracionLegacyEnCurso) {
     throw new Error('Ya hay una importación en curso en este servidor. Espere a que termine.')
   }
 
-  const ejecucion = ejecutarProceso(datos, crearCuentas, simular)
+  const ejecucion = ejecutarProceso(datos, crearCuentas, simular, pasos, despuesDeAuth)
   estadoGlobal.__migracionLegacyEnCurso = ejecucion
   try {
     return await ejecucion

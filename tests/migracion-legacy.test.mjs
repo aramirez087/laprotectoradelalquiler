@@ -12,6 +12,10 @@ const resumen = {
   claves: { bcrypt: 0, anterior: 0, restablecer: 1 },
   auth: { creadas: 0, fallidas: 0 }, advertencias: [],
 }
+const accesos = {
+  total: 6421, existentes: 3, inactivas: 83, sinCorreo: 6055, sinOrigen: 0, conflictos: 0,
+  elegibles: 280, creadas: 90, enlazadas: 10, pendientes: 180, fallidas: 0, conservadas: 80, restablecer: 10, siguienteId: 100,
+}
 const salida = (r) => `Diagnostic output\n=== Resumen ===\n${JSON.stringify(r)}`
 
 test('import result never turns a failed or malformed result into success', () => {
@@ -46,14 +50,14 @@ test('import result rejects incomplete or invalid archive counts', () => {
   }
 })
 
-function acciones({ activo = true, resultado = { resumen, observaciones: [] }, diagnostico = { tablas: 64, personas: 1, fichas: 7107, usuarios: 6017 }, errorConexion } = {}) {
+function acciones({ activo = true, resultado = { resumen, observaciones: [] }, diagnostico = { tablas: 64, personas: 1, fichas: 7107, usuarios: 6017 }, errorConexion, destino = { baseDatos: true, auth: true } } = {}) {
   const llamadas = []
   const mocks = {
     'next/cache': { revalidatePath: (ruta) => llamadas.push(['revalidate', ruta]) },
     'next/navigation': { unstable_rethrow() {} },
     '@/lib/dal': { requerirRol: async (rol) => { assert.equal(rol, 'admin'); return { activo } } },
     '@/lib/migracion-legacy': {
-      configuracionDestinoLegacy: () => ({ baseDatos: true, auth: true }),
+      configuracionDestinoLegacy: () => destino,
       ejecutarMigracionLegacy: async (...args) => { llamadas.push(['importar', ...args]); return resultado },
       probarConexionLegacy: async () => {
         if (errorConexion) throw errorConexion
@@ -120,6 +124,61 @@ test('real import requires confirmation and an active admin', async () => {
   assert.match((await inactivo.migrarLegacyAction(undefined, formulario('importar', true))).error, /inactiva/)
   assert.equal(inactivo.llamadas.length, 0)
 })
+test('access-only action provisions a bounded batch for imported users and reports remaining accounts', async () => {
+  const a = acciones({ resultado: { resumen: { ...resumen, estado: 'parcial', accesos }, observaciones: [] } })
+  assert.match((await a.migrarLegacyAction(undefined, formulario('usuarios'))).error, /Confirme/)
+  assert.equal(a.llamadas.length, 0)
+
+  const datos = formulario('usuarios', true)
+  datos.delete('crearCuentas')
+  datos.set('despuesDeAuth', '123')
+  const r = await a.migrarLegacyAction(undefined, datos)
+  assert.equal(r.tipo, 'usuarios')
+  assert.equal(r.error, undefined)
+  assert.match(r.mensaje, /180 accesos pendientes/)
+  assert.equal(r.resumen.accesos.total, 6421)
+  const importacion = a.llamadas.find(([tipo]) => tipo === 'importar')
+  assert.equal(importacion[2], true)
+  assert.equal(importacion[3], false)
+  assert.equal(importacion[4], 'usuarios')
+  assert.equal(importacion[5], 123)
+  assert.ok(a.llamadas.some(([tipo, ruta]) => tipo === 'revalidate' && ruta === '/admin/usuarios'))
+})
+
+test('access-only action distinguishes completion from unresolved or failed accounts', async () => {
+  const completas = { ...accesos, existentes: 283, elegibles: 0, creadas: 0, enlazadas: 0, pendientes: 0, conservadas: 0, restablecer: 0, siguienteId: 0 }
+  const ok = acciones({ resultado: { resumen: { ...resumen, accesos: completas }, observaciones: [] } })
+  assert.match((await ok.migrarLegacyAction(undefined, formulario('usuarios', true))).mensaje, /Todas las cuentas elegibles/)
+  for (const pendiente of ['fallidas', 'conflictos', 'sinOrigen']) {
+    const a = acciones({ resultado: { resumen: { ...resumen, estado: 'parcial', accesos: { ...accesos, [pendiente]: 1 } }, observaciones: ['Requiere revisión'] } })
+    const r = await a.migrarLegacyAction(undefined, formulario('usuarios', true))
+    assert.match(r.error, /requieren atención/)
+    assert.equal(r.mensaje, undefined)
+  }
+  const missing = acciones()
+  assert.match((await missing.migrarLegacyAction(undefined, formulario('usuarios', true))).error, /No recibimos el conteo/)
+  const inactive = acciones({ activo: false })
+  assert.match((await inactive.migrarLegacyAction(undefined, formulario('usuarios', true))).error, /inactiva/)
+  assert.equal(inactive.llamadas.length, 0)
+})
+
+test('access coverage survives parsing and inconsistent or falsely complete coverage is rejected', () => {
+  const parcial = { ...resumen, estado: 'parcial', accesos }
+  assert.deepEqual(resumenDesdeSalida(salida(parcial), 2).accesos, accesos)
+  assert.throws(() => resumenDesdeSalida(salida({ ...parcial, estado: 'completada' }), 0), /conteo.*inconsistente/)
+  for (const campo of ['total', 'elegibles', 'creadas', 'enlazadas', 'pendientes', 'conservadas', 'restablecer']) {
+    assert.throws(() => resumenDesdeSalida(salida({ ...parcial, accesos: { ...accesos, [campo]: accesos[campo] + 1 } }), 2), /conteo.*inconsistente/)
+  }
+  assert.throws(() => resumenDesdeSalida(salida({ ...parcial, accesos: { ...accesos, fallidas: 181 } }), 2), /conteo.*inconsistente/)
+})
+
+test('user import refuses to create accounts when Supabase Auth is not configured', async () => {
+  const a = acciones({ destino: { baseDatos: true, auth: false } })
+  const r = await a.migrarLegacyAction(undefined, formulario('usuarios', true))
+  assert.match(r.error, /clave secreta/)
+  assert.equal(a.llamadas.length, 0)
+})
+
 test('partial Auth success retains the summary and refreshes imported data while showing an error', async () => {
   const a = acciones({ resultado: { resumen: { ...resumen, estado: 'parcial' }, observaciones: ['Accesos pendientes'] } })
   const r = await a.migrarLegacyAction(undefined, formulario('importar', true))

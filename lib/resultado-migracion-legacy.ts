@@ -15,6 +15,22 @@ const SchemaResumen = z.object({
   }).optional(),
   claves: z.object({ bcrypt: cantidad, anterior: cantidad, restablecer: cantidad }),
   auth: z.object({ creadas: cantidad, fallidas: cantidad }),
+  accesos: z.object({
+    total: cantidad,
+    existentes: cantidad,
+    inactivas: cantidad,
+    sinCorreo: cantidad,
+    sinOrigen: cantidad,
+    conflictos: cantidad,
+    elegibles: cantidad,
+    creadas: cantidad,
+    enlazadas: cantidad,
+    pendientes: cantidad,
+    fallidas: cantidad,
+    conservadas: cantidad,
+    restablecer: cantidad,
+    siguienteId: cantidad.max(2147483647),
+  }).optional(),
   advertencias: z.array(z.object({
     codigo: z.string(), mensaje: z.string(), cantidad,
   })),
@@ -35,5 +51,13 @@ export function resumenDesdeSalida(salida: string, codigo: number | null): Resum
     || (parsed.data.auth.fallidas > 0 && parsed.data.estado !== 'parcial')) {
     throw new Error('La migración entregó un estado inconsistente.')
   }
+  const accesos = parsed.data.accesos
+  if (accesos && (
+    accesos.total !== accesos.existentes + accesos.inactivas + accesos.sinCorreo + accesos.sinOrigen + accesos.conflictos + accesos.elegibles
+    || accesos.elegibles !== accesos.creadas + accesos.enlazadas + accesos.pendientes
+    || accesos.creadas !== accesos.conservadas + accesos.restablecer
+    || accesos.fallidas > accesos.pendientes
+    || ((accesos.pendientes + accesos.conflictos + accesos.sinOrigen > 0) && parsed.data.estado !== 'parcial')
+  )) throw new Error('La migración entregó un conteo de accesos inconsistente.')
   return parsed.data
 }
