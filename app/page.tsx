@@ -40,7 +40,7 @@ export default async function HomePage() {
           <Link href="/login" className="btn-secundario">Iniciar sesión</Link>
         </div>
         <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
-          Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas totalmente gratis.</strong>
+          Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas gratis.</strong>
         </p>
         <div className="prueba-inicio">
           <Icono nombre="documento" className="h-5 w-5 shrink-0 text-seal" />
