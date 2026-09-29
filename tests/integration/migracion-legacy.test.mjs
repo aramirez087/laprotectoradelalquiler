@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Only disposable containers are accepted. No DATABASE_URL from the shell or
 // .env can select a real database, and every source row below is synthetic.
-test('legacy schema → seeded Postgres: complete, repeatable and atomic', { timeout: 180_000 }, async (t) => {
+test('legacy schema → seeded Postgres: complete, repeatable and atomic', { timeout: 240_000 }, async (t) => {
   const suffix = `${process.pid}-${Date.now()}`;
   const mysqlName = `legacy-test-mysql-${suffix}`;
   const pgName = `legacy-test-pg-${suffix}`;
@@ -160,6 +160,168 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       assert.deepEqual(await snapshot(), antes);
     } finally {
       await source.query('RENAME TABLE fichas_fuera TO tb_inquilinos_no_nacionales');
+    }
+  });
+  await t.test('repeated owner/person fichas keep the latest review and archive every source version', async () => {
+    await target.query('CREATE DATABASE import_duplicate_reviews');
+    const databaseUrl = `postgres://postgres@127.0.0.1:${pgPort}/import_duplicate_reviews`;
+    const variant = new pg.Client({ connectionString: databaseUrl });
+    await variant.connect();
+    const [sourceSettings] = await source.query('SELECT @@session.time_zone AS timeZone');
+    const archived = async () => (await variant.query(`SELECT id_fuente,huella,datos,resena_id,archivado_en
+      FROM privado.resenas_legacy_originales ORDER BY id_fuente,huella`)).rows;
+    const completeSnapshot = async () => ({
+      data: await snapshot(variant),
+      archive: await archived(),
+      tags: (await variant.query('SELECT * FROM resena_etiquetas ORDER BY resena_id,etiqueta_id')).rows,
+      conduct: (await variant.query('SELECT * FROM resena_conductas ORDER BY resena_id,conducta_id')).rows,
+      approvals: (await variant.query('SELECT * FROM privado.aportes_consulta ORDER BY resena_id')).rows,
+    });
+    const canonical = async () => (await variant.query(`SELECT r.* FROM resenas r
+      JOIN personas p ON p.id=r.persona_id WHERE p.identificacion='606060606'`)).rows[0];
+    const relationships = async (id) => ({
+      tags: (await variant.query(`SELECT e.nombre FROM resena_etiquetas re
+        JOIN etiquetas e ON e.id=re.etiqueta_id WHERE re.resena_id=$1 ORDER BY e.nombre`, [id])).rows,
+      conduct: (await variant.query(`SELECT c.nombre FROM resena_conductas rc
+        JOIN conductas c ON c.id=rc.conducta_id WHERE rc.resena_id=$1 ORDER BY c.nombre`, [id])).rows,
+    });
+    try {
+      await variant.query(await readFile('schema.sql', 'utf8'));
+      await variant.query(await readFile('db/seeds.sql', 'utf8'));
+      // An existing installation has the pair constraint but not the new archive.
+      await variant.query('DROP TABLE IF EXISTS privado.resenas_legacy_originales');
+      await source.query("SET time_zone = '-06:00'");
+      await source.query("INSERT INTO tb_conducta VALUES (91,'Conducta de la ficha reciente')");
+      await source.query(`INSERT INTO tb_inquilinos_no_nacionales
+        (camp_id_inquilino,camp_identificacion,camp_nombre,camp_apellido_uno,camp_fk_registrador,
+         camp_comentario_adicional,camp_fecha_registro,camp_estado,camp_fk_etiqueta_uno,camp_fk_conducta,camp_calificacion_text)
+        VALUES (20,'606060606','Luis','Prueba',2,'mismo día, id menor','2022-01-01 12:00:00',1,1,1,'raw field 20'),
+        (21,'606060606','Luis','Prueba',500,'última válida','2022-01-01 12:00:00',1,90,91,'raw field 21'),
+        (22,'606060606','Luis','Prueba',2,'fecha inválida','0000-00-00 00:00:00',1,1,1,'raw field 22'),
+        (23,'606060606','Luis','Prueba',500,'fecha anterior','2021-01-01 12:00:00',1,1,1,'raw field 23')`);
+
+      const before = await snapshot(variant);
+      const dry = await run(['--seco'], { DATABASE_URL: databaseUrl });
+      assert.equal(dry.code, 0, dry.stderr);
+      assert.equal(dry.resumen.resenas, 5);
+      assert.deepEqual(dry.resumen.fichas, { leidas: 9, archivadas: 9, consolidadas: 4, conservadas: 0 });
+      assert.deepEqual(await snapshot(variant), before);
+      assert.equal((await variant.query("SELECT to_regclass('privado.resenas_legacy_originales') AS tabla")).rows[0].tabla, null,
+        'creating the archive is part of the rolled-back dry-run transaction');
+
+      const imported = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(imported.code, 0, imported.stderr);
+      assert.equal(imported.resumen.resenas, 5);
+      assert.deepEqual(imported.resumen.fichas, { leidas: 9, archivadas: 9, consolidadas: 4, conservadas: 0 });
+      const latest = await canonical();
+      assert.equal(latest.id_fuente, 21, 'latest valid date wins, then greatest source ID');
+      assert.equal(latest.comentario, 'última válida');
+      assert.deepEqual(await relationships(latest.id), {
+        tags: [{ nombre: 'Puntual con pagos' }],
+        conduct: [{ nombre: 'Conducta de la ficha reciente' }],
+      });
+      const [raw] = await source.query('SELECT * FROM tb_inquilinos_no_nacionales ORDER BY camp_id_inquilino');
+      const originals = await archived();
+      assert.equal(originals.length, 9);
+      for (const row of raw) {
+        const saved = originals.find((r) => r.id_fuente === row.camp_id_inquilino);
+        assert.ok(saved, `archive source ID ${row.camp_id_inquilino}`);
+        assert.deepEqual(saved.datos, { ...row }, 'archive includes every source column, even unused fields');
+        assert.ok(saved.resena_id, 'each original links to its canonical review');
+      }
+      assert.deepEqual(originals.filter((r) => [14,20,21,22,23].includes(r.id_fuente)).map((r) => r.resena_id),
+        Array(5).fill(latest.id), 'group only after different registradores resolve to the same author');
+      assert.equal((await variant.query(`SELECT count(*)::int AS n FROM (
+        SELECT autor_id,persona_id FROM resenas GROUP BY autor_id,persona_id HAVING count(*)>1
+      ) duplicadas`)).rows[0].n, 0);
+      const committed = await completeSnapshot();
+      const repeated = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(repeated.code, 0, repeated.stderr);
+      assert.deepEqual(await completeSnapshot(), committed, 'unchanged reruns add no archive versions or review IDs');
+
+      await source.query(`UPDATE tb_inquilinos_no_nacionales SET camp_fecha_registro='2024-01-01 12:00:00',
+        camp_comentario_adicional='nuevo último original',camp_calificacion_text='raw field 23 revised'
+        WHERE camp_id_inquilino=23`);
+      const changed = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(changed.code, 0, changed.stderr);
+      const revised = await canonical();
+      assert.equal(revised.id, latest.id, 'changing the winning source row keeps the canonical review ID');
+      assert.equal(revised.id_fuente, 23);
+      assert.equal(revised.comentario, 'nuevo último original');
+      assert.deepEqual(await relationships(revised.id), {
+        tags: [{ nombre: 'Etiqueta distinta al seed' }],
+        conduct: [{ nombre: 'Conducta distinta al seed' }],
+      });
+      const versions = await archived();
+      assert.equal(versions.length, 10, 'only a changed original adds a version');
+      assert.deepEqual(versions.filter((r) => r.id_fuente === 23).map((r) => r.datos.camp_calificacion_text).sort(),
+        ['raw field 23', 'raw field 23 revised']);
+      assert.ok(versions.filter((r) => [14,20,21,22,23].includes(r.id_fuente)).every((r) => r.resena_id === latest.id));
+
+      // Imported originals must not replace a review already authored in the app.
+      const native = (await variant.query(`INSERT INTO personas (identificacion,nombre,apellido1)
+        VALUES ('707070707','Persona','Nativa') RETURNING id`)).rows[0];
+      const author = (await variant.query("SELECT id FROM usuarios WHERE email='unique@example.test'")).rows[0];
+      const nativeReview = (await variant.query(`INSERT INTO resenas
+        (persona_id,autor_id,comentario,estado,anonima,verificada,detalle_verificacion)
+        VALUES ($1,$2,'contenido escrito en la app','oculta',true,true,'verificación original') RETURNING *`,
+      [native.id, author.id])).rows[0];
+      await variant.query('INSERT INTO resena_etiquetas (resena_id,etiqueta_id) VALUES ($1,1)', [nativeReview.id]);
+      const nativeTags = await relationships(nativeReview.id);
+      await source.query(`INSERT INTO tb_inquilinos_no_nacionales
+        (camp_id_inquilino,camp_identificacion,camp_nombre,camp_apellido_uno,camp_fk_registrador,
+         camp_comentario_adicional,camp_fecha_registro,camp_estado,camp_fk_etiqueta_uno,camp_fk_conducta)
+        VALUES (24,'707070707','Persona','Nativa',2,'original antiguo','2020-01-01 12:00:00',1,90,91),
+        (25,'707070707','Persona','Nativa',500,'original más reciente','2025-01-01 12:00:00',1,90,91)`);
+      const preserved = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(preserved.code, 0, preserved.stderr);
+      assert.equal(preserved.resumen.resenas, 5);
+      assert.deepEqual(preserved.resumen.fichas, { leidas: 11, archivadas: 11, consolidadas: 5, conservadas: 1 });
+      assert.deepEqual((await variant.query('SELECT * FROM resenas WHERE id=$1', [nativeReview.id])).rows[0], nativeReview);
+      assert.deepEqual(await relationships(nativeReview.id), nativeTags);
+      assert.equal((await variant.query("SELECT count(*)::int AS n FROM resenas WHERE fuente='legacy' OR id=$1", [nativeReview.id])).rows[0].n, 6);
+      assert.deepEqual((await archived()).filter((r) => [24,25].includes(r.id_fuente)).map((r) => r.resena_id),
+        [nativeReview.id, nativeReview.id]);
+
+      const pending = (await variant.query("SELECT * FROM resenas WHERE fuente='legacy' AND id_fuente=11")).rows[0];
+      assert.equal(pending.primera_aprobacion_en, null);
+      await source.query(`INSERT INTO tb_inquilinos_no_nacionales
+        (camp_id_inquilino,camp_identificacion,camp_nombre,camp_apellido_uno,camp_fk_registrador,
+         camp_comentario_adicional,camp_fecha_registro,camp_estado)
+        VALUES (26,'404040404','Persona','Histórica',1,'aprobada hace años','2019-01-01 12:00:00',1)`);
+      const approved = await run([], { DATABASE_URL: databaseUrl });
+      assert.equal(approved.code, 0, approved.stderr);
+      const historical = (await variant.query('SELECT * FROM resenas WHERE id=$1', [pending.id])).rows[0];
+      assert.equal(historical.id_fuente, 26);
+      assert.equal(historical.estado, 'publicada');
+      assert.equal(historical.primera_aprobacion_en.toISOString(), historical.creado_en.toISOString());
+      assert.equal(historical.primera_aprobacion_en.getUTCFullYear(), 2019, 'import does not approve old content as of today');
+      const receipt = (await variant.query('SELECT aprobada_en FROM privado.aportes_consulta WHERE resena_id=$1', [pending.id])).rows;
+      assert.deepEqual(receipt, [{ aprobada_en: historical.primera_aprobacion_en }]);
+      const access = (await variant.query('SELECT puede_consultar FROM public.accesos_consulta($1::int[])', [[pending.autor_id]])).rows[0];
+      assert.equal(access.puede_consultar, false, 'historical approval cannot grant fresh consultation access');
+
+      // Force a failure while archiving a nonwinning row, after canonical writes.
+      await variant.query(`ALTER TABLE privado.resenas_legacy_originales ADD CONSTRAINT reject_test_archive
+        CHECK (datos->>'camp_comentario_adicional' <> 'FAIL-ARCHIVE')`);
+      await source.query(`UPDATE tb_inquilinos_no_nacionales
+        SET camp_comentario_adicional='FAIL-ARCHIVE',camp_fecha_registro='2022-01-01 12:00:00' WHERE camp_id_inquilino=20`);
+      await source.query(`UPDATE tb_inquilinos_no_nacionales
+        SET camp_comentario_adicional='must also roll back',camp_fecha_registro='2024-01-01 12:00:00' WHERE camp_id_inquilino=23`);
+      const beforeFailure = await completeSnapshot();
+      for (const args of [[], ['--seco']]) {
+        const failed = await run(args, { DATABASE_URL: databaseUrl });
+        assert.equal(failed.code, 1);
+        assert.match(failed.stderr, /No se guardaron/);
+        assert.equal(failed.resumen, null);
+        assert.deepEqual(await completeSnapshot(), beforeFailure, 'archive and canonical changes roll back together');
+      }
+    } finally {
+      await source.query('DELETE FROM tb_inquilinos_no_nacionales WHERE camp_id_inquilino BETWEEN 20 AND 26');
+      await source.query('DELETE FROM tb_conducta WHERE camp_id_conducta=91');
+      await source.query('SET time_zone = ?', [sourceSettings[0].timeZone]);
+      await variant.end();
+      await target.query('DROP DATABASE import_duplicate_reviews');
     }
   });
   await t.test('dry-run checks constraints, counts all reviews and rolls back', async () => {

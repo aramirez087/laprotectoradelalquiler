@@ -38,6 +38,7 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
   }
 
   const resumen = estado?.resumen
+  const simulacion = resumen?.estado === 'simulacion'
   const totalLookups = resumen
     ? Object.values(resumen.lookups).reduce((total, cantidad) => total + cantidad, 0)
     : 0
@@ -99,6 +100,11 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
             </details>
           </div>
 
+          <p className="text-sm leading-6 text-ink-soft">
+            Si un propietario tiene varias fichas de una misma persona, se importa la más reciente
+            y se conservan todos los originales en un archivo privado. Las reseñas ya creadas en la app se mantienen.
+          </p>
+
           <label className="flex items-start gap-3 rounded-lg bg-[var(--alerta-soft)] p-4 text-sm">
             <input type="checkbox" name="confirmar" value="si" className="mt-1" />
             <span>
@@ -137,7 +143,8 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
             </div>
           </div>
           <div className="border-t border-line bg-[color-mix(in_srgb,var(--line)_25%,transparent)] px-5 py-4 text-xs leading-5 text-ink-soft">
-            Puede repetir la importación. Las fichas legacy se reconocen por su identificador de origen.
+            <p>Puede repetir la importación. Se conserva cada versión de las fichas originales.</p>
+            <p className="mt-2">Se elige la fecha válida más reciente. Una ficha sin fecha válida queda detrás de las que sí tienen fecha; en caso de empate, gana el identificador de origen más alto.</p>
           </div>
         </div>
 
@@ -163,12 +170,24 @@ export function FormMigracionLegacy({ authDisponible, destinoDisponible = true }
             )}
 
             {resumen && (
-              <dl className="grid grid-cols-2 gap-2">
-                <DatoDiagnostico etiqueta="Catálogos" valor={totalLookups} />
-                <DatoDiagnostico etiqueta="Personas" valor={resumen.personas} />
-                <DatoDiagnostico etiqueta="Usuarios" valor={resumen.usuarios} />
-                <DatoDiagnostico etiqueta="Reseñas" valor={resumen.resenas} />
-              </dl>
+              <>
+                {simulacion && <p className="text-sm leading-6 text-ink-soft">Estas cifras muestran lo que haría la importación. La simulación no guarda datos ni originales.</p>}
+                <dl className="grid grid-cols-2 gap-2">
+                  <DatoDiagnostico etiqueta="Catálogos" valor={totalLookups} />
+                  <DatoDiagnostico etiqueta="Personas" valor={resumen.personas} />
+                  <DatoDiagnostico etiqueta="Usuarios" valor={resumen.usuarios} />
+                  <DatoDiagnostico etiqueta={simulacion ? 'Reseñas a importar' : 'Reseñas importadas'} valor={resumen.resenas} />
+                  {resumen.fichas && (
+                    <>
+                      <DatoDiagnostico etiqueta="Fichas leídas" valor={resumen.fichas.leidas} />
+                      <DatoDiagnostico etiqueta={simulacion ? 'Originales a archivar' : 'Originales archivados'} valor={resumen.fichas.archivadas} />
+                      <DatoDiagnostico etiqueta="Fichas consolidadas" valor={resumen.fichas.consolidadas} />
+                      <DatoDiagnostico etiqueta="Actuales conservadas" valor={resumen.fichas.conservadas} />
+                    </>
+                  )}
+                </dl>
+                {resumen.fichas && <p className="text-xs leading-5 text-ink-soft">Las fichas repetidas se reúnen en una reseña por propietario y persona. Si ya existe una reseña creada en la app, se conserva y los originales se archivan vinculados a ella.</p>}
+              </>
             )}
 
             {estado.observaciones && estado.observaciones.length > 0 && (

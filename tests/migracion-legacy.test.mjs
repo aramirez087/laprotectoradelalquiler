@@ -25,6 +25,27 @@ test('import result never turns a failed or malformed result into success', () =
   assert.deepEqual(resumenDesdeSalida(salida(parcial), 2), parcial)
 })
 
+test('import result retains archive and consolidation counts for real imports and simulations', () => {
+  for (const estado of ['completada', 'simulacion']) {
+    const resultado = {
+      ...resumen, estado,
+      fichas: { leidas: 5, archivadas: 5, consolidadas: 3, conservadas: 1 },
+    }
+    assert.deepEqual(resumenDesdeSalida(salida(resultado), 0), resultado)
+  }
+})
+
+test('import result rejects incomplete or invalid archive counts', () => {
+  const fichas = { leidas: 5, archivadas: 5, consolidadas: 3, conservadas: 1 }
+  for (const campo of Object.keys(fichas)) {
+    for (const valor of [-1, 1.5, '1', undefined]) {
+      assert.throws(() => resumenDesdeSalida(salida({
+        ...resumen, fichas: { ...fichas, [campo]: valor },
+      }), 0), /incompleto/)
+    }
+  }
+})
+
 function acciones({ activo = true, resultado = { resumen, observaciones: [] }, diagnostico = { tablas: 64, personas: 1, fichas: 7107, usuarios: 6017 }, errorConexion } = {}) {
   const llamadas = []
   const mocks = {

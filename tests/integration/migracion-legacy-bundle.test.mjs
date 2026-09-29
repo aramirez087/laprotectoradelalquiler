@@ -17,13 +17,14 @@ test('the production trace can run the import worker outside the workspace', asy
     const source = path.resolve(path.dirname(manifest), file);
     const relative = path.relative(root, source);
     // Never copy .env files or rely on Next's bundled runtime chunks.
-    if (!relative.startsWith('node_modules/') && !relative.startsWith('scripts/')) continue;
+    if (!relative.startsWith('node_modules/') && !relative.startsWith('scripts/') && relative !== 'db/importacion-legacy-resenas.sql') continue;
     const destination = path.join(isolated, relative);
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(source, destination);
   }
   const worker = await exec(process.execPath, ['scripts/migrar-legacy.mjs', '--probar-claves'], { cwd: isolated, env: {} });
   assert.match(worker.stdout, /clasificarSecreto ok/);
+  assert.match(await readFile(path.join(isolated, 'db/importacion-legacy-resenas.sql'), 'utf8'), /CREATE TABLE IF NOT EXISTS privado\.resenas_legacy_originales/);
   // La CA también debe estar disponible en el worker desplegado, sin .env.
   await exec(process.execPath, ['--input-type=module', '--eval', `
     import assert from 'node:assert/strict';

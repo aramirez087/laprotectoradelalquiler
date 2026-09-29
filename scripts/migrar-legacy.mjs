@@ -20,6 +20,7 @@
 // ============================================================================
 
 import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { importarCatalogos } from './legacy-catalogos.mjs';
@@ -95,6 +96,7 @@ const resumen = {
   personas: 0,
   usuarios: 0,
   resenas: 0,
+  fichas: { leidas: 0, archivadas: 0, consolidadas: 0, conservadas: 0 },
   claves: { bcrypt: 0, anterior: 0, restablecer: 0 },
 };
 
@@ -132,7 +134,11 @@ async function mysqlAll(table) {
   if (filasOrigen.has(table)) return filasOrigen.get(table);
   if (!(await mysqlTableExists(table))) return null;
   const columnas = COLUMNAS_ORIGEN[table].split(' ').map((c) => `\`${c}\``).join(', ');
-  const rows = await mysqlRows(`SELECT ${columnas} FROM \`${table}\` ORDER BY 1`);
+  // Validate the consumed columns, but archive every original ficha column,
+  // including fields that the current application does not interpret.
+  const completa = table === 'tb_inquilinos_no_nacionales';
+  if (completa) await mysqlRows(`SELECT ${columnas} FROM \`${table}\` LIMIT 0`);
+  const rows = await mysqlRows(`SELECT ${completa ? '*' : columnas} FROM \`${table}\` ORDER BY 1`);
   filasOrigen.set(table, rows);
   return rows;
 }
@@ -158,7 +164,12 @@ async function guardarLote() {
   try {
     await pool.query(consulta, rows.flat());
   } catch (e) {
-    throw new Error(`${label}: no se pudo guardar el lote (código ${e.code ?? 'desconocido'}).`);
+    // PostgreSQL detail/message can contain personal data. Only expose known
+    // constraint names; retain enough information to diagnose future failures.
+    const conocidas = new Set(['resenas_pkey', 'resenas_fuente_id_fuente_key', 'resenas_autor_persona_unica', 'resenas_legacy_originales_pkey']);
+    const restriccion = conocidas.has(e.constraint) ? `, restricción ${e.constraint}` : '';
+    const codigo = /^[A-Z0-9]{5}$/.test(e.code ?? '') ? e.code : 'desconocido';
+    throw new Error(`${label}: no se pudo guardar el lote (código ${codigo}${restriccion}).`);
   }
 }
 
@@ -835,14 +846,67 @@ async function pasoResenas() {
     return null;
   };
 
+  // Ship this additive migration with the worker so existing installations do
+  // not need a schema reset or a separate rollout step. Dry-runs roll it back.
+  await pool.query(await readFile(new URL('../db/importacion-legacy-resenas.sql', import.meta.url), 'utf8'));
+  await pool.query("SET LOCAL laprotec.importacion_legacy = 'on'");
+
+  const grupos = new Map();
+  const originales = [];
+  for (const ficha of fichas) {
+    const personaId = personaMap.get(identFicha(ficha));
+    const autorId = autorMap.get(claveAutor(ficha));
+    if (!personaId || !autorId) throw new Error(`Ficha legacy #${ficha.camp_id_inquilino}: falta su persona o autor de destino.`);
+    const par = `${autorId}:${personaId}`;
+    const fechaOrigen = fecha(ficha.camp_fecha_registro, true);
+    const instante = fechaOrigen == null ? NaN : Date.parse(fechaOrigen);
+    const candidato = { ficha, personaId, autorId, par,
+      fechaOrigen: Number.isFinite(instante) ? fechaOrigen : null,
+      instante: Number.isFinite(instante) ? instante : -Infinity };
+    const anterior = grupos.get(par);
+    if (!anterior || candidato.instante > anterior.instante
+      || (candidato.instante === anterior.instante && Number(ficha.camp_id_inquilino) > Number(anterior.ficha.camp_id_inquilino))) {
+      grupos.set(par, candidato);
+    }
+    // Sort keys so a changed MySQL column order cannot create a new version.
+    const datos = JSON.stringify(Object.fromEntries(Object.entries(ficha).sort(([a], [b]) => a.localeCompare(b))));
+    originales.push({ id: Number(ficha.camp_id_inquilino), par, datos,
+      huella: crypto.createHash('sha256').update(datos).digest('hex') });
+  }
+  resumen.fichas.leidas = fichas.length;
+  resumen.fichas.consolidadas = fichas.length - grupos.size;
+  if (resumen.fichas.consolidadas) avisar('resenas_consolidadas',
+    'Fichas del mismo propietario y persona consolidadas en la más reciente; todos los originales se conservaron en el archivo privado.', resumen.fichas.consolidadas);
+
+  // Serialize this short reconciliation phase with native review writes as
+  // well as other imports. Preserve the global one-review-per-pair constraint.
+  await pool.query("SET LOCAL lock_timeout = '10s'");
+  await pool.query('LOCK TABLE public.resenas IN SHARE ROW EXCLUSIVE MODE');
+  const existentes = (await pool.query(`SELECT id, autor_id, persona_id, fuente, id_fuente, creado_en
+    FROM public.resenas WHERE autor_id = ANY($1::int[]) OR (fuente='legacy' AND id_fuente = ANY($2::int[]))`,
+    [[...new Set([...grupos.values()].map((r) => r.autorId))], originales.map((r) => r.id)])).rows;
+  const porPar = new Map(existentes.map((r) => [`${r.autor_id}:${r.persona_id}`, r]));
+  const parPorFuente = new Map(originales.map((r) => [r.id, r.par]));
+  for (const r of existentes) {
+    if (r.fuente === 'legacy' && parPorFuente.has(r.id_fuente)
+      && parPorFuente.get(r.id_fuente) !== `${r.autor_id}:${r.persona_id}`) {
+      throw new Error(`La ficha legacy #${r.id_fuente} cambió de propietario o persona. Reconcilie esa identidad antes de reimportar; no se reasignaron reseñas existentes.`);
+    }
+  }
+  const seleccionadas = [...grupos.values()].filter((r) => {
+    const actual = porPar.get(r.par);
+    if (!actual || actual.fuente === 'legacy') return true;
+    resumen.fichas.conservadas++;
+    return false;
+  });
+  if (resumen.fichas.conservadas) avisar('resenas_actuales_conservadas',
+    'Se conservaron las reseñas existentes del registro actual; sus fichas legacy se guardaron únicamente en el archivo privado.', resumen.fichas.conservadas);
+
   let n = 0;
   const etqRows = [];
   const conductasRows = [];
 
-  for (const r of fichas) {
-    const personaId = personaMap.get(identFicha(r)) ?? null;
-    if (!personaId) throw new Error(`Ficha legacy #${r.camp_id_inquilino}: falta su persona de destino.`);
-    const autorId = autorMap.get(claveAutor(r));
+  for (const { ficha: r, personaId, autorId, fechaOrigen, par } of seleccionadas) {
 
     const califId = ref(IDS.calificaciones, r.camp_fk_calificacion);
 
@@ -862,9 +926,8 @@ async function pasoResenas() {
           dano_vivienda_id, proceso_judicial_id, tipo_contrato_id, tipo_alquiler_id,
           tiempo_alquiler_id, comentario, detalle_verificacion, estado, fuente, id_fuente, creado_en)
        VALUES ($1,$2,'inquilino',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'legacy',$14,COALESCE($15::timestamptz, now()))
-       ON CONFLICT (fuente, id_fuente) DO UPDATE SET
-         persona_id = EXCLUDED.persona_id,
-         autor_id = EXCLUDED.autor_id,
+       ON CONFLICT (autor_id, persona_id) DO UPDATE SET
+         id_fuente = EXCLUDED.id_fuente,
          calificacion_id = EXCLUDED.calificacion_id,
          recomienda = EXCLUDED.recomienda,
          drogas = EXCLUDED.drogas,
@@ -881,7 +944,7 @@ async function pasoResenas() {
        ref(IDS.danos, r.camp_fk_dano_vivienda), ref(IDS.procesos, r.camp_fk_proceso_judicial),
        ref(IDS.tipos_contrato, r.camp_fk_tipo_contrato), ref(IDS.tipos_alquiler, r.camp_fk_tipo_alquiler),
        ref(IDS.tiempos_alquiler, r.camp_fk_tiempo_alquiler),
-       r.camp_comentario_adicional ?? null, nota, estado, r.camp_id_inquilino, fecha(r.camp_fecha_registro, true)],
+       r.camp_comentario_adicional ?? null, nota, estado, r.camp_id_inquilino, fechaOrigen ?? porPar.get(par)?.creado_en ?? null],
       'reseña legacy', r.camp_id_inquilino,
     );
 
@@ -894,11 +957,33 @@ async function pasoResenas() {
   }
   await guardarLote();
   resumen.resenas = n;
-  console.log(`  importadas: ${n}/${fichas.length}`);
+  console.log(`  reseñas: ${n}; fichas originales: ${fichas.length}; consolidadas: ${resumen.fichas.consolidadas}; actuales conservadas: ${resumen.fichas.conservadas}`);
+
+  const canonicas = new Map((await pool.query(`SELECT id, autor_id, persona_id FROM public.resenas
+    WHERE autor_id = ANY($1::int[])`, [[...new Set([...grupos.values()].map((r) => r.autorId))]])).rows
+    .map((r) => [`${r.autor_id}:${r.persona_id}`, r.id]));
+  for (const original of originales) {
+    const resenaId = canonicas.get(original.par);
+    if (!resenaId) throw new Error('No se pudo enlazar una ficha con su reseña de destino.');
+    original.resenaId = resenaId;
+    await upsert(`INSERT INTO privado.resenas_legacy_originales (id_fuente, huella, datos, resena_id)
+      VALUES ($1,$2,$3::jsonb,$4) ON CONFLICT (id_fuente, huella) DO NOTHING`,
+    [original.id, original.huella, original.datos, resenaId], 'archivo de ficha legacy', `${original.id}:${original.huella}`);
+  }
+  await guardarLote();
+  // Relink only the current snapshot (e.g. after a deleted review is imported
+  // again). Older versions retain the pair they belonged to when archived.
+  await pool.query(`UPDATE privado.resenas_legacy_originales a SET resena_id = x.resena
+    FROM unnest($1::int[], $2::text[], $3::int[]) AS x(fuente, huella, resena)
+    WHERE a.id_fuente = x.fuente AND a.huella = x.huella AND a.resena_id IS DISTINCT FROM x.resena`,
+    [originales.map((r) => r.id), originales.map((r) => r.huella), originales.map((r) => r.resenaId)]);
+  resumen.fichas.archivadas = originales.length;
+
+  const fuentesSeleccionadas = seleccionadas.map((r) => Number(r.ficha.camp_id_inquilino));
 
   await pool.query(`DELETE FROM resena_etiquetas WHERE resena_id IN
     (SELECT id FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[]))`,
-    [fichas.map((r) => r.camp_id_inquilino)]);
+    [fuentesSeleccionadas]);
   if (etqRows.length) {
     await pool.query(`INSERT INTO resena_etiquetas (resena_id, etiqueta_id)
       SELECT r.id, x.etiqueta FROM unnest($1::int[], $2::int[]) AS x(legacy, etiqueta)
@@ -906,7 +991,7 @@ async function pasoResenas() {
       [etqRows.map((e) => e.legacyId), etqRows.map((e) => e.etiquetaId)]);
   }
   await pool.query(`DELETE FROM resena_conductas WHERE resena_id IN
-    (SELECT id FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[]))`, [fichas.map((r) => r.camp_id_inquilino)]);
+    (SELECT id FROM resenas WHERE fuente = 'legacy' AND id_fuente = ANY($1::int[]))`, [fuentesSeleccionadas]);
   if (conductasRows.length) {
     await pool.query(`INSERT INTO resena_conductas (resena_id, conducta_id)
       SELECT r.id, x.conducta FROM unnest($1::int[], $2::int[]) AS x(legacy, conducta)

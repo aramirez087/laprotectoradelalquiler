@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
       './scripts/legacy-tablas.mjs',
       './scripts/postgres-config.mjs',
       './scripts/certs/supabase-prod-ca-2021.crt',
+      './db/importacion-legacy-resenas.sql',
       ...archivosRuntimeLegacy(),
     ],
   },

@@ -184,6 +184,29 @@ reciben notificaciones.
    y conductas de reseñas importadas se sincronizan con el origen al repetir.
    `--pasos=resenas` incluye automáticamente catálogos, personas y usuarios.
 
+   Se mantiene una sola reseña por propietario y persona. Cuando varias fichas
+   legacy corresponden al mismo par, se elige la de fecha válida más reciente;
+   las fechas desconocidas quedan detrás de las conocidas y, en caso de empate,
+   gana el identificador de origen más alto. Sus etiquetas y conductas también
+   corresponden a esa ficha. Si el par ya tiene una reseña creada en la app,
+   se conserva sin reemplazarla por el contenido legacy.
+
+   Todas las fichas originales se archivan completas en un esquema privado,
+   vinculadas a la reseña correspondiente, incluso las que se consolidan o
+   coinciden con una reseña de la app. Las nuevas versiones del origen se
+   conservan sin sobrescribir las anteriores; repetir el mismo contenido no
+   duplica el archivo. Este archivo contiene únicamente las filas de
+   `tb_inquilinos_no_nacionales`, nunca credenciales de conexión ni las tablas
+   de claves o accesos. No está disponible para visitantes ni usuarios de la app.
+   El importador prepara el archivo dentro de su propia transacción: al
+   desplegar este cambio no hace falta ejecutar una migración manual. Una
+   simulación o un fallo revierte también el archivo.
+
+   El resultado distingue **fichas leídas**, **originales archivados**,
+   **fichas consolidadas** (las adicionales de cada par), **reseñas importadas**
+   y **actuales conservadas** (reseñas de la app que no se reemplazan).
+   En una simulación las cifras describen lo que se haría; no se guarda nada.
+
    La tabla de fichas `tb_inquilinos_no_nacionales` es obligatoria. Si el origen
    no contiene `tb_persona`, el importador obtiene las personas de las fichas y
    de `tb_solicitante`, si existe, e informa esta limitación en las observaciones.
@@ -236,7 +259,8 @@ reciben notificaciones.
 
 - `personas` es la persona natural (cédula única); `usuarios` es la cuenta
   (1:1 opcional vía `persona_id`); `resenas` une autor → persona.
-- `resenas.fuente/id_fuente` trazan el origen de la migración (idempotencia).
+- `resenas.fuente/id_fuente` identifican la ficha legacy elegida; el archivo
+  privado conserva todas las fichas originales y sus versiones.
 - Las FK de las fichas se traducen mediante equivalencias de catálogos;
   los ids y las relaciones existentes en destino se conservan.
 - RLS: lectura pública solo para `resenas` publicas y `personas` (ver

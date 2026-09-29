@@ -7,6 +7,12 @@ const SchemaResumen = z.object({
   personas: cantidad,
   usuarios: cantidad,
   resenas: cantidad,
+  fichas: z.object({
+    leidas: cantidad,
+    archivadas: cantidad,
+    consolidadas: cantidad,
+    conservadas: cantidad,
+  }).optional(),
   claves: z.object({ bcrypt: cantidad, anterior: cantidad, restablecer: cantidad }),
   auth: z.object({ creadas: cantidad, fallidas: cantidad }),
   advertencias: z.array(z.object({
