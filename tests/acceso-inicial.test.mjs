@@ -121,7 +121,7 @@ test('members with approved current access see the search landing at home', asyn
   assert.match(formulario, /action="\/fichas"/)
   assert.match(formulario, /method="get"/i)
   assert.match(formulario, /role="search"/)
-  assert.match(html, /Conozca mejor/)
+  assert.match(html, /Proteja su propiedad/)
   assert.match(html, /<input[^>]*name="q"/)
   assert.doesNotMatch(html, /Mi primera reseña|Su experiencia está en revisión/)
 })

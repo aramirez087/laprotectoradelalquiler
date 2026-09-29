@@ -634,7 +634,7 @@ code {
   padding-block: 2rem 3rem;
 }
 
-.inicio-publico .titulo-inicio-publico {
+.inicio .titulo-inicio {
   max-width: 56rem;
   font-size: clamp(1.875rem, 7.8vw, 4.5rem);
   line-height: 1.08;

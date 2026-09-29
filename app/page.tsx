@@ -8,6 +8,22 @@ import { EsperaAprobacion } from '@/components/espera-aprobacion'
 import { contarResenasPublicadas, destinoTrasLogin, obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { sinSupabase } from '@/lib/supabase/server'
 
+function CabeceraInicio() {
+  return (
+    <>
+      <BarrioVivo />
+      <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
+      <h1 className="titulo-inicio mt-5">
+        Proteja su propiedad.<br />
+        <span className="text-seal">Alquile con confianza.</span>
+      </h1>
+      <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
+        Experiencias de otros propietarios para elegir mejor a su inquilino.
+      </p>
+    </>
+  )
+}
+
 function RespaldoComunidad() {
   return <p className="text-ink-soft">Experiencias compartidas. Mejores decisiones.</p>
 }
@@ -29,15 +45,7 @@ export default async function HomePage() {
   if (!usuario) {
     return (
       <div className="inicio inicio-publico">
-        <BarrioVivo />
-        <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
-        <h1 className="titulo-inicio titulo-inicio-publico mt-5">
-          Proteja su propiedad.<br />
-          <span className="text-seal">Alquile con confianza.</span>
-        </h1>
-        <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
-          Experiencias de otros propietarios para elegir mejor a su inquilino.
-        </p>
+        <CabeceraInicio />
         <div className="acciones-inicio mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <Link href="/registro" className="btn-primario">
             Unirme a La Protectora <Icono nombre="flecha" className="h-4 w-4 shrink-0" />
@@ -72,15 +80,7 @@ export default async function HomePage() {
 
   return (
     <div className="inicio">
-      <BarrioVivo />
-      <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
-      <h1 className="titulo-inicio mt-5">
-        Conozca mejor<br />
-        <span className="text-seal">a su inquilino.</span>
-      </h1>
-      <p className="mt-5 max-w-md text-pretty text-base leading-relaxed text-ink-soft">
-        Experiencias de alquiler en Costa Rica, compartidas por propietarios y agencias.
-      </p>
+      <CabeceraInicio />
       <form action="/fichas" method="GET" className="mt-8 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
         <label className="etiqueta-campo mb-2.5 ml-5" htmlFor="q">
           ¿A quién desea consultar?
