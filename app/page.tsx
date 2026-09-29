@@ -9,7 +9,7 @@ import { contarResenasPublicadas, destinoTrasLogin, obtenerUsuario, puedeConsult
 import { sinSupabase } from '@/lib/supabase/server'
 
 function RespaldoComunidad() {
-  return <p>Una comunidad que comparte.<br /><span className="text-ink-soft">Más información para decidir mejor.</span></p>
+  return <p className="text-ink-soft">Experiencias compartidas. Mejores decisiones.</p>
 }
 
 async function ResenasComunidad() {
@@ -20,7 +20,6 @@ async function ResenasComunidad() {
     <p>
       <span className="dato-resenas-inicio">{new Intl.NumberFormat('es-CR').format(total)}</span>{' '}
       <span className="font-medium">{total === 1 ? 'reseña publicada' : 'reseñas publicadas'}</span>
-      <span className="mt-1 block text-ink-soft">Experiencias compartidas para su próximo alquiler.</span>
     </p>
   )
 }
@@ -37,8 +36,7 @@ export default async function HomePage() {
           <span className="text-seal">Alquile con confianza.</span>
         </h1>
         <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
-          Antes de entregar las llaves, conozca las experiencias de otros propietarios y agencias con sus inquilinos.
-          Una comunidad que comparte para que usted decida mejor.
+          Experiencias de otros propietarios para elegir mejor a su inquilino.
         </p>
         <div className="acciones-inicio mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <Link href="/registro" className="btn-primario">
