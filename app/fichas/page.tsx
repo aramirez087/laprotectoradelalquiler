@@ -61,10 +61,10 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
     <div className="contenedor space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-3">Registro de la comunidad</p>
+          <p className="eyebrow mb-3">Registro de propietarios y agencias</p>
           <h1 className="text-3xl sm:text-4xl">Consultar reseñas</h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-            Encuentre a un inquilino por nombre o cédula y conozca las experiencias compartidas por la comunidad.
+            Encuentre a un inquilino por nombre o cédula y conozca las experiencias compartidas por otros propietarios y agencias.
           </p>
         </div>
         <Link href="/resenas/nueva" className="btn-secundario">
@@ -102,7 +102,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
       {fichas.length === 0 && !aviso ? (
         <EstadoVacio
           titulo={q ? 'No encontramos coincidencias' : 'Todavía no hay fichas disponibles'}
-          texto={q ? 'Revise la escritura o pruebe solo con un apellido o la cédula. Que no aparezca aquí no significa que tenga un historial positivo o negativo.' : 'Las fichas reúnen experiencias de la comunidad. Puede compartir la suya para contribuir al registro.'}
+          texto={q ? 'Revise la escritura o pruebe solo con un apellido o la cédula. Que no aparezca aquí no significa que tenga un historial positivo o negativo.' : 'Las fichas reúnen experiencias de propietarios y agencias con sus inquilinos. Puede compartir la suya para contribuir al registro.'}
         >
           {q && (
             <Link href="/fichas" className="btn-secundario">

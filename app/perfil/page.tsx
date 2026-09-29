@@ -112,7 +112,7 @@ export default async function PerfilPage(props: {
             </Link>
           )}
         </div>
-        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. Puede tener una sola reseña por inquilino. Otros propietarios también pueden reseñar a esa persona.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. Puede tener una sola reseña por inquilino. Otros propietarios y agencias también pueden reseñar a esa persona.</p>
         {aviso ? (
           <div className="expediente space-y-4">
             <p role="alert" className="aviso aviso-error">{aviso} Sus aportes siguen guardados. Intente cargar esta página de nuevo.</p>

@@ -15,10 +15,10 @@ export default function PrivacidadPage() {
         <p className="eyebrow">Su información</p>
         <h1 className="text-3xl sm:text-4xl">Privacidad</h1>
         <p className="text-sm leading-relaxed text-ink-soft">
-          La Protectora del Alquiler es un registro de experiencias de alquiler en Costa Rica. Esta página describe
-          los datos que guarda el sitio y quién puede verlos.
+          La Protectora del Alquiler es un registro para propietarios y agencias en Costa Rica que comparten
+          experiencias sobre sus inquilinos. Esta página describe los datos que guarda el sitio y quién puede verlos.
         </p>
-        <p className="text-xs text-ink-soft">Actualizado el 27 de septiembre de 2026</p>
+        <p className="text-xs text-ink-soft">Actualizado el 28 de septiembre de 2026</p>
       </header>
 
       <nav aria-label="En esta página" className="rounded-2xl border border-line bg-card p-5">
@@ -39,7 +39,7 @@ export default function PrivacidadPage() {
       <section id="cuenta" className="space-y-3">
         <h2 className="text-xl">Cuenta</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
-          Para crear una cuenta pedimos el nombre, el correo, la cédula, el rol (propietario, agencia o inquilino) y
+          Para crear una cuenta pedimos el nombre, el correo, la cédula, el rol (propietario o agencia) y
           el enlace público del perfil de Facebook. Si entra con correo y clave, la clave la guarda el servicio de
           acceso, no esta base en texto legible. La sesión usa una cookie de ese servicio.
         </p>

@@ -19,7 +19,6 @@ const ROLES = [
     descripcion: 'Gestiono alquileres para otras personas.',
     defecto: false,
   },
-  { value: 'inquilino', titulo: 'Inquilino', descripcion: 'Alquilo una vivienda o local.', defecto: false },
 ]
 
 export function RegistroForm({
@@ -129,7 +128,7 @@ export function RegistroForm({
         </p>
       </div>
       <fieldset>
-        <legend className="etiqueta-campo">Su relación con el alquiler</legend>
+        <legend className="etiqueta-campo">Tipo de cuenta</legend>
         <div className="grid gap-2">
           {ROLES.map((rol) => (
             <label key={rol.value} className="opcion-rol flex items-start gap-3">
@@ -150,7 +149,7 @@ export function RegistroForm({
       </fieldset>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <button disabled={pendiente} className="btn-primario w-full">
-        {pendiente ? 'Creando cuenta…' : 'Continuar a la reseña'}
+        {pendiente ? 'Creando cuenta…' : 'Crear cuenta y escribir mi primera reseña'}
       </button>
       <p className="text-center text-xs leading-relaxed text-ink-soft">
         Conozca cómo cuidamos sus datos en la{' '}

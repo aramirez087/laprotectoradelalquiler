@@ -5,7 +5,7 @@ import { useAvisoAdmin } from '@/components/avisos-admin'
 import { decidirResenaAction, editarResenaAction, eliminarResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
 import { MensajeForm } from '@/components/mensaje-form'
 import { etiquetaRol } from '@/lib/util'
-import type { Rol } from '@/lib/tipos'
+import type { Rol, RolAsignable } from '@/lib/tipos'
 
 const DECISIONES = {
   publicar: 'Aprobar y publicar',
@@ -232,7 +232,7 @@ export function FormUsuario({
   activo: boolean
 }) {
   const { estado, pendiente, formProps } = useFormAction(guardarUsuarioAction)
-  const roles: Rol[] = ['propietario', 'agencia', 'inquilino', 'admin']
+  const roles: RolAsignable[] = ['propietario', 'agencia', 'admin']
 
   return (
     <form {...formProps} className="grid items-end gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(0,16rem)_auto_auto] sm:justify-start">
@@ -241,7 +241,8 @@ export function FormUsuario({
         <label className="etiqueta-campo" htmlFor={`rol-${id}`}>
           Rol
         </label>
-        <select id={`rol-${id}`} name="rol" defaultValue={rol} className="campo">
+        <select id={`rol-${id}`} name="rol" defaultValue={rol === 'inquilino' ? '' : rol} required className="campo">
+          {rol === 'inquilino' && <option value="" disabled>Seleccione un rol vigente</option>}
           {roles.map((opcion) => (
             <option key={opcion} value={opcion}>
               {etiquetaRol(opcion)}

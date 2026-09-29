@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { MarcoAcceso } from '@/components/marco-acceso'
 import { LoginForm } from '@/components/login-form'
+import { destinoTrasLogin, obtenerUsuario } from '@/lib/dal'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { altaFacebookPendiente } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, mensajeErrorFacebook, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
@@ -15,15 +16,21 @@ export default async function LoginPage(props: PageProps<'/login'>) {
   const searchParams = await props.searchParams
   const siguiente = destinoInterno(primer(searchParams.siguiente))
   const correo = correoRecordado((await cookies()).get(COOKIE_CORREO)?.value)
-  if (!sinSupabase() && (await altaFacebookPendiente())) redirect(rutaAltaFacebook(siguiente))
+  if (!sinSupabase()) {
+    const usuario = await obtenerUsuario()
+    if (usuario) {
+      redirect(usuario.auth_user_id ? await destinoTrasLogin(usuario.auth_user_id, siguiente) : siguiente)
+    }
+    if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(siguiente))
+  }
 
   return (
     <MarcoAcceso
-      titulo="Qué bueno tenerle de vuelta"
+      titulo="Iniciar sesión"
       texto={
         siguiente.startsWith('/resenas/nueva')
           ? 'Inicie sesión para compartir su experiencia de alquiler.'
-          : 'Entre a su cuenta para ver sus aportes y su permiso de consulta.'
+          : 'Entre con su correo y clave. Si aún no ha enviado una reseña, le llevaremos a su primera reseña.'
       }
     >
       {sinSupabase() ? (

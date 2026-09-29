@@ -54,19 +54,19 @@ export function Nav({
 
   const enlaces = (
     <>
-      <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
-        Consultar reseñas
-      </Link>
-      <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
-        Escribir reseña
-      </Link>
-      {usuario?.administra && (
-        <Link href="/admin" aria-current={actual('/admin')} className={clase('/admin')}>
-          Administración
-        </Link>
-      )}
       {usuario ? (
         <>
+          <Link href="/fichas" aria-current={actual('/fichas')} className={clase('/fichas')}>
+            Consultar reseñas
+          </Link>
+          <Link href="/resenas/nueva" aria-current={actual('/resenas/nueva')} className={clase('/resenas/nueva')}>
+            Escribir reseña
+          </Link>
+          {usuario.administra && (
+            <Link href="/admin" aria-current={actual('/admin')} className={clase('/admin')}>
+              Administración
+            </Link>
+          )}
           <Link href="/perfil" aria-current={actual('/perfil')} className={clase('/perfil')}>
             Mi perfil
           </Link>
@@ -77,9 +77,14 @@ export function Nav({
           </form>
         </>
       ) : (
-        <Link href="/login" aria-current={actual('/login')} className={`${clase('/login')} acceso-nav`}>
-          Iniciar sesión
-        </Link>
+        <>
+          <Link href="/login" aria-current={actual('/login')} className={clase('/login')}>
+            Iniciar sesión
+          </Link>
+          <Link href="/registro" aria-current={actual('/registro')} className={`${clase('/registro')} acceso-nav`}>
+            Registrarse
+          </Link>
+        </>
       )}
     </>
   )

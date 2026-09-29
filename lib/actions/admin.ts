@@ -16,7 +16,7 @@ const SchemaDecision = z.object({
 
 const SchemaUsuario = z.object({
   id: z.coerce.number().int().positive(),
-  rol: z.enum(['admin', 'propietario', 'agencia', 'inquilino']),
+  rol: z.enum(['admin', 'propietario', 'agencia']),
 })
 
 const SchemaDenuncia = z.object({

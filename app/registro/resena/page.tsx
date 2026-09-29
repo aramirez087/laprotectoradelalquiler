@@ -13,7 +13,7 @@ import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 import { PasosRegistro } from '@/components/pasos-registro'
 import { Icono } from '@/components/icono'
 
-export const metadata = { title: 'Su primera reseña' }
+export const metadata = { title: 'Mi primera reseña' }
 
 export default async function RegistroResenaPage() {
   const usuario = await requireUsuario('/registro/resena')
@@ -36,7 +36,7 @@ export default async function RegistroResenaPage() {
   if (sinSupabase()) {
     return (
       <div className="contenedor max-w-xl space-y-4">
-        <h1 className="text-3xl">Su primera reseña</h1>
+        <h1 className="text-3xl">Mi primera reseña</h1>
         <AvisoConfiguracion />
       </div>
     )
@@ -56,7 +56,7 @@ export default async function RegistroResenaPage() {
     <div className="contenedor max-w-3xl space-y-6">
       <div>
         <PasosRegistro actual={2} />
-        <h1 className="text-3xl sm:text-4xl">Cuéntenos una experiencia</h1>
+        <h1 className="text-3xl sm:text-4xl">Mi primera reseña</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
           Identifique al inquilino y cuente qué ocurrió. La reseña se envía a revisión antes de publicarse.
         </p>

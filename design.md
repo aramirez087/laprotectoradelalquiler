@@ -51,7 +51,7 @@ Place reusable layout defaults in Tailwind's `components` layer when utilities m
 
 ### Visitor → account → access
 
-The homepage keeps one illustration and one visibly labeled search, led by “Alquile con más confianza”. Put access requirements above the search, with the three-step explanation under “Cómo funciona”. Registration explains how access works and describes each account role. A two-step progress indicator connects account creation and the first review. Sign-in explains the requested task when the destination is a new review. Registration's return-to-sign-in link keeps that destination.
+The public homepage keeps the neighborhood illustration and presents two explicit choices: “Iniciar sesión” and “Registrarse”. State that accounts are exclusively for propietarios y agencias. Search appears only after sign-in and approval. Registration offers those two account roles, then leads to “Mi primera reseña”. Returning accounts without reviews resume that step; accounts that already submitted a review keep their review status and are not asked to submit it again. A two-step progress indicator connects account creation and the first review. Registration's return-to-sign-in link keeps the intended destination.
 
 Use `MarcoAcceso` for sign-in, registration, recovery, and reset screens. Successful registration/recovery replaces the input form with confirmation and a next step. Do not imply that a recovery email identifies whether an account exists.
 

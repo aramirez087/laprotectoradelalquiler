@@ -137,7 +137,7 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-soft">
               <li><strong className="font-semibold text-ink">3 meses por su primera reseña aprobada sobre cada inquilino.</strong> El tiempo empieza cuando se aprueba, no al enviar la reseña.</li>
               <li>Conserva el tiempo que le queda y puede acumular hasta <strong className="font-semibold text-ink">12 meses</strong> desde la nueva aprobación. Si ya venció, vuelve a empezar con 3 meses.</li>
-              <li>Solo puede enviar una reseña por inquilino. Otros propietarios pueden reseñar a esa misma persona. Editar o volver a publicar su reseña no suma tiempo.</li>
+              <li>Solo puede enviar una reseña por inquilino. Otros propietarios y agencias pueden reseñar a esa misma persona. Editar o volver a publicar su reseña no suma tiempo.</li>
               <li>Las experiencias positivas y negativas reciben el mismo reconocimiento. Una reseña rechazada o eliminada deja de contar si era su única reseña publicada sobre ese inquilino.</li>
               </ul>
             </details>

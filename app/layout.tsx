@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: '%s · La Protectora del Alquiler',
   },
   description:
-    'Registro comunitario para consultar el historial de un inquilino antes de alquilar en Costa Rica. La cédula completa no es pública.',
+    'Registro para propietarios y agencias en Costa Rica: comparta experiencias y consulte reseñas sobre inquilinos. La cédula completa no es pública.',
   applicationName: 'La Protectora del Alquiler',
 }
 
@@ -59,7 +59,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
           <div className="mx-auto flex max-w-6xl flex-col justify-between gap-x-6 gap-y-3 px-4 py-6 sm:flex-row sm:items-center sm:px-6">
             <div>
               <p className="font-medium text-ink">La Protectora del Alquiler</p>
-              <p className="mt-1">Experiencias compartidas. Decisiones informadas.</p>
+              <p className="mt-1">Experiencias de propietarios y agencias. Decisiones informadas.</p>
             </div>
             <nav aria-label="Información y comunidad" className="flex flex-wrap items-center gap-x-5 gap-y-1">
               <Link href="/privacidad" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">

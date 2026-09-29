@@ -29,7 +29,7 @@ const SchemaRegistro = z.object({
     .min(8, 'La clave debe tener al menos 8 caracteres')
     .regex(/[a-zA-Z]/, 'Debe incluir letras')
     .regex(/[0-9]/, 'Debe incluir números'),
-  rol: z.enum(['propietario', 'agencia', 'inquilino']),
+  rol: z.enum(['propietario', 'agencia'], { error: 'Elija si es propietario o agencia.' }),
 })
 
 const SchemaLogin = z.object({
@@ -138,7 +138,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
         auth_user_id: authUserId,
         email,
         nombre,
-        rol: rol as Rol,
+        rol,
         identificacion: cedula,
       })
       .select('id')
@@ -184,7 +184,7 @@ const SchemaAltaFacebook = z.object({
   email: z.email('Escriba un correo válido'),
   cedula: z.string().trim().min(1, 'Escriba su número de cédula'),
   facebook: z.string().trim().min(1, 'Escriba su perfil de Facebook'),
-  rol: z.enum(['propietario', 'agencia', 'inquilino']).optional(),
+  rol: z.enum(['propietario', 'agencia'], { error: 'Elija si es propietario o agencia.' }).optional(),
 })
 
 async function guardarPerfilFacebook(
@@ -292,14 +292,14 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
 
     const existente = porAuth
     if (!existente) {
-      if (!parsed.data.rol) return { error: 'Elija si es propietario, agencia o inquilino.' }
+      if (!parsed.data.rol) return { error: 'Elija si es propietario o agencia.' }
       const perfil = await admin
         .from('usuarios')
         .insert({
           auth_user_id: user.id,
           email,
           nombre,
-          rol: parsed.data.rol as Rol,
+          rol: parsed.data.rol,
           identificacion: cedula,
         })
         .select('id')

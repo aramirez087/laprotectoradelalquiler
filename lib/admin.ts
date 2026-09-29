@@ -5,7 +5,7 @@ import { requerirRol } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
-import type { EstadoResena, Rol } from '@/lib/tipos'
+import type { EstadoResena, Rol, RolAsignable } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export class AvisoAdmin extends Error {
@@ -440,7 +440,7 @@ export async function buscarUsuarios(opts: { q?: string; pagina?: number }) {
   }
 }
 
-export async function actualizarUsuario(input: { id: number; rol: Rol; activo: boolean }) {
+export async function actualizarUsuario(input: { id: number; rol: RolAsignable; activo: boolean }) {
   const { usuario, db } = await exigirAdmin()
   if (!usuario.activo) throw new AvisoAdmin('No puede editar cuentas con la suya inactiva.')
   if (input.id === usuario.id && (input.rol !== 'admin' || !input.activo)) {

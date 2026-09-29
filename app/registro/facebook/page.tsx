@@ -47,7 +47,7 @@ export default async function RegistroFacebookPage(props: {
   return (
     <MarcoAcceso
       titulo="Complete su cuenta"
-      texto="Facebook confirmó su entrada. Revise sus datos para continuar a su primera experiencia."
+      texto="Registro exclusivo para propietarios y agencias. Revise sus datos para continuar a su primera reseña."
       pasoRegistro={1}
     >
       <p className="mb-6 rounded-xl border border-seal/20 bg-seal-soft px-4 py-3 text-sm leading-relaxed text-seal">

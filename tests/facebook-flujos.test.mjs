@@ -119,7 +119,7 @@ test('Facebook registration uses the provider email even if the form submits ano
   const formulario = new FormData()
   for (const [campo, valor] of Object.entries({
     nombre: 'Persona Nueva', email: 'falsificado@example.com', cedula: '102340567',
-    facebook: 'perfil.nuevo', rol: 'inquilino',
+    facebook: 'perfil.nuevo', rol: 'propietario',
   })) formulario.set(campo, valor)
   await assert.rejects(acciones.completarAltaFacebook(undefined, formulario), error => error.ruta === '/registro/resena')
   assert.equal(correoGuardado, 'confirmado@example.com')
@@ -154,12 +154,111 @@ test('registration does not take over an unlinked profile', async () => {
   const formulario = new FormData()
   for (const [campo, valor] of Object.entries({
     nombre: 'Persona Nueva', email: 'admin@laprotec.test', cedula: '102340567',
-    facebook: 'perfil.nuevo', clave: 'clave1234', rol: 'inquilino',
+    facebook: 'perfil.nuevo', clave: 'clave1234', rol: 'propietario',
   })) formulario.set(campo, valor)
   const resultado = await acciones.registrarse(undefined, formulario)
   assert.match(resultado.error, /inicie sesión/i)
   assert.equal(actualizo, false)
   assert.equal(creoAuth, false)
+})
+
+function registroConRol({ existente = null } = {}) {
+  const escrituras = []
+  let solicitudesAdmin = 0
+  const admin = {
+    auth: { admin: {
+      createUser: async input => {
+        escrituras.push({ tabla: 'auth', operacion: 'insert', valores: input })
+        return { data: { user: { id: 'auth-nueva' } }, error: null }
+      },
+      updateUserById: async (_id, input) => {
+        escrituras.push({ tabla: 'auth', operacion: 'update', valores: input })
+        return { error: null }
+      },
+    } },
+    from: tabla => consulta(({ operacion, valores, filtros }) => {
+      if (operacion !== 'select') escrituras.push({ tabla, operacion, valores })
+      if (tabla === 'usuarios') {
+        if (operacion === 'insert' || operacion === 'update') return { data: { id: 42 }, error: null }
+        if (filtros.some(filtro => filtro[0] === 'ilike')) return { data: [], error: null }
+        return { data: existente, error: null }
+      }
+      return { data: null, error: null }
+    }, tabla),
+  }
+  const acciones = cargar('lib/actions/auth.ts', {
+    'next/headers': {},
+    'next/navigation': { redirect: redirigir },
+    '@/lib/dal': {},
+    '@/lib/supabase/admin': { createAdmin: () => { solicitudesAdmin += 1; return admin } },
+    '@/lib/supabase/server': {
+      sinSupabase: () => false,
+      createClient: async () => ({ auth: {
+        signInWithPassword: async () => ({ error: null }),
+        getUser: async () => ({ data: { user: {
+          id: 'auth-nueva', email: 'persona@example.com',
+          app_metadata: { provider: 'facebook' }, user_metadata: {},
+        } } }),
+      } }),
+    },
+  })
+  return { acciones, escrituras, solicitudesAdmin: () => solicitudesAdmin }
+}
+
+function formularioConRol(rol) {
+  const formulario = new FormData()
+  for (const [campo, valor] of Object.entries({
+    nombre: 'Persona Nueva', email: 'persona@example.com', cedula: '102340567',
+    facebook: 'perfil.nuevo', clave: 'clave1234',
+  })) formulario.set(campo, valor)
+  if (rol !== undefined) formulario.set('rol', rol)
+  return formulario
+}
+
+test('password and Facebook registration reject tenant and forged roles before privileged access', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  for (const accion of ['registrarse', 'completarAltaFacebook']) {
+    for (const rol of ['inquilino', 'admin', 'otro']) {
+      const registro = registroConRol()
+      const resultado = await registro.acciones[accion](undefined, formularioConRol(rol))
+      assert.match(resultado.error, /propietario o agencia/)
+      assert.equal(registro.solicitudesAdmin(), 0)
+      assert.equal(registro.escrituras.length, 0)
+    }
+  }
+})
+
+test('owners and agencies can register through either method and continue to their first review', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  for (const accion of ['registrarse', 'completarAltaFacebook']) {
+    for (const rol of ['propietario', 'agencia']) {
+      const registro = registroConRol()
+      await assert.rejects(registro.acciones[accion](undefined, formularioConRol(rol)), error => error.ruta === '/registro/resena')
+      const perfil = registro.escrituras.find(escritura => escritura.tabla === 'usuarios')
+      assert.equal(perfil.valores.rol, rol)
+      const auth = registro.escrituras.find(escritura => escritura.tabla === 'auth')
+      assert.equal(auth.valores.user_metadata.rol, rol)
+    }
+  }
+})
+
+test('a new Facebook profile must explicitly choose owner or agency', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  const registro = registroConRol()
+  const resultado = await registro.acciones.completarAltaFacebook(undefined, formularioConRol())
+  assert.match(resultado.error, /propietario o agencia/)
+  assert.equal(registro.escrituras.length, 0)
+})
+
+test('completing a legacy Facebook profile does not silently reassign its historical role', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  const registro = registroConRol({ existente: { id: 42, auth_user_id: 'auth-nueva', rol: 'inquilino' } })
+  await assert.rejects(registro.acciones.completarAltaFacebook(undefined, formularioConRol()), error => error.ruta === '/registro/resena')
+  const perfil = registro.escrituras.find(escritura => escritura.tabla === 'usuarios')
+  assert.equal(perfil.operacion, 'update')
+  assert.equal(perfil.valores.rol, undefined)
+  const auth = registro.escrituras.find(escritura => escritura.tabla === 'auth')
+  assert.equal(auth.valores.user_metadata.rol, 'inquilino')
 })
 
 test('proxy uses current provider after unlinking and rejects deleted accounts', async () => {

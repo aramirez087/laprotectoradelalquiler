@@ -87,6 +87,26 @@ function form(notify = false) {
   return f
 }
 
+test('administration accepts current account roles but rejects assigning a tenant role', async () => {
+  const actualizaciones = []
+  const api = load('lib/actions/admin.ts', {
+    '@/lib/admin': { actualizarUsuario: async input => { actualizaciones.push(input) } },
+    '@/lib/correo-resenas': {},
+    'next/cache': { revalidatePath() {} },
+    'next/navigation': { unstable_rethrow() {} },
+  })
+  for (const rol of ['propietario', 'agencia', 'admin', 'inquilino', 'otro']) {
+    const formulario = new FormData()
+    formulario.set('id', '42')
+    formulario.set('rol', rol)
+    formulario.set('activo', 'on')
+    const resultado = await api.guardarUsuarioAction(undefined, formulario)
+    if (['inquilino', 'otro'].includes(rol)) assert.ok(resultado.error)
+    else assert.equal(resultado.mensaje, 'Cuenta actualizada.')
+  }
+  assert.deepEqual(actualizaciones.map(usuario => usuario.rol), ['propietario', 'agencia', 'admin'])
+})
+
 test('edit/delete notification follows a successful mutation and uses its stored author', async () => {
   const a = actions({}, { mensaje: 'Notificación enviada por correo.' })
   const edited = await a.editarResenaAction(undefined, form(true))

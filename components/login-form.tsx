@@ -69,7 +69,7 @@ export function LoginForm({
       <p className="border-t border-line pt-5 text-center text-sm text-ink-soft">
         ¿No tiene cuenta?{' '}
         <Link href={`/registro?${new URLSearchParams({ siguiente })}`} className="inline-flex min-h-8 items-center font-semibold text-seal underline underline-offset-4">
-          Crear una cuenta
+          Registrarse
         </Link>
       </p>
     </form>

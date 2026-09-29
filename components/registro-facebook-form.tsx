@@ -7,7 +7,6 @@ import { MensajeForm } from '@/components/mensaje-form'
 const ROLES = [
   { value: 'propietario', titulo: 'Propietario', descripcion: 'Alquilo una propiedad propia.', defecto: true },
   { value: 'agencia', titulo: 'Agencia', descripcion: 'Gestiono alquileres para otras personas.', defecto: false },
-  { value: 'inquilino', titulo: 'Inquilino', descripcion: 'Alquilo una vivienda o local.', defecto: false },
 ]
 
 export function RegistroFacebookForm({
@@ -92,7 +91,7 @@ export function RegistroFacebookForm({
         </div>
         {pedirRol && (
           <fieldset>
-            <legend className="etiqueta-campo">Su relación con el alquiler</legend>
+            <legend className="etiqueta-campo">Tipo de cuenta</legend>
             <div className="grid gap-2">
               {ROLES.map((rol) => (
                 <label key={rol.value} className="opcion-rol flex items-start gap-3">

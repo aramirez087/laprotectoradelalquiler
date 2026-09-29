@@ -8,7 +8,7 @@ import { altaFacebookPendiente } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
 import { sinSupabase } from '@/lib/supabase/server'
 
-export const metadata = { title: 'Crear cuenta' }
+export const metadata = { title: 'Registrarse' }
 
 export default async function RegistroPage(props: PageProps<'/registro'>) {
   const siguiente = destinoInterno(primer((await props.searchParams).siguiente))
@@ -19,8 +19,8 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   }
   return (
     <MarcoAcceso
-      titulo="Sea parte de la comunidad"
-      texto="Cree su cuenta y después comparta su primera experiencia de alquiler."
+      titulo="Cree su cuenta"
+      texto="Registro exclusivo para propietarios y agencias. Cree su cuenta y después escriba su primera reseña."
       pasoRegistro={1}
     >
       {sinSupabase() ? (

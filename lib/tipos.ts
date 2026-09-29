@@ -1,6 +1,8 @@
 // Tipos de la base de datos v2 (espejo de schema.sql)
 
+// Conserva el rol histórico para leer cuentas existentes; ya no se puede asignar.
 export type Rol = 'admin' | 'propietario' | 'agencia' | 'inquilino'
+export type RolAsignable = Exclude<Rol, 'inquilino'>
 export type EstadoResena = 'borrador' | 'publicada' | 'oculta'
 
 export interface Usuario {
