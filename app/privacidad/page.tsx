@@ -1,15 +1,18 @@
-import type { Metadata } from 'next'
 import Link from 'next/link'
+import { JsonLd } from '@/components/json-ld'
+import { datosPagina, metadataPublica } from '@/lib/seo'
 
-export const metadata: Metadata = {
-  title: 'Privacidad',
-  description:
-    'Qué datos guarda La Protectora del Alquiler, quién puede verlos y cómo se elimina el ingreso con Facebook.',
-}
+const descripcion = 'Conozca qué datos guarda La Protectora del Alquiler, quién puede consultar las reseñas de inquilinos y cómo se protege la cédula en el registro de Costa Rica.'
+export const metadata = metadataPublica({
+  titulo: 'Privacidad de datos | La Protectora del Alquiler',
+  descripcion,
+  ruta: '/privacidad',
+})
 
 export default function PrivacidadPage() {
   return (
     <article className="contenedor max-w-2xl space-y-8 py-10">
+      <JsonLd datos={datosPagina('/privacidad', 'Privacidad', descripcion)} />
       <Link href="/" className="enlace-atras">← Volver al inicio</Link>
       <header className="space-y-3">
         <p className="eyebrow">Su información</p>

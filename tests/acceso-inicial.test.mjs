@@ -26,6 +26,7 @@ function cargar(ruta, mocks = {}) {
     exports: modulo.exports,
     require: nombre => nombre in mocks ? mocks[nombre] : require(nombre),
     process,
+    URL,
     URLSearchParams,
   }, { filename: archivo.pathname })
   return modulo.exports
@@ -40,12 +41,14 @@ function redirigir(ruta) {
 const usuario = { id: 7, auth_user_id: 'auth-7', nombre: 'María Solís', rol: 'propietario', activo: true }
 const util = cargar('lib/util.ts')
 const acceso = cargar('lib/acceso-consulta.ts')
+const seo = cargar('lib/seo.ts')
 const comunes = {
   'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   'next/navigation': { redirect: redirigir, usePathname: () => '/' },
   '@/lib/supabase/server': { sinSupabase: () => false },
   '@/lib/util': util,
   '@/lib/acceso-consulta': acceso,
+  '@/lib/seo': seo,
   '@/components/icono': { Icono: () => null },
   '@/components/barrio-vivo': { BarrioVivo: () => null },
   '@/components/aviso-configuracion': { AvisoConfiguracion: () => null },
@@ -81,6 +84,13 @@ const pendiente = {
 function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false, estadoAcceso = pendiente } = {}) {
   return cargar('app/page.tsx', {
     ...comunes,
+    '@/components/contenido-seo': cargar('components/contenido-seo.tsx', comunes),
+    '@/components/json-ld': {
+      JsonLd: ({ datos }) => createElement('script', {
+        type: 'application/ld+json',
+        dangerouslySetInnerHTML: { __html: seo.serializarJsonLd(datos) },
+      }),
+    },
     '@/lib/dal': {
       obtenerUsuario: async () => sesion,
       contarResenasPublicadas: async () => null,
@@ -96,11 +106,29 @@ function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false, estadoA
 test('public home offers sign-in and registration before any search or review form', async () => {
   const html = renderToStaticMarkup(await inicio({ sesion: null })())
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
-  assert.deepEqual(destinos.sort(), ['/login', '/registro'])
+  assert.deepEqual(destinos.slice(0, 2), ['/registro', '/login'])
+  assert.deepEqual([...new Set(destinos)].sort(), [
+    '/como-funciona', '/como-funciona#preguntas-frecuentes', '/login', '/privacidad', '/registro',
+  ])
   assert.match(html, /Iniciar sesión/)
   assert.match(html, /Unirme a La Protectora/)
+  assert.match(html, /<h1[^>]*>Reseñas de inquilinos\./)
   assert.match(html, /propietarios y agencias/i)
   assert.doesNotMatch(html, /role="search"|type="search"|<form/)
+})
+
+test('public home renders explanatory content and site schema while the signed-in search stays focused', async () => {
+  const html = renderToStaticMarkup(await inicio({ sesion: null })())
+  assert.match(html, /<h2[^>]*>Reseñas de inquilinos en Costa Rica<\/h2>/)
+  assert.match(html, /id="preguntas-frecuentes"/)
+  const script = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)?.[1]
+  assert.ok(script)
+  assert.deepEqual(JSON.parse(script)['@graph'].map(entidad => entidad['@type']), [
+    'Organization', 'WebSite', 'WebPage',
+  ])
+
+  const privada = renderToStaticMarkup(await inicio({ resenas: 1, puedeConsultar: true })())
+  assert.doesNotMatch(privada, /application\/ld\+json|id="resenas-inquilinos"|id="preguntas-frecuentes"/)
 })
 
 test('signed-in home resumes an account without reviews at its first review', async () => {
