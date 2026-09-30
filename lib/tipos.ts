@@ -99,7 +99,6 @@ export interface VistaFicha {
   persona: Persona
   provincia: string | null
   resenas: number
-  promedio: number | null
   ultima: string | null
 }
 
@@ -122,34 +121,13 @@ export interface Lookups {
 export interface FilaResenaCompleta {
   id: number
   estado: EstadoResena
-  tipo: 'inquilino' | 'propietario'
-  calificacion_id: number | null
-  calificacion: Calificacion | null
-  recomienda: boolean | null
-  drogas: boolean | null
-  dano_vivienda_id: number | null
-  proceso_judicial_id: number | null
-  tipo_contrato_id: number | null
-  tipo_alquiler_id: number | null
-  tiempo_alquiler_id: number | null
-  dano: NombreId | null
-  proceso: NombreId | null
-  contrato: NombreId | null
-  tipoAlquiler: NombreId | null
-  tiempo: NombreId | null
-  detalle_dano: string | null
   comentario: string | null
   verificada: boolean
-  fecha_inicio_alquiler: string | null
-  fecha_fin_alquiler: string | null
   creado_en: string
   anonima: boolean
   /** La reseña es de quien está mirando la ficha. No revela la cuenta a los demás. */
   propia: boolean
   autor: { id: number; nombre: string; rol: Rol } | null
-  etiquetas: Array<{ etiqueta: Etiqueta }>
-  conductas: Array<{ conducta: { nombre: string } | null }> | null
-  fotos: FotoResena[]
 }
 
 export interface FichaCompleta {

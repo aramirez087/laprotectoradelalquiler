@@ -29,14 +29,13 @@ export async function GET(request: Request) {
   }
 
   const lineas = [
-    ['fecha', 'persona', 'identificacion', 'autor', 'calificacion', 'estado', 'anonima', 'comentario'].join(','),
+    ['fecha', 'persona', 'identificacion', 'autor', 'estado', 'anonima', 'comentario'].join(','),
     ...filas.map((fila) =>
       [
         fechaCorta(fila.creado_en) ?? '',
         nombreCompleto(fila.persona),
         fila.persona.identificacion,
         fila.autor?.nombre ?? '',
-        fila.calificacion?.valor ?? '',
         etiquetaEstado(fila.estado),
         fila.anonima ? 'sí' : 'no',
         fila.comentario ?? '',

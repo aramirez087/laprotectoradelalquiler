@@ -8,7 +8,6 @@ import { requireUsuario, obtenerFicha, obtenerUsuario, puedeConsultar, resenasPr
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
-import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { EstadoVacio } from '@/components/estado-vacio'
 import { sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, etiquetaEstado, fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
@@ -98,8 +97,10 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
     privadas.length > 0 ||
     (usuario.identificacion != null && persona.identificacion === usuario.identificacion)
 
-  const valores = resenas.flatMap((r) => (r.calificacion?.valor ? [r.calificacion.valor] : []))
-  const promedio = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null
+  const propia = resenas.some((r) => r.propia) || privadas.some((r) => r.propia)
+  const ultima = resenas.map((r) => r.creado_en).filter(Boolean).sort().at(-1)
+  const nueva = new URLSearchParams(consulta)
+  nueva.set('personaId', String(persona.id))
   const nombre = nombreCompleto(persona)
 
   return (
@@ -123,10 +124,10 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
         <div className="flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium">{resenas.length === 1 ? '1 reseña publicada' : `${resenas.length} reseñas publicadas`}</p>
-            <CalificacionEstrellas valor={promedio} />
+            {ultima && <p className="text-xs text-ink-soft">Última reseña: <time dateTime={ultima}>{fechaCorta(ultima)}</time></p>}
           </div>
-          <Link href={`/resenas/nueva?personaId=${persona.id}`} className="btn-primario">
-            Escribir reseña
+          <Link href={propia ? '/perfil#mis-resenas' : `/resenas/nueva?${nueva}`} className="btn-primario">
+            {propia ? 'Ver mi reseña' : 'Escribir reseña'}
           </Link>
         </div>
       </header>
@@ -164,6 +165,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
             <article key={r.id} className="expediente space-y-2 break-words">
               <p className="text-sm text-ink-soft">
                 {etiquetaEstado(r.estado)}
+                {r.propia ? ' · Su reseña' : ''}
                 {r.autor ? ` · ${r.autor}` : ''}
                 {r.anonima ? ' · Anónima' : ''}
                 {r.creado_en ? ` · ${fechaCorta(r.creado_en)}` : ''}

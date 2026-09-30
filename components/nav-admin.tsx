@@ -11,7 +11,6 @@ const ENLACES = [
   { href: '/admin/conteo', etiqueta: 'Por usuario' },
   { href: '/admin/usuarios', etiqueta: 'Usuarios' },
   { href: '/admin/reportes', etiqueta: 'Reportes' },
-  { href: '/admin/migracion', etiqueta: 'Importar datos' },
   { href: '/admin/configuracion', etiqueta: 'Configuración' },
 ]
 

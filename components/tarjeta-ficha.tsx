@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { Avatar } from '@/components/avatar'
-import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Icono } from '@/components/icono'
 import { fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
 import type { VistaFicha } from '@/lib/tipos'
@@ -17,13 +16,10 @@ export function TarjetaFicha({ ficha, href }: { ficha: VistaFicha; href: string 
             .filter(Boolean)
             .join(' · ')}
         </p>
-        <p className="mt-1 text-xs text-ink-soft">
-          {ficha.resenas === 1 ? '1 reseña' : `${ficha.resenas} reseñas`}
-          {ficha.ultima ? ` · Última reseña: ${fechaCorta(ficha.ultima)}` : ''}
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-ink-soft">
+          <span className="font-medium text-seal">{ficha.resenas === 1 ? '1 reseña publicada' : `${ficha.resenas} reseñas publicadas`}</span>
+          {ficha.ultima && <span>Última reseña: <time dateTime={ficha.ultima}>{fechaCorta(ficha.ultima)}</time></span>}
         </p>
-      </div>
-      <div className="valoracion-ficha">
-        <CalificacionEstrellas valor={ficha.promedio} />
       </div>
       <Icono nombre="flecha" className="hidden text-ink-soft sm:block" />
     </Link>

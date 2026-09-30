@@ -7,8 +7,8 @@ The product should feel like a calm, carefully kept community record. Preserve t
 1. **Make the next step obvious.** Each screen has one visible title and one primary task. Use explicit verbs: “Consultar fichas”, “Escribir reseña”, “Ver mis reseñas”.
 2. **Explain access before asking for effort.** A visitor should understand that consulting requires an account and an approved review before beginning a search or registration.
 3. **Protect the work someone has done.** Recoverable errors preserve entered values. Restore the intended destination after sign-in. Keep search filters when opening a record and returning to results.
-4. **Reveal detail when it helps.** Keep optional rental details in an expandable section. Account security settings should not compete with review status. Native disclosures are preferable to custom accordions.
-5. **Describe experience precisely.** Reviews are community contributions, not objective determinations about a person. Distinguish ratings, review counts, moderation status, and missing information. Never imply that no reviews means a positive history.
+4. **Reveal detail when it helps.** Account security settings should not compete with review status. Native disclosures are preferable to custom accordions.
+5. **Describe experience precisely.** Reviews are community contributions, not objective determinations about a person. Distinguish review counts, moderation status, and missing information. Never imply that no reviews means a positive history.
 6. **Respect privacy in presentation.** Search cards always mask documents. Existing server authorization determines full-document visibility on a detail page. Do not store review drafts or identity documents in browser storage.
 
 ## Visual foundation
@@ -43,9 +43,9 @@ Place reusable layout defaults in Tailwind's `components` layer when utilities m
 - Below 1024px, the header contains the full brand and a labeled menu button. The menu contains navigation and appearance preferences, in that order, and scrolls within short viewports.
 - Escape closes the mobile menu and returns focus to its trigger. Changing routes, clicking outside, or moving keyboard focus out of the header also closes it.
 - Admin navigation scrolls horizontally within its own region on narrow screens; the page itself must not overflow.
-- Search filters stack below 640px. Results wrap long names and move ratings below the identity on small screens.
+- Search filters stack below 640px. Results wrap long names, review counts and dates without a separate rating column.
 - Pagination shows previous/next and the current page on mobile; numbered links appear on larger screens.
-- Check at 320px, 390px, 768px, and desktop widths. Check long names, long emails, empty results, missing ratings, and long validation messages.
+- Check at 320px, 390px, 768px, and desktop widths. Check long names, long emails, empty results, anonymous authors, and long validation messages.
 
 ## Key journeys
 
@@ -57,9 +57,9 @@ Use `MarcoAcceso` for sign-in, registration, recovery, and reset screens. Succes
 
 ### Writing a review
 
-Use three numbered sections: person, rental start, and comment. Mark required fields with `*`, and explain the notation before the form. An existing person's identity is a compact read-only summary, with the same submitted values as the editable flow. Keep the comment's 30-character minimum and 5,000-character limit visible. The current new-review form does not ask for a rating or tags; imported reviews can still display those values.
+Use two numbered sections: person and experience. Mark required fields with `*`, and explain the notation before the form. An existing person's identity is a compact read-only summary, with the same submitted values as the editable flow. Keep the comment's 30-character minimum and 5,000-character limit visible. The current form collects identity, a written experience and the anonymity choice. Results, profiles, moderation cards and reports follow that same model; do not display ratings, rental dates, tags or structured rental details from older records. Historical data stays in the database for import compatibility.
 
-The rental start is required and cannot be a future date. Keep the anonymity option next to the comment so users understand what is hidden. The final action says “Enviar reseña a revisión” when moderation applies and “Publicar reseña” when publication is immediate; derive this from the same existing conditions as the server.
+Keep the anonymity option next to the comment so users understand what is hidden. The final action says “Enviar reseña a revisión” when moderation applies and “Publicar reseña” when publication is immediate; derive this from the same existing conditions as the server. If someone already reviewed the selected person, lead to their existing review. A failed or unavailable selected ficha must offer recovery instead of silently opening a blank identity form.
 
 `useFormAction` keeps uncontrolled values through recoverable responses and includes the clicked submit button in `FormData`. Forms retain their action attribute for pre-hydration submission. Announce feedback and focus the first invalid field, falling back to the message. Password-change forms explicitly clear their fields on success. Do not reset a review on failure.
 
@@ -74,11 +74,11 @@ No draft is saved across a page reload or navigation. Only the current mounted f
 
 ### Search → record → return
 
-Use visible search/filter labels, a clear submit button, visible active filters, and a reset link. Show the result range and total. Cards display the full name, province, masked document, review count, last review date, and rating with a numeric label. All of a card is one link.
+Use visible search/filter labels, a clear submit button, visible active filters, and a reset link. Show the result range and total. Cards display the full name, province, masked document, published-review count and last review date. All of a card is one link.
 
-A record has a clear back-to-results link preserving filters and page. Its review action is explicit. Do not truncate the person's name at the point where someone needs to verify identity. Distinguish unavailable data from empty results.
+A record has a clear back-to-results link preserving filters and page, including when returning from the review form. Its review action is explicit and leads to the existing review when someone has already contributed. Do not truncate the person's name at the point where someone needs to verify identity. Distinguish unavailable data from empty results.
 
-Separate the identity, published-review count and average rating on record details. Lead review cards with the contributor and their story, then any supporting rental context. Reporting starts with an unselected required reason; never preselect an allegation.
+Separate the identity and published-review summary on record details. Lead review cards with the contributor, date and their story. Preserve author anonymity, ownership and moderation status. Reporting starts with an unselected required reason; never preselect an allegation.
 
 ### Administration
 

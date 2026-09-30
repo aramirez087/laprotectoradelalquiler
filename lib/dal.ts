@@ -16,15 +16,10 @@ import {
   variantesAcento,
 } from '@/lib/util'
 import type {
-  Calificacion,
   Denuncia,
-  Etiqueta,
   FichaCompleta,
   FilaResenaCompleta,
-  FotoResena,
   EstadoResena,
-  Lookups,
-  NombreId,
   Persona,
   Resena,
   Rol,
@@ -222,7 +217,7 @@ export async function buscarFichas(opts: {
   let query = supabase
     .from('personas')
     .select(
-      '*, provincia:provincias(nombre), resenas!inner(id, estado, calificacion_id, calificacion:calificaciones(valor), creado_en)',
+      '*, provincia:provincias(nombre), resenas!inner(id, estado, creado_en)',
       { count: 'exact' },
     )
     .eq('resenas.estado', 'publicada')
@@ -246,8 +241,6 @@ export async function buscarFichas(opts: {
 
   type FilaBusqueda = {
     estado: string
-    calificacion_id: number | null
-    calificacion: { valor: number } | null
     creado_en: string
   }
   type FilaPersona = Persona & {
@@ -255,24 +248,15 @@ export async function buscarFichas(opts: {
     resenas: FilaBusqueda[] | null
   }
 
-  const catalogo = await obtenerLookups().catch(() => null)
-  const valorPorId = new Map((catalogo?.calificaciones ?? []).map((c) => [c.id, c.valor]))
-  const provinciaPorId = new Map((catalogo?.provincias ?? []).map((p) => [p.id, p.nombre]))
-
   const fichas: VistaFicha[] = ((data ?? []) as FilaPersona[]).map((fila) => {
     const rs = (fila.resenas ?? []).filter((r) => r.estado === 'publicada')
-    const valores = rs.flatMap((r) => {
-      const valor = r.calificacion?.valor ?? (r.calificacion_id ? valorPorId.get(r.calificacion_id) : undefined)
-      return valor ? [valor] : []
-    })
     const fechas = rs.map((r) => r.creado_en).sort()
     const { provincia, resenas: _resenas, ...persona } = fila
     void _resenas
     return {
       persona,
-      provincia: provincia?.nombre ?? (fila.provincia_id ? provinciaPorId.get(fila.provincia_id) ?? null : null),
+      provincia: provincia?.nombre ?? null,
       resenas: rs.length,
-      promedio: valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null,
       ultima: fechas.at(-1) ?? null,
     }
   })
@@ -320,34 +304,22 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
   const admin = createAdmin()
   // autor_id no es legible por la sesión. Con clave de servicio se resuelve
   // después y se omite si la reseña es anónima para quien no administra.
-  const autorIncrustado = admin ? '' : '\n         autor:usuarios(id, nombre, rol),'
+  const autorIncrustado = admin ? '' : ', autor:usuarios(id, nombre, rol)'
   const { data, error } = await supabase
     .from('personas')
     .select(
       `*,
        provincia:provincias(nombre),
        resenas(
-         id, estado, tipo, calificacion_id, recomienda, drogas,
-         dano_vivienda_id, proceso_judicial_id, tipo_contrato_id,
-         tipo_alquiler_id, tiempo_alquiler_id,
-         detalle_dano, comentario, verificada, anonima, creado_en,
-         fecha_inicio_alquiler, fecha_fin_alquiler,${autorIncrustado}
-         calificacion:calificaciones(valor, texto),
-         dano:danos_vivienda(nombre),
-         proceso:procesos_judiciales(nombre),
-         contrato:tipos_contrato(nombre),
-         tipoAlquiler:tipos_alquiler(nombre),
-         tiempo:tiempos_alquiler(nombre),
-         etiquetas:resena_etiquetas(etiqueta:etiquetas(nombre)),
-         conductas:resena_conductas(conducta:conductas(nombre)),
-         fotos:fotos_resena(id, resena_id, url, descripcion, orden)
+         id, estado, comentario, verificada, anonima, creado_en${autorIncrustado}
        )`,
     )
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
   if (!data) return null
-  return enriquecerFicha(data as FichaCompleta, usuario)
+  const ficha = data as FichaCompleta
+  return { ...ficha, resenas: await atribuirAutores(ficha.resenas ?? [], usuario) }
 })
 
 // ============================================================================
@@ -494,7 +466,7 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
   if (!admin) return []
   let consulta = admin
     .from('resenas')
-    .select('id, estado, comentario, detalle_verificacion, creado_en, anonima, autor:usuarios(nombre)')
+    .select('id, autor_id, estado, comentario, detalle_verificacion, creado_en, anonima, autor:usuarios(nombre)')
     .eq('persona_id', personaId)
     .neq('estado', 'publicada')
     .order('creado_en', { ascending: false })
@@ -511,6 +483,7 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
       detalle_verificacion: (fila.detalle_verificacion as string | null) ?? null,
       creado_en: fila.creado_en as string,
       anonima: fila.anonima === true,
+      propia: fila.autor_id === usuario.id,
       autor: usuario.rol === 'admin' ? autor?.nombre ?? null : null,
     }
   })
@@ -523,15 +496,22 @@ export async function listarResenasDe(autorId: number) {
   const { data, error } = await db
     .from('resenas')
     .select(
-      `*, persona:personas(id, nombre, nombre2, apellido1, apellido2),
-       calificacion:calificaciones(valor, texto)`,
+      `id, persona_id, estado, comentario, anonima, detalle_verificacion, creado_en,
+       persona:personas(id, nombre, nombre2, apellido1, apellido2)`,
     )
     .eq('autor_id', autorId)
     .order('creado_en', { ascending: false })
   if (error) throw error
-  return data as Array<Resena & { persona: Persona; calificacion: Calificacion | null }>
+  return (data ?? []).map((fila) => {
+    const persona = uno(fila.persona)
+    if (!persona) throw new Error('No se pudo leer el inquilino de la reseña.')
+    return { ...fila, persona }
+  }) as Array<
+    Pick<Resena, 'id' | 'persona_id' | 'estado' | 'comentario' | 'anonima' | 'detalle_verificacion' | 'creado_en'> & {
+      persona: Pick<Persona, 'id' | 'nombre' | 'nombre2' | 'apellido1' | 'apellido2'>
+    }
+  >
 }
-
 export async function denunciarResena(input: {
   resenaId: number
   denuncianteId: number
@@ -610,95 +590,3 @@ async function atribuirAutores(resenas: FilaResenaCompleta[], usuario: Usuario):
     return { ...r, anonima, propia, autor: visible ? autor ?? null : null }
   })
 }
-
-async function enriquecerFicha(ficha: FichaCompleta, usuario: Usuario): Promise<FichaCompleta> {
-  const admin = createAdmin()
-  if (!admin) return { ...ficha, resenas: await atribuirAutores(ficha.resenas ?? [], usuario) }
-  const catalogo = await obtenerLookups()
-  const porId = <T extends { id: number }>(filas: T[]) => new Map(filas.map((f) => [f.id, f]))
-  const calificaciones = porId(catalogo.calificaciones)
-  const danos = porId(catalogo.danos)
-  const procesos = porId(catalogo.procesos)
-  const contratos = porId(catalogo.contratos)
-  const tipos = porId(catalogo.tiposAlquiler)
-  const tiempos = porId(catalogo.tiempos)
-  const existentes = ficha.resenas ?? []
-  const ids = existentes.map((r) => r.id)
-
-  let etiquetas: Array<{ resena_id: number; etiqueta: Etiqueta | Etiqueta[] | null }> = []
-  let conductas: Array<{ resena_id: number; conducta: { nombre: string } | Array<{ nombre: string }> | null }> = []
-  let fotos: FotoResena[] = []
-  if (ids.length) {
-    const [etq, cond, fot] = await Promise.all([
-      admin.from('resena_etiquetas').select('resena_id, etiqueta:etiquetas(id, nombre, tipo)').in('resena_id', ids),
-      admin.from('resena_conductas').select('resena_id, conducta:conductas(nombre)').in('resena_id', ids),
-      admin.from('fotos_resena').select('id, resena_id, url, descripcion, orden').in('resena_id', ids),
-    ])
-    if (etq.error) throw etq.error
-    if (cond.error) throw cond.error
-    if (fot.error) throw fot.error
-    etiquetas = (etq.data ?? []) as typeof etiquetas
-    conductas = (cond.data ?? []) as typeof conductas
-    fotos = (fot.data ?? []) as FotoResena[]
-  }
-
-  const provincia = ficha.provincia?.nombre
-    ? ficha.provincia
-    : catalogo.provincias.find((p) => p.id === ficha.provincia_id) ?? null
-
-  const resenas: FilaResenaCompleta[] = existentes.map((r) => {
-    const etiquetasResena = etiquetas
-      .filter((e) => e.resena_id === r.id)
-      .flatMap((e) => {
-        const etiqueta = uno(e.etiqueta)
-        return etiqueta ? [{ etiqueta }] : []
-      })
-    const conductasResena = conductas
-      .filter((c) => c.resena_id === r.id)
-      .flatMap((c) => {
-        const conducta = uno(c.conducta)
-        return conducta ? [{ conducta }] : []
-      })
-    return {
-      ...r,
-      calificacion: r.calificacion ?? (r.calificacion_id ? calificaciones.get(r.calificacion_id) ?? null : null),
-      dano: r.dano ?? (r.dano_vivienda_id ? danos.get(r.dano_vivienda_id) ?? null : null),
-      proceso: r.proceso ?? (r.proceso_judicial_id ? procesos.get(r.proceso_judicial_id) ?? null : null),
-      contrato: r.contrato ?? (r.tipo_contrato_id ? contratos.get(r.tipo_contrato_id) ?? null : null),
-      tipoAlquiler: r.tipoAlquiler ?? (r.tipo_alquiler_id ? tipos.get(r.tipo_alquiler_id) ?? null : null),
-      tiempo: r.tiempo ?? (r.tiempo_alquiler_id ? tiempos.get(r.tiempo_alquiler_id) ?? null : null),
-      etiquetas: etiquetasResena.length ? etiquetasResena : r.etiquetas ?? [],
-      conductas: conductasResena.length ? conductasResena : r.conductas ?? [],
-      fotos: fotos.some((f) => f.resena_id === r.id) ? fotos.filter((f) => f.resena_id === r.id) : r.fotos ?? [],
-    }
-  })
-
-  return { ...ficha, provincia, resenas: await atribuirAutores(resenas, usuario) }
-}
-
-export const obtenerLookups = cache(async (): Promise<Lookups> => {
-  const supabase = await clienteServicio()
-  const [calif, etq, danos, procesos, contratos, tiposAlq, tiempos, provincias] =
-    await Promise.all([
-      supabase.from('calificaciones').select('*').order('valor'),
-      supabase.from('etiquetas').select('*').eq('tipo', 'inquilino').order('nombre'),
-      supabase.from('danos_vivienda').select('*').order('id'),
-      supabase.from('procesos_judiciales').select('*').order('id'),
-      supabase.from('tipos_contrato').select('*').order('id'),
-      supabase.from('tipos_alquiler').select('*').order('id'),
-      supabase.from('tiempos_alquiler').select('*').order('id'),
-      supabase.from('provincias').select('*').order('nombre'),
-    ])
-  const err = [calif, etq, danos, procesos, contratos, tiposAlq, tiempos, provincias].find((r) => r.error)
-  if (err) throw err.error!
-  return {
-    calificaciones: (calif.data ?? []) as Lookups['calificaciones'],
-    etiquetas: (etq.data ?? []) as Lookups['etiquetas'],
-    danos: (danos.data ?? []) as NombreId[],
-    procesos: (procesos.data ?? []) as NombreId[],
-    contratos: (contratos.data ?? []) as NombreId[],
-    tiposAlquiler: (tiposAlq.data ?? []) as NombreId[],
-    tiempos: (tiempos.data ?? []) as NombreId[],
-    provincias: (provincias.data ?? []) as NombreId[],
-  }
-})

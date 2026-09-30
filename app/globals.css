@@ -333,7 +333,6 @@ button.chip {
 }
 
 .opcion:focus-within,
-.calificacion-opcion:focus-within,
 .opcion-rol:focus-within {
   outline: 2px solid var(--seal);
   outline-offset: 2px;
@@ -451,11 +450,6 @@ button.chip {
   max-width: 9.5rem;
   padding-right: 0.4rem;
   font-size: 0.875rem;
-}
-
-.estrellas {
-  font-family: var(--font-display), Georgia, serif;
-  letter-spacing: 0.06em;
 }
 
 .denuncia summary {
@@ -964,7 +958,7 @@ input[type='radio'] {
 @layer components {
   a.fila-ficha {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 1rem;
     padding: 1.25rem 1.5rem;
@@ -973,9 +967,6 @@ input[type='radio'] {
 a.fila-ficha:hover {
   background: color-mix(in srgb, var(--seal-soft) 35%, var(--card));
   border-color: var(--control-line);
-}
-.valoracion-ficha {
-  min-width: 0;
 }
 .seccion-formulario {
   padding: 1.5rem;
@@ -1079,9 +1070,6 @@ a.metrico:hover {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.75rem;
     padding: 1rem;
-  }
-  .valoracion-ficha {
-    grid-column: 2;
   }
   .buscador:has(select) {
     flex-wrap: wrap;

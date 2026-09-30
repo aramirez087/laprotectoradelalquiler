@@ -11,7 +11,6 @@ import {
 } from '@/lib/facebook-auth'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from '@/lib/util'
-import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { Icono } from '@/components/icono'
 import { PerfilFacebook } from '@/components/perfil-facebook'
@@ -142,22 +141,20 @@ export default async function PerfilPage(props: {
                       {consulta ? <Link href={`/fichas/${r.persona.id}`} className="underline-offset-4 hover:underline">{nombreCompleto(r.persona)}</Link> : nombreCompleto(r.persona)}
                     </h3>
                     <p className="mt-1 text-xs leading-relaxed text-ink-soft">
-                      Enviada el {fechaCorta(r.creado_en)}
-                      {r.fecha_inicio_alquiler ? ` · Inicio del alquiler: ${r.fecha_inicio_alquiler.split('-').reverse().join('/')}` : ''}
+                      Enviada el <time dateTime={r.creado_en}>{fechaCorta(r.creado_en)}</time>
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`chip ${r.estado === 'publicada' ? 'chip-ok' : 'chip-alerta'}`}>{r.estado === 'publicada' ? 'Aprobada' : etiquetaEstado(r.estado)}</span>
                   {r.anonima && <span className="chip">Anónima</span>}
-                  <CalificacionEstrellas valor={r.calificacion?.valor ?? null} />
                 </div>
                 <p className="text-xs leading-relaxed text-ink-soft">
                   {r.estado === 'borrador' ? 'En revisión. Todavía no suma tiempo de consulta.' : r.estado === 'oculta' ? 'No aporta tiempo de consulta.' : 'Publicada. Su reseña sobre este inquilino cuenta una sola vez para su permiso.'}
                 </p>
                 {r.estado === 'oculta' && r.detalle_verificacion && <p className="rounded-lg bg-alerta-soft p-3 text-sm leading-relaxed text-alerta"><strong className="font-semibold">Motivo de la revisión:</strong> {r.detalle_verificacion}</p>}
                 <details className="border-t border-line pt-3">
-                  <summary className="min-h-8 cursor-pointer text-sm font-medium text-seal">Leer mi reseña</summary>
+                  <summary className="min-h-11 content-center cursor-pointer text-sm font-medium text-seal">Leer mi reseña</summary>
                   <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed">{r.comentario?.trim() || 'Sin comentario.'}</p>
                 </details>
               </li>
