@@ -111,7 +111,6 @@ export function RegistroForm({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          maxLength={300}
           aria-describedby="ayuda-facebook"
         />
         <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">

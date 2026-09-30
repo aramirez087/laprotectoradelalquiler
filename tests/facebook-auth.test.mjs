@@ -22,14 +22,24 @@ test('Facebook sign-in stays off unless AUTH_FACEBOOK is exactly 1', () => {
   assert.equal(authFacebookHabilitado('1'), true)
 })
 
-test('a Facebook-created account still needs a cédula and a public profile URL', () => {
+test('a Facebook-created account needs a valid cédula and any nonempty Facebook value', () => {
   assert.equal(cuentaCreadaConFacebook({ app_metadata: { provider: 'facebook' } }), true)
   assert.equal(cuentaCreadaConFacebook({ app_metadata: { provider: 'email' } }), false)
   assert.equal(cuentaCreadaConFacebook(null), false)
-  assert.equal(altaLista('1-0234-0567', 'https://www.facebook.com/maria.solis'), true)
+  for (const facebook of [
+    'https://www.facebook.com/maria.solis',
+    '@maria.solis',
+    'María Solís',
+    'https://www.facebook.com/share/1Example/',
+    'https://facebook.com',
+  ]) {
+    assert.equal(altaLista('1-0234-0567', facebook), true, facebook)
+  }
   assert.equal(altaLista(null, 'https://www.facebook.com/maria.solis'), false)
-  assert.equal(altaLista('1-0234-0567', 'https://facebook.com'), false)
-  assert.equal(altaLista('1-0234-0567', null), false)
+  assert.equal(altaLista('123', 'María Solís'), false)
+  for (const facebook of [null, undefined, '', '  \t\n ']) {
+    assert.equal(altaLista('1-0234-0567', facebook), false)
+  }
 })
 
 test('an email account that later links Facebook is not sent through sign-up again', () => {

@@ -242,6 +242,44 @@ test('owners and agencies can register through either method and continue to the
   }
 })
 
+test('both registration methods accept Facebook names and shared links without requiring a profile format', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  for (const accion of ['registrarse', 'completarAltaFacebook']) {
+    for (const [entrada, esperado] of [
+      ['  @maria.solis  ', '@maria.solis'],
+      ['  María Solís  ', 'María Solís'],
+      ['  https://www.facebook.com/share/1Example/?mibextid=wwXIfr  ', 'https://www.facebook.com/share/1Example/?mibextid=wwXIfr'],
+      ['  maria.solis  ', 'https://www.facebook.com/maria.solis'],
+    ]) {
+      const registro = registroConRol()
+      const formulario = formularioConRol('propietario')
+      formulario.set('facebook', entrada)
+      await assert.rejects(registro.acciones[accion](undefined, formulario), error => error.ruta === '/registro/resena')
+      const enlace = registro.escrituras.find(escritura => escritura.tabla === 'autenticaciones')
+      assert.equal(enlace.valores.proveedor, 'facebook')
+      assert.equal(enlace.valores.proveedor_id, esperado, `${accion}: ${entrada}`)
+      const auth = registro.escrituras.find(escritura => escritura.tabla === 'auth')
+      assert.equal(auth.valores.user_metadata.facebook, esperado, `${accion}: metadata`)
+      assert.equal(facebook.altaLista('102340567', enlace.valores.proveedor_id), true)
+    }
+  }
+})
+
+test('both registration methods still require a nonempty Facebook value before privileged access', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  for (const accion of ['registrarse', 'completarAltaFacebook']) {
+    for (const entrada of ['', '  \t\n ']) {
+      const registro = registroConRol()
+      const formulario = formularioConRol('propietario')
+      formulario.set('facebook', entrada)
+      const resultado = await registro.acciones[accion](undefined, formulario)
+      assert.match(resultado.error, /Escriba su perfil de Facebook/)
+      assert.equal(registro.solicitudesAdmin(), 0)
+      assert.equal(registro.escrituras.length, 0)
+    }
+  }
+})
+
 test('a new Facebook profile must explicitly choose owner or agency', async () => {
   process.env.AUTH_FACEBOOK = '1'
   const registro = registroConRol()
