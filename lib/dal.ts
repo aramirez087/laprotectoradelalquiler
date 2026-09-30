@@ -370,16 +370,16 @@ export async function crearResena(input: {
   const identificacion = input.identificacion.trim().replace(/\s+/g, '')
 
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.
-  let persona: { id: number } | null = null
+  let persona: { id: number; identificacion?: string } | null = null
   if (input.personaId) {
-    const { data, error } = await dbPersona.from('personas').select('id').eq('id', input.personaId).maybeSingle()
+    const { data, error } = await dbPersona.from('personas').select('id, identificacion').eq('id', input.personaId).maybeSingle()
     if (error) throw error
     if (!data) throw new Error('No encontramos a esa persona en el registro.')
     persona = data
   } else {
     const { data: exacta, error: errorExacta } = await dbPersona
       .from('personas')
-      .select('id')
+      .select('id, identificacion')
       .eq('identificacion', identificacion)
       .maybeSingle()
     if (errorExacta) throw errorExacta
@@ -398,8 +398,8 @@ export async function crearResena(input: {
     }
   }
 
+  const consulta = await consultarCedula(persona?.identificacion ?? identificacion, true)
   if (!persona) {
-    const consulta = await consultarCedula(identificacion)
     const identidad = consulta.estado === 'encontrada' ? consulta.persona : input
     const { data: nueva, error } = await dbPersona
       .from('personas')

@@ -27,8 +27,18 @@ test('padrón metadata and quotas are service-only, atomic and protected from st
   assert.equal(await readFile('supabase/migrations/20260930120106_verificacion_cedulas_tse.sql', 'utf8'), patch)
   await db.query(patch)
   await db.query(patch) // repeatable additive migration
+  const resultados = await readFile('db/resultados-cedulas-tse.sql', 'utf8')
+  assert.ok((await readFile('schema.sql', 'utf8')).includes(resultados))
+  assert.equal(await readFile('supabase/migrations/20260930232651_resultados_cedulas_tse.sql', 'utf8'), resultados)
+  await db.query(resultados)
+  await db.query(resultados)
   const publicar = async fecha => (await db.query('SELECT publicar_padron_tse($1,$2,$3,$4,$5) AS ok', [`${fecha}-${'a'.repeat(16)}`, fecha, ['102'], 3_760_497, 'a'.repeat(64)])).rows[0].ok
   await db.query('SET ROLE service_role')
+  await db.query("SELECT guardar_verificacion_cedula('102340567', '2026-08-31', 'MARÍA SOLÍS')")
+  await db.query("SELECT guardar_verificacion_cedula('102340567', '2026-07-31', NULL)")
+  assert.equal((await db.query("SELECT estado FROM verificaciones_cedula WHERE identificacion = '102340567'")).rows[0].estado, 'encontrada')
+  await db.query("SELECT guardar_verificacion_cedula('102340568', '2026-08-31', NULL)")
+  assert.equal((await db.query("SELECT estado FROM verificaciones_cedula WHERE identificacion = '102340568'")).rows[0].estado, 'no_encontrada')
   assert.equal(await publicar('2026-08-31'), true)
   assert.equal(await publicar('2026-07-31'), false)
   assert.equal((await db.query('SELECT fecha_padron::text FROM padron_tse')).rows[0].fecha_padron, '2026-08-31')
@@ -40,8 +50,11 @@ test('padrón metadata and quotas are service-only, atomic and protected from st
   await db.query('RESET ROLE')
   const rls = (await db.query("SELECT bool_and(relrowsecurity) AS rls FROM pg_class WHERE oid IN ('public.padron_tse'::regclass,'public.limites_consulta_padron'::regclass)")).rows[0].rls
   assert.equal(rls, true)
+  assert.equal((await db.query("SELECT relrowsecurity FROM pg_class WHERE oid = 'public.verificaciones_cedula'::regclass")).rows[0].relrowsecurity, true)
   for (const role of ['anon', 'authenticated']) {
     await db.query(`SET ROLE ${role}`)
+    await assert.rejects(db.query('SELECT * FROM verificaciones_cedula'), /permission denied/)
+    await assert.rejects(db.query("SELECT guardar_verificacion_cedula('102340567', '2026-08-31', 'FORGED')"), /permission denied/)
     await assert.rejects(db.query('SELECT * FROM padron_tse'), /permission denied/)
     await assert.rejects(db.query('SELECT consumir_consulta_padron($1)', [clave]), /permission denied/)
     await assert.rejects(publicar('2026-09-01'), /permission denied/)

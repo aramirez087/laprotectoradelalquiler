@@ -38,7 +38,9 @@ test('official CSV preserves compound given names, accents and an empty second s
 
 function padron({ fecha = new Date().toISOString().slice(0, 10), prefijos = ['102'], downloadError = false, fallosManifiesto = 0, reloj = Date, contenido = '102340567\tMARÍA DEL CARMEN\tSOLÍS\tMUÑOZ\n' } = {}) {
   let descargas = 0, manifiestos = 0
+  const guardados = []
   const db = {
+    rpc: async (nombre, args) => { guardados.push({ nombre, args }); return { error: null } },
     from: () => ({ select() { return this }, eq() { return this }, maybeSingle: async () => { manifiestos++; return fallosManifiesto-- > 0 ? { error: { code: '503' }, data: null } : ({ data: { version: `${fecha}-abcdef0123456789`, fecha_padron: fecha, prefijos }, error: null }) } }),
     storage: { from: bucket => {
       assert.equal(bucket, 'padron-tse')
@@ -53,7 +55,7 @@ function padron({ fecha = new Date().toISOString().slice(0, 10), prefijos = ['10
     'server-only': {}, react: { cache: f => f }, '@/lib/cedula': cedula,
     '@/lib/supabase/admin': { createAdmin: () => db },
   }, { Date: reloj })
-  return { ...api, get descargas() { return descargas }, get manifiestos() { return manifiestos } }
+  return { ...api, guardados, get descargas() { return descargas }, get manifiestos() { return manifiestos } }
 }
 
 test('shared manifests refresh after 30 seconds and failed reads recover on the next request', async () => {
@@ -98,6 +100,22 @@ test('a blank second surname at the end of a shard is still found', async () => 
   assert.equal(resultado.persona.apellido2, '')
 })
 
+test('form submissions persist server results, previews and unavailable lookups do not', async () => {
+  const api = padron()
+  await api.consultarCedula('102340567')
+  assert.equal(api.guardados.length, 0)
+  await api.consultarCedula('1-0234-0567', true)
+  assert.equal(api.guardados[0].nombre, 'guardar_verificacion_cedula')
+  assert.equal(api.guardados[0].args.p_identificacion, '102340567')
+  assert.equal(api.guardados[0].args.p_nombre_tse, persona.nombreCompleto)
+  await api.consultarCedula('102340568', true)
+  assert.equal(api.guardados[1].args.p_nombre_tse, null)
+  for (const api of [padron({ downloadError: true }), padron({ fecha: '2020-01-01' })]) {
+    await api.consultarCedula('102340567', true)
+    assert.equal(api.guardados.length, 0)
+  }
+})
+
 test('lookup endpoint enforces origin, body limits and a server-side quota before reading names', async () => {
   const secretoAnterior = process.env.SUPABASE_SECRET_KEY
   process.env.SUPABASE_SECRET_KEY = 'test-only-secret'
@@ -138,6 +156,7 @@ test('identity form renders cédula before name and keeps manual fields availabl
 test('admin saves preserve administrator names and never consult the TSE', async () => {
   const llamadas = []
   const api = cargarTS('lib/admin.ts', {
+    '@/lib/cedula': cedula,
     'server-only': {}, '@/lib/dal': { requerirRol: async () => ({ id: 7 }) },
     '@/lib/padron': { consultarCedula: async () => { throw new Error('Admin must not consult TSE') } },
     '@/lib/util': cargarTS('lib/util.ts'), '@/lib/periodo': {}, '@/lib/acceso-consulta': {},

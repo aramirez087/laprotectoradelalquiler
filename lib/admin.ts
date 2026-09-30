@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { cedulaNacional, type VerificacionCedula } from '@/lib/cedula'
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
@@ -45,8 +46,9 @@ export interface FilaAdminResena {
     apellido1: string
     apellido2: string | null
     identificacion: string
+    verificacionCedula?: VerificacionCedula | null
   }
-  autor: { id: number; nombre: string; email: string; identificacion: string | null; facebook: string | null } | null
+  autor: { id: number; nombre: string; email: string; identificacion: string | null; facebook: string | null; verificacionCedula?: VerificacionCedula | null } | null
 }
 
 export interface FilaAdminUsuario {
@@ -247,14 +249,22 @@ export async function consultarResenas(opts: {
     const fila = aFila(row)
     return fila ? [fila] : []
   })
-  const perfiles = await facebookPorUsuario(
-    db,
-    filas.flatMap((fila) => (fila.autor ? [fila.autor.id] : [])),
-  )
+  const cedulas = [...new Set(filas.flatMap(fila => [fila.persona.identificacion, fila.autor?.identificacion])
+    .map(cedulaNacional).filter((cedula): cedula is string => cedula !== null))]
+  const [perfiles, verificaciones] = await Promise.all([
+    facebookPorUsuario(db, filas.flatMap(fila => fila.autor ? [fila.autor.id] : [])),
+    cedulas.length ? db.from('verificaciones_cedula').select('identificacion, estado, fecha_padron, nombre_tse, consultado_en').in('identificacion', cedulas)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (verificaciones.error) throw verificaciones.error
+  const porCedula = new Map((verificaciones.data as VerificacionCedula[]).map(resultado => [resultado.identificacion, resultado]))
+  const verificacionDe = (identificacion: string | null | undefined) => porCedula.get(cedulaNacional(identificacion) ?? '') ?? null
   return {
-    filas: filas.map((fila) =>
-      fila.autor ? { ...fila, autor: { ...fila.autor, facebook: perfiles.get(fila.autor.id) ?? null } } : fila,
-    ),
+    filas: filas.map(fila => ({
+      ...fila,
+      persona: { ...fila.persona, verificacionCedula: verificacionDe(fila.persona.identificacion) },
+      autor: fila.autor ? { ...fila.autor, facebook: perfiles.get(fila.autor.id) ?? null, verificacionCedula: verificacionDe(fila.autor.identificacion) } : null,
+    })),
     total: count ?? 0,
   }
 }

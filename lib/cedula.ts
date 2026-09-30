@@ -10,6 +10,14 @@ export interface NombrePadron {
   nombreCompleto: string
 }
 
+export interface VerificacionCedula {
+  identificacion: string
+  estado: 'encontrada' | 'no_encontrada'
+  fecha_padron: string
+  nombre_tse: string | null
+  consultado_en: string
+}
+
 export type ResultadoCedula =
   | { estado: 'encontrada'; fechaPadron: string; persona: NombrePadron }
   | { estado: 'no_encontrada' | 'desactualizado'; fechaPadron: string }

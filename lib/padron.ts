@@ -70,7 +70,7 @@ async function cargarFragmento(version: string, prefijo: string) {
   }
 }
 
-export const consultarCedula = cache(async (valor: string | null | undefined): Promise<ResultadoCedula> => {
+export const consultarCedula = cache(async (valor: string | null | undefined, guardarResultado = false): Promise<ResultadoCedula> => {
   const cedula = cedulaNacional(valor)
   if (!cedula) return { estado: 'no_aplica' }
   try {
@@ -79,8 +79,17 @@ export const consultarCedula = cache(async (valor: string | null | undefined): P
     const fechaPadron = datos.fecha_padron
     if (!padronVigente(fechaPadron)) return { estado: 'desactualizado', fechaPadron }
     const prefijo = cedula.slice(0, 3)
-    if (!datos.prefijos.includes(prefijo)) return { estado: 'no_encontrada', fechaPadron }
-    const persona = buscarEnFragmento(await cargarFragmento(datos.version, prefijo), cedula)
+    const persona = datos.prefijos.includes(prefijo)
+      ? buscarEnFragmento(await cargarFragmento(datos.version, prefijo), cedula) : null
+    if (guardarResultado) {
+      const db = createAdmin({ requestTimeoutMs: 6000 })
+      if (!db) throw new Error('No se pudo guardar la verificación.')
+      const { error } = await db.rpc('guardar_verificacion_cedula', {
+        p_identificacion: cedula, p_fecha_padron: fechaPadron,
+        p_nombre_tse: persona?.nombreCompleto ?? null,
+      })
+      if (error) throw error
+    }
     return persona ? { estado: 'encontrada', fechaPadron, persona } : { estado: 'no_encontrada', fechaPadron }
   } catch (error) {
     registrarError('padron_lookup_error', error)

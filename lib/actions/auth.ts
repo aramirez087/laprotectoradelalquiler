@@ -92,7 +92,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
 
   try {
     if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
-    const consulta = await consultarCedula(cedula)
+    const consulta = await consultarCedula(cedula, true)
     if (consulta.estado === 'encontrada') nombre = consulta.persona.nombreCompleto
     const { data: facebookTomado, error: errorFacebook } = await admin
       .from('autenticaciones')
@@ -228,7 +228,7 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
   let usuarioId = 0
   try {
     if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
-    const consulta = await consultarCedula(cedula)
+    const consulta = await consultarCedula(cedula, true)
     if (consulta.estado === 'encontrada') nombre = consulta.persona.nombreCompleto
 
     const { data: porAuth, error: errorAuth } = await admin

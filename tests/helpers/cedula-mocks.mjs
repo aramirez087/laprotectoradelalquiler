@@ -27,6 +27,7 @@ const campos = cargarTS('components/campos-identidad.tsx', {
 
 // Existing suites isolate padrón I/O. The dedicated padrón suite exercises the real lookup.
 export const mocksCedula = {
+  '@/lib/cedula': cedula,
   '@/lib/padron': { consultarCedula: async () => ({ estado: 'no_disponible' }) },
   '@/components/campos-identidad': campos,
   '@/components/cedula-admin': { CedulaAdmin: () => null },
