@@ -106,7 +106,7 @@ export function RegistroForm({
           name="facebook"
           required
           className="campo"
-          placeholder="facebook.com/su.perfil"
+          placeholder="Su nombre en Facebook, usuario o enlace"
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect="off"
@@ -115,7 +115,7 @@ export function RegistroForm({
           aria-describedby="ayuda-facebook"
         />
         <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">
-          Escriba el enlace de su perfil, o solo el usuario. Administración lo usa para revisar su experiencia.
+          Puede escribir su nombre en Facebook, su usuario o pegar el enlace de su perfil. Administración lo usa para revisar su experiencia.
         </p>
       </div>
       <div>

@@ -1,6 +1,5 @@
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { esCedulaValida, normalizarPerfilFacebook } from '@/lib/util'
 import { altaLista, authFacebookHabilitado, cuentaCreadaConFacebook } from '@/lib/facebook-auth'
 
 type FilaAlta = {
@@ -44,14 +43,13 @@ export async function vincularCuentaListaPorCorreo(authUserId: string, email: st
     .eq('email', correo)
     .maybeSingle()
   if (error || !data || data.auth_user_id || data.rol === 'admin') return false
-  if (!esCedulaValida(data.identificacion)) return false
   const { data: facebook, error: errorFacebook } = await admin
     .from('autenticaciones')
     .select('proveedor_id')
     .eq('usuario_id', data.id)
     .eq('proveedor', 'facebook')
     .maybeSingle()
-  if (errorFacebook || !normalizarPerfilFacebook(facebook?.proveedor_id ?? null)) return false
+  if (errorFacebook || !altaLista(data.identificacion, facebook?.proveedor_id)) return false
   const { error: errorUpdate } = await admin
     .from('usuarios')
     .update({ auth_user_id: authUserId, ultimo_acceso: new Date().toISOString() })
@@ -100,6 +98,6 @@ export async function previaAltaFacebook(authUserId: string, email: string) {
   return {
     existe: true,
     cedula: fila.identificacion ?? '',
-    facebook: normalizarPerfilFacebook(facebook?.proveedor_id ?? null) ?? '',
+    facebook: facebook?.proveedor_id?.trim() ?? '',
   }
 }

@@ -77,7 +77,7 @@ export function RegistroFacebookForm({
             required
             className="campo"
             defaultValue={facebook}
-            placeholder="facebook.com/su.perfil"
+            placeholder="Su nombre en Facebook, usuario o enlace"
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect="off"
@@ -86,7 +86,7 @@ export function RegistroFacebookForm({
             aria-describedby="ayuda-facebook"
           />
           <p id="ayuda-facebook" className="mt-1 text-xs text-ink-soft">
-            El enlace público de su perfil. Administración lo abre al revisar la reseña.
+            Puede escribir su nombre en Facebook, su usuario o pegar el enlace de su perfil. Administración lo usa para revisar su experiencia.
           </p>
         </div>
         {pedirRol && (

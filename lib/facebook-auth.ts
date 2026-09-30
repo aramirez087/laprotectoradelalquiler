@@ -1,4 +1,4 @@
-import { esCedulaValida, normalizarPerfilFacebook } from '@/lib/util'
+import { esCedulaValida } from '@/lib/util'
 
 /** La pantalla de alta solo aparece con AUTH_FACEBOOK=1, después de Meta y Supabase. */
 export function authFacebookHabilitado(valor = process.env.AUTH_FACEBOOK) {
@@ -26,9 +26,9 @@ export function tieneIdentidadFacebook(
   return user.identities?.some((identidad) => identidad.provider === 'facebook') ?? false
 }
 
-/** Cédula válida y enlace público. El id de Facebook no sustituye ese enlace. */
+/** Cédula válida y el perfil de Facebook que indicó la persona, sin exigir un formato. */
 export function altaLista(identificacion: string | null | undefined, facebook: string | null | undefined) {
-  return esCedulaValida(identificacion) && Boolean(normalizarPerfilFacebook(facebook))
+  return esCedulaValida(identificacion) && Boolean(facebook?.trim())
 }
 
 export function nombreDesdeFacebook(meta: Record<string, unknown> | null | undefined) {

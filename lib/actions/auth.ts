@@ -84,12 +84,9 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   }
   const { nombre, email, clave, rol } = parsed.data
   const cedula = normalizarCedula(parsed.data.cedula)
-  const facebook = normalizarPerfilFacebook(parsed.data.facebook)
+  const facebook = normalizarPerfilFacebook(parsed.data.facebook) ?? parsed.data.facebook
   if (!esCedulaValida(cedula)) {
     return { error: 'Escriba su cédula con 6 a 12 dígitos. Puede incluir guiones.' }
-  }
-  if (!facebook) {
-    return { error: 'Escriba el enlace de su perfil de Facebook, o su usuario.' }
   }
 
   const admin = createAdmin()
@@ -259,12 +256,9 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
 
   const { nombre, email } = parsed.data
   const cedula = normalizarCedula(parsed.data.cedula)
-  const facebook = normalizarPerfilFacebook(parsed.data.facebook)
+  const facebook = normalizarPerfilFacebook(parsed.data.facebook) ?? parsed.data.facebook
   if (!esCedulaValida(cedula)) {
     return { error: 'Escriba su cédula con 6 a 12 dígitos. Puede incluir guiones.' }
-  }
-  if (!facebook) {
-    return { error: 'Escriba el enlace de su perfil de Facebook, o su usuario.' }
   }
   const admin = createAdmin()
   if (!admin) {
