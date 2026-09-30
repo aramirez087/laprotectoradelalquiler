@@ -3,7 +3,7 @@
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import { gunzipSync } from 'node:zlib'
-import { buscarEnFragmento, cedulaNacional, padronVigente, PADRON_BUCKET } from '../lib/cedula.ts'
+import { buscarEnFragmento, cedulaNacional, nombresCoinciden, padronVigente, PADRON_BUCKET } from '../lib/cedula.ts'
 import { configuracionPostgres } from './postgres-config.mjs'
 
 const args = process.argv.slice(2)
@@ -18,7 +18,7 @@ const storage = createClient(url, key, {
   auth: { persistSession: false, autoRefreshToken: false },
   global: { fetch: (input, init = {}) => fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }) },
 }).storage.from(PADRON_BUCKET)
-const db = new pg.Client(configuracionPostgres(process.env.DATABASE_URL))
+const db = new pg.Client({ ...configuracionPostgres(process.env.DATABASE_URL), connectionTimeoutMillis: 15_000, statement_timeout: 30_000 })
 await db.connect()
 try {
   const { rows: [padron] } = await db.query('SELECT version, fecha_padron::text, prefijos FROM public.padron_tse WHERE id = 1')
@@ -28,9 +28,12 @@ try {
   // Incluye cuentas y fichas nuevas, y ambas partes de las reseñas recientes.
   const { rows } = await db.query(`
     WITH recientes AS (SELECT persona_id, autor_id FROM public.resenas WHERE creado_en >= now() - interval '2 days')
-    SELECT identificacion FROM public.personas WHERE creado_en >= now() - interval '2 days' OR id IN (SELECT persona_id FROM recientes)
-    UNION
-    SELECT identificacion FROM public.usuarios WHERE creado_en >= now() - interval '2 days' OR id IN (SELECT autor_id FROM recientes)
+    SELECT 'personas' AS tabla, id, identificacion, nombre, nombre2, apellido1, apellido2,
+      concat_ws(' ', nombre, nullif(nombre2, ''), apellido1, nullif(apellido2, '')) AS nombre_completo
+    FROM public.personas WHERE creado_en >= now() - interval '2 days' OR id IN (SELECT persona_id FROM recientes)
+    UNION ALL
+    SELECT 'usuarios', id, identificacion, nombre, NULL, NULL, NULL, nombre
+    FROM public.usuarios WHERE creado_en >= now() - interval '2 days' OR id IN (SELECT autor_id FROM recientes)
   `)
   const cedulas = [...new Set(rows.map(row => cedulaNacional(row.identificacion)).filter(Boolean))].sort()
   const resultados = []
@@ -55,14 +58,45 @@ try {
       }
       ultimoPrefijo = prefijo
     }
-    resultados.push({ cedula, nombre: buscarEnFragmento(lineas, cedula)?.nombreCompleto ?? null })
+    resultados.push({ cedula, persona: buscarEnFragmento(lineas, cedula) })
   }
+  const porCedula = new Map(resultados.map(r => [r.cedula, r.persona]))
+  const correcciones = rows.flatMap(row => {
+    const persona = porCedula.get(cedulaNacional(row.identificacion))
+    if (!persona || !nombresCoinciden(row.nombre_completo, persona.nombreCompleto)) return []
+    const cambiado = row.tabla === 'usuarios' ? row.nombre !== persona.nombreCompleto
+      : row.nombre !== persona.nombre || (row.nombre2 ?? '') !== persona.nombre2
+        || row.apellido1 !== persona.apellido1 || (row.apellido2 ?? '') !== persona.apellido2
+    return cambiado ? [{ row, persona }] : []
+  })
+  let nombresActualizados = 0
   if (args.includes('--aplicar')) {
     await db.query('BEGIN')
     try {
-      for (const resultado of resultados) {
-        await db.query('SELECT public.guardar_verificacion_cedula($1, $2, $3)', [resultado.cedula, padron.fecha_padron, resultado.nombre])
-      }
+      await db.query(`SELECT public.guardar_verificacion_cedula(r.cedula, $2::date, r.nombre)
+        FROM jsonb_to_recordset($1::jsonb) AS r(cedula text, nombre text)`,
+        [JSON.stringify(resultados.map(r => ({ cedula: r.cedula, nombre: r.persona?.nombreCompleto ?? null }))), padron.fecha_padron])
+      // No pisar correcciones concurrentes ni cambiar identidad, rol o moderación.
+      // Dos UPDATE por lote; no un viaje de red por cada registro.
+      const usuarios = correcciones.filter(c => c.row.tabla === 'usuarios').map(({ row, persona }) => ({
+        id: row.id, identificacion: row.identificacion, anterior: row.nombre, nombre: persona.nombreCompleto,
+      }))
+      const usuariosActualizados = await db.query(`UPDATE public.usuarios u SET nombre = c.nombre, actualizado_en = now()
+        FROM jsonb_to_recordset($1::jsonb) AS c(id integer, identificacion text, anterior text, nombre text)
+        WHERE u.id = c.id AND u.identificacion = c.identificacion AND u.nombre = c.anterior`, [JSON.stringify(usuarios)])
+      const personas = correcciones.filter(c => c.row.tabla === 'personas').map(({ row, persona }) => ({
+        id: row.id, identificacion: row.identificacion, anterior: row.nombre, anterior2: row.nombre2,
+        apellido_anterior1: row.apellido1, apellido_anterior2: row.apellido2,
+        nombre: persona.nombre, nombre2: persona.nombre2 || null, apellido1: persona.apellido1, apellido2: persona.apellido2 || null,
+      }))
+      const personasActualizadas = await db.query(`UPDATE public.personas p SET nombre = c.nombre, nombre2 = c.nombre2,
+        apellido1 = c.apellido1, apellido2 = c.apellido2, actualizado_en = now()
+        FROM jsonb_to_recordset($1::jsonb) AS c(id integer, identificacion text, anterior text, anterior2 text,
+          apellido_anterior1 text, apellido_anterior2 text, nombre text, nombre2 text, apellido1 text, apellido2 text)
+        WHERE p.id = c.id AND p.identificacion = c.identificacion AND p.nombre = c.anterior
+          AND p.nombre2 IS NOT DISTINCT FROM c.anterior2 AND p.apellido1 = c.apellido_anterior1
+          AND p.apellido2 IS NOT DISTINCT FROM c.apellido_anterior2`, [JSON.stringify(personas)])
+      nombresActualizados = usuariosActualizados.rowCount + personasActualizadas.rowCount
       const { rows: [guardados] } = await db.query(`SELECT count(*)::int AS total FROM public.verificaciones_cedula WHERE identificacion = ANY($1::text[])`, [cedulas])
       if (guardados.total !== resultados.length) throw new Error('No se guardaron todos los resultados.')
       await db.query('COMMIT')
@@ -71,6 +105,8 @@ try {
   // Solo totales; nunca cédulas ni nombres en logs.
   console.log(JSON.stringify({ modo: args.includes('--aplicar') ? 'guardado' : 'simulacion', ventana: 'últimas 48 horas',
     fechaPadron: padron.fecha_padron, documentos: rows.length, cedulas: cedulas.length,
-    encontradas: resultados.filter(r => r.nombre !== null).length, noEncontradas: resultados.filter(r => r.nombre === null).length,
+    encontradas: resultados.filter(r => r.persona !== null).length, noEncontradas: resultados.filter(r => r.persona === null).length,
+    nombresPorCorregir: correcciones.length, nombresActualizados,
+    nombresParaRevision: rows.filter(row => { const p = porCedula.get(cedulaNacional(row.identificacion)); return p && !nombresCoinciden(row.nombre_completo, p.nombreCompleto) }).length,
     descargas }, null, 2))
 } finally { await db.end() }

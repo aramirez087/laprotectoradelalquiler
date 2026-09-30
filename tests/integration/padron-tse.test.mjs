@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import test from 'node:test'
 import pg from 'pg'
+import { createServer } from 'node:http'
+import { gzipSync } from 'node:zlib'
 
 const exec = promisify(execFile)
 const docker = async (...args) => (await exec('docker', args)).stdout.trim()
@@ -86,4 +88,36 @@ test('padrón metadata and quotas are service-only, atomic and protected from st
   await db.query("SELECT * FROM admin_editar_resena(1,1,'102340567','A','','Q','','Una experiencia',false)")
   const guardado = (await db.query('SELECT nombre, apellido1 FROM personas WHERE id = 1')).rows[0]
   assert.deepEqual(guardado, { nombre: 'A', apellido1: 'Q' })
+
+  // Exercise the real backfill CLI with disposable Postgres and fake private Storage.
+  await db.query(`RESET ROLE;
+    TRUNCATE verificaciones_cedula;
+    ALTER TABLE personas ADD creado_en timestamptz DEFAULT now();
+    ALTER TABLE usuarios ADD identificacion text, ADD creado_en timestamptz DEFAULT now(), ADD actualizado_en timestamptz;
+    ALTER TABLE resenas ADD creado_en timestamptz DEFAULT now();
+    UPDATE personas SET nombre = 'Maria', apellido1 = 'Solis' WHERE id = 1;
+    UPDATE usuarios SET nombre = 'maria solis', identificacion = '1-0234-0567', creado_en = now() - interval '10 days' WHERE id = 2;
+    INSERT INTO personas (identificacion,nombre,apellido1) VALUES ('102340568','Ausente','Prueba'),('102340569','Otro','Nombre');
+    INSERT INTO personas (identificacion,nombre,apellido1,creado_en) VALUES ('102340570','Historico','Intacto',now() - interval '10 days');
+    UPDATE padron_tse SET fecha_padron = current_date, version = current_date::text || '-aaaaaaaaaaaaaaaa';`)
+  const fragmento = gzipSync('102340567\tMARÍA\tSOLÍS\t\n102340569\tJUAN\tPÉREZ\t\n102340570\tHISTORICO\tINTACTO\t\n')
+  const storage = createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/gzip' }); res.end(fragmento) })
+  await new Promise(resolve => storage.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise(resolve => storage.close(resolve)))
+  const env = { ...process.env, DATABASE_URL: connectionString, DATABASE_SSL: 'false',
+    NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${storage.address().port}`, SUPABASE_SECRET_KEY: 'test-service-key' }
+  const run = async (...args) => JSON.parse((await exec(process.execPath,
+    ['--experimental-strip-types', 'scripts/revalidar-cedulas-recientes.mjs', ...args], { env })).stdout)
+  const preview = await run()
+  assert.equal(preview.encontradas, 2)
+  assert.equal(preview.noEncontradas, 1)
+  assert.equal(preview.nombresPorCorregir, 2)
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM verificaciones_cedula')).rows[0].n, 0)
+  const aplicado = await run('--aplicar')
+  assert.equal(aplicado.nombresActualizados, 2)
+  assert.deepEqual((await db.query('SELECT nombre, apellido1 FROM personas WHERE id = 1')).rows[0], { nombre: 'MARÍA', apellido1: 'SOLÍS' })
+  assert.equal((await db.query('SELECT nombre FROM usuarios WHERE id = 2')).rows[0].nombre, 'MARÍA SOLÍS')
+  assert.equal((await db.query("SELECT nombre FROM personas WHERE identificacion = '102340569'")).rows[0].nombre, 'Otro')
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM verificaciones_cedula WHERE identificacion = '102340570'")).rows[0].n, 0)
+  assert.equal((await run('--aplicar')).nombresActualizados, 0)
 })
