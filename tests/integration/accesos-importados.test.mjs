@@ -33,11 +33,18 @@ test('bulk imported-profile access stays read-only by default and fails closed w
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
   }
-  await db.query(await readFile('schema.sql', 'utf8'))
-  await db.query(`CREATE SCHEMA auth;
+  await db.query(`CREATE ROLE anon; CREATE ROLE authenticated;
+    CREATE SCHEMA auth;
     CREATE TABLE auth.users(id uuid PRIMARY KEY, email text UNIQUE, encrypted_password text,
       email_confirmed_at timestamptz, raw_app_meta_data jsonb NOT NULL DEFAULT '{}', raw_user_meta_data jsonb NOT NULL DEFAULT '{}');
-    CREATE ROLE access_preview_reader LOGIN;
+    CREATE TABLE auth.sessions(id uuid PRIMARY KEY, user_id uuid);
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$
+      SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+    CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$
+      SELECT nullif(current_setting('request.jwt.claim.role', true), '') $$;`)
+  await db.query(await readFile('schema.sql', 'utf8'))
+  await db.query(`
+    CREATE ROLE access_preview_reader LOGIN BYPASSRLS;
     GRANT USAGE ON SCHEMA public, privado, auth TO access_preview_reader;
     GRANT SELECT ON ALL TABLES IN SCHEMA public, privado, auth TO access_preview_reader;
     ALTER ROLE access_preview_reader SET default_transaction_read_only = on`)
@@ -101,24 +108,24 @@ test('bulk imported-profile access stays read-only by default and fails closed w
 
   await t.test('preview requires only read permissions and excludes unsafe existing profiles', async () => {
     await reset()
-    await profile('owner@example.test', { document: '111111111' })
-    await profile('agency@example.test', { document: '222222222', rol: 'agencia' })
-    await profile('tenant@example.test', { document: '333333333', rol: 'inquilino' })
-    await profile('inactive@example.test', { activo: false })
-    const admin = await profile('admin@example.test', { rol: 'admin' })
+    await profile('owner@access-fixture.net', { document: '111111111' })
+    await profile('agency@access-fixture.net', { document: '222222222', rol: 'agencia' })
+    await profile('tenant@access-fixture.net', { document: '333333333', rol: 'inquilino' })
+    await profile('inactive@access-fixture.net', { activo: false })
+    const admin = await profile('admin@access-fixture.net', { rol: 'admin' })
     await profile('author@legacy.laprotec')
     await profile('invalid-mail')
-    await profile('duplicate@example.test')
-    await profile('DUPLICATE@example.test')
-    await profile('document-a@example.test', { document: '123456789' })
-    await profile('document-b@example.test', { document: '1-2345-6789' })
+    await profile('duplicate@access-fixture.net')
+    await profile('DUPLICATE@access-fixture.net')
+    await profile('document-a@access-fixture.net', { document: '123456789' })
+    await profile('document-b@access-fixture.net', { document: '1-2345-6789' })
     const linkedId = randomUUID(), occupiedId = randomUUID()
     await db.query(`INSERT INTO auth.users(id,email,encrypted_password) VALUES
-      ($1,'already-linked@example.test','unchanged-existing-password'),
-      ($2,'existing-auth@example.test','unchanged-orphan-password')`, [linkedId, occupiedId])
-    await profile('already-linked@example.test', { authId: linkedId })
-    await profile('existing-auth@example.test')
-    const invited = await profile('invited@example.test')
+      ($1,'already-linked@access-fixture.net','unchanged-existing-password'),
+      ($2,'existing-auth@access-fixture.net','unchanged-orphan-password')`, [linkedId, occupiedId])
+    await profile('already-linked@access-fixture.net', { authId: linkedId })
+    await profile('existing-auth@access-fixture.net')
+    const invited = await profile('invited@access-fixture.net')
     await db.query(`INSERT INTO invitaciones_admin(id,email,nombre,auth_user_id,invitado_por,token_digest,tipo,vence_en,target_usuario_id,target_version,proposito)
       VALUES ($1,$2,'Invited',$3,$4,$5,'invite',now()+interval '1 hour',$6,$7,'acceso')`,
     [randomUUID(), invited.email, randomUUID(), admin.id, 'a'.repeat(64), invited.id, invited.actualizado_en])
@@ -141,13 +148,13 @@ test('bulk imported-profile access stays read-only by default and fails closed w
     assert.equal(preview.summary.creadas, 0)
     assert.equal(requests.length, 0)
     assert.deepEqual(await snapshot(), before, 'preview must preserve all data and sequence values')
-    assert.ok(!preview.stdout.includes('@example.test'), 'the summary must not expose account emails')
+    assert.ok(!preview.stdout.includes('@access-fixture.net'), 'the summary must not expose account emails')
   })
 
   await t.test('apply creates private random passwords without mail and preserves every profile field', async () => {
     await reset()
     const profiles = []
-    for (const rol of ['propietario', 'agencia', 'inquilino']) profiles.push(await profile(`${rol}@example.test`, { rol }))
+    for (const rol of ['propietario', 'agencia', 'inquilino']) profiles.push(await profile(`${rol}@access-fixture.net`, { rol }))
     const result = await run(['--aplicar'])
     assert.equal(result.code, 0, result.stderr)
     assert.equal(result.summary.creadas, 3)
@@ -163,7 +170,12 @@ test('bulk imported-profile access stays read-only by default and fails closed w
       assert.equal(request.body.app_metadata.provision_acceso.lote, result.summary.lote)
     }
     const after = (await db.query('SELECT * FROM usuarios ORDER BY id')).rows
-    const unchangedFields = ({ auth_user_id, actualizado_en, ...rest }) => rest
+    const unchangedFields = profile => {
+      const rest = { ...profile }
+      delete rest.auth_user_id
+      delete rest.actualizado_en
+      return rest
+    }
     assert.deepEqual(after.map(unchangedFields), profiles.map(unchangedFields))
     assert.ok(after.every((p) => p.auth_user_id))
     const repeat = await run(['--aplicar'])
@@ -175,8 +187,8 @@ test('bulk imported-profile access stays read-only by default and fails closed w
   await t.test('existing Auth accounts are never relinked, reset, deleted or modified', async () => {
     await reset()
     const id = randomUUID()
-    await db.query("INSERT INTO auth.users(id,email,encrypted_password) VALUES ($1,'EXISTING@example.test','keep-this-password')", [id])
-    await profile('existing@example.test')
+    await db.query("INSERT INTO auth.users(id,email,encrypted_password) VALUES ($1,'EXISTING@access-fixture.net','keep-this-password')", [id])
+    await profile('existing@access-fixture.net')
     const before = await snapshot()
     const result = await run(['--aplicar'])
     assert.equal(result.summary.conteos.authExistente, 1)
@@ -185,9 +197,29 @@ test('bulk imported-profile access stays read-only by default and fails closed w
     assert.deepEqual(await snapshot(), before)
   })
 
+  await t.test('inactive unlinked document duplicates do not block the active profile; active or linked duplicates do', async () => {
+    await reset()
+    const active = await profile('active@access-fixture.net', { document: '123456789' })
+    const inactive = await profile('inactive@access-fixture.net', { document: '1-2345-6789', activo: false })
+    const linkedId = randomUUID()
+    await db.query("INSERT INTO auth.users(id,email,encrypted_password) VALUES ($1,'linked@access-fixture.net','keep-this-password')", [linkedId])
+    await profile('linked@access-fixture.net', { document: '222222222', activo: false, authId: linkedId })
+    await profile('blocked-linked@access-fixture.net', { document: '222222222' })
+    await profile('duplicate-a@access-fixture.net', { document: '333333333' })
+    await profile('duplicate-b@access-fixture.net', { document: '333333333' })
+    const result = await run(['--aplicar'])
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.summary.creadas, 1)
+    assert.equal(result.summary.conteos.conflictos, 3)
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].body.email, active.email)
+    assert.deepEqual((await db.query('SELECT * FROM usuarios WHERE id=$1', [inactive.id])).rows[0], inactive)
+    assert.equal((await db.query('SELECT encrypted_password FROM auth.users WHERE id=$1', [linkedId])).rows[0].encrypted_password, 'keep-this-password')
+  })
+
   await t.test('an Auth rejection leaves the profile unchanged and reports incomplete provisioning', async () => {
     await reset()
-    await profile('rejected@example.test')
+    await profile('rejected@access-fixture.net')
     handleAuth = async (_body, res) => {
       res.statusCode = 422
       res.end(JSON.stringify({ code: 'email_address_invalid', msg: 'Fixture rejection.' }))
@@ -202,7 +234,7 @@ test('bulk imported-profile access stays read-only by default and fails closed w
 
   await t.test('identity marker mismatch never grants access and is excluded from a later retry', async () => {
     await reset()
-    await profile('wrong-marker@example.test')
+    await profile('wrong-marker@access-fixture.net')
     handleAuth = async (body, res) => createIdentity(body, res, { marker: {} })
     const result = await run(['--aplicar'])
     assert.equal(result.code, 2, result.stderr)
@@ -216,8 +248,8 @@ test('bulk imported-profile access stays read-only by default and fails closed w
 
   await t.test('SQL link failure preserves the external identity and stops before the next account', async () => {
     await reset()
-    await profile('db-failure@example.test')
-    await profile('not-attempted@example.test')
+    await profile('db-failure@access-fixture.net')
+    await profile('not-attempted@access-fixture.net')
     await db.query(`CREATE FUNCTION public.fixture_refuse_link() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN IF NEW.auth_user_id IS NOT NULL THEN RAISE EXCEPTION 'fixture link failure'; END IF; RETURN NEW; END $$;
       CREATE TRIGGER fixture_refuse_link BEFORE UPDATE OF auth_user_id ON usuarios FOR EACH ROW EXECUTE FUNCTION public.fixture_refuse_link()`)
@@ -236,7 +268,7 @@ test('bulk imported-profile access stays read-only by default and fails closed w
 
   await t.test('bounded batches resume without reprovisioning completed profiles', async () => {
     await reset()
-    for (let i = 0; i < 3; i++) await profile(`batch-${i}@example.test`)
+    for (let i = 0; i < 3; i++) await profile(`batch-${i}@access-fixture.net`)
     const first = await run(['--aplicar', '--limite=2'])
     assert.equal(first.code, 2, first.stderr)
     assert.equal(first.summary.creadas, 2)

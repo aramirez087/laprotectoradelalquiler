@@ -33,6 +33,12 @@ export function RegistroForm({
 
   return (
     <form {...formProps} className="space-y-4">
+      <p className="text-sm leading-relaxed text-ink-soft">
+        ¿Usaba la versión anterior?{' '}
+        <Link href="/recuperar" className="font-semibold text-seal underline underline-offset-4">
+          Recupere su acceso con el mismo correo
+        </Link>.
+      </p>
       {enlaceFacebook && (
         <div className="space-y-5 pb-1">
           <a className="btn-secundario flex w-full" href={enlaceFacebook}>
@@ -115,6 +121,11 @@ export function RegistroForm({
         </div>
       </fieldset>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
+      {estado?.error && (
+        <Link href="/recuperar" className="inline-flex min-h-11 items-center font-semibold text-seal underline underline-offset-4">
+          Recuperar el acceso a mi cuenta
+        </Link>
+      )}
       <button disabled={pendiente} className="btn-primario w-full">
         {pendiente ? 'Creando cuenta…' : 'Crear cuenta y confirmar mi correo'}
       </button>

@@ -38,7 +38,7 @@ const SchemaLogin = z.object({
   clave: z.string().min(1, 'Escriba su clave'),
 })
 
-const CUENTA_OCUPADA = 'No pudimos crear la cuenta. Si ya está registrado, inicie sesión.'
+const CUENTA_OCUPADA = 'No pudimos crear la cuenta. Si ya está registrado o usaba la versión anterior, inicie sesión o recupere su acceso con el mismo correo.'
 
 function avisoSinSupabase() {
   return {

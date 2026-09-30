@@ -69,7 +69,11 @@ export function clasificarPerfiles(perfiles, auth = [], invitaciones = []) {
   for (const profile of perfiles) {
     const email = emailDe(profile.email), document = documentoDe(profile.identificacion);
     correos.set(email, (correos.get(email) ?? 0) + 1);
-    if (document) documentos.set(document, (documentos.get(document) ?? 0) + 1);
+    // An inactive, unlinked historical duplicate has no access to compete
+    // with the active profile. Linked identities still reserve the document.
+    if (document && (profile.activo || profile.auth_user_id)) {
+      documentos.set(document, (documentos.get(document) ?? 0) + 1);
+    }
   }
   const existentes = new Set(auth.map(row => emailDe(row.email)));
   const pendientes = new Set(invitaciones.map(row => emailDe(row.email)));

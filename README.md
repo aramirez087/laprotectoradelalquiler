@@ -179,6 +179,29 @@ reciben notificaciones.
    por su política de contraseñas, esa cuenta debe usar **¿Olvidó su clave?**.
    Los conteos de claves conservadas y restablecimientos corresponden al lote
    actual; las cuentas previamente enlazadas conservan su clave de Auth.
+
+   Si MySQL ya no está disponible, `scripts/provisionar-accesos-importados.mjs`
+   permite completar el acceso de los perfiles activos existentes usando solo
+   Postgres y Supabase Auth. Primero ejecute la vista previa:
+
+   ```bash
+   node scripts/provisionar-accesos-importados.mjs
+   node scripts/provisionar-accesos-importados.mjs --aplicar --limite=50 --tiempo=120
+   ```
+
+   Repita los lotes hasta que la vista previa muestre cero perfiles elegibles.
+   Cada cuenta recibe una clave aleatoria privada y se enlaza a su perfil
+   existente. La persona debe usar `/recuperar` con su correo anterior para
+   elegir su clave; no debe volver a registrarse. La provisión no envía correos
+   y conserva roles, actividad y reseñas. Omite cuentas inactivas,
+   administradores, correos inválidos o duplicados, cédulas compartidas con
+   otro perfil activo o enlazado, identidades Auth ya existentes e invitaciones
+   pendientes. Una cédula repetida solo en perfiles inactivos sin acceso no
+   bloquea el perfil activo; los registros históricos se conservan. Si un lote indica
+   `requiere_revision`, revise el marcador de ese lote y su identidad antes de
+   continuar: una llamada a Auth puede haber creado la cuenta aunque el enlace
+   en Postgres no se haya confirmado.
+
    El importador y `db:aplicar` verifican la cadena TLS y el nombre del servidor.
    La CA pública de Supabase se incluye en el despliegue: no necesita una nueva
    variable ni descargarla en cada ejecución. Las URLs con `sslmode=require`
