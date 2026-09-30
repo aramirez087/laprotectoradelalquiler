@@ -2,6 +2,7 @@ import { correoResenasConfigurado } from '@/lib/correo-resenas'
 import Link from 'next/link'
 import { FormDecision, FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
+import { PerfilFacebook } from '@/components/perfil-facebook'
 import type { FilaAdminResena } from '@/lib/admin'
 import { etiquetaEstado, fechaCorta, nombreCompleto } from '@/lib/util'
 import type { EstadoResena } from '@/lib/tipos'
@@ -32,7 +33,7 @@ export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; 
       <dl className="grid gap-4 rounded-lg bg-paper p-4 text-sm sm:grid-cols-2">
         <div><dt className="text-xs text-ink-soft">Escrita por</dt><dd className="mt-1 font-medium">{fila.autor?.nombre ?? 'Sin autor registrado'}</dd>
           {fila.autor?.identificacion && <dd className="mt-1 text-xs text-ink-soft">Cédula: {fila.autor.identificacion}</dd>}
-          {fila.autor?.facebook && <dd className="mt-1"><a href={fila.autor.facebook} target="_blank" rel="noopener noreferrer" className="text-seal underline underline-offset-2">Perfil de Facebook<span className="sr-only"> (se abre en una pestaña nueva)</span></a></dd>}
+          {fila.autor?.facebook && <dd className="mt-1"><PerfilFacebook valor={fila.autor.facebook} className="text-seal underline underline-offset-2" /></dd>}
           {fila.anonima && <dd className="mt-1 text-xs text-ink-soft">El nombre del autor no se muestra en la ficha.</dd>}
         </div>
         <div><dt className="text-xs text-ink-soft">Inicio del alquiler</dt><dd className="mt-1">{fila.fecha_inicio_alquiler ? fila.fecha_inicio_alquiler.split('-').reverse().join('/') : 'Sin fecha registrada'}</dd></div>

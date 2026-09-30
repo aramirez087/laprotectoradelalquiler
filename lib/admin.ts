@@ -4,7 +4,7 @@ import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
-import { etiquetaMotivo, normalizarCedula, normalizarPerfilFacebook, palabrasBusqueda, variantesAcento } from '@/lib/util'
+import { etiquetaMotivo, normalizarCedula, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol, RolAsignable } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -149,8 +149,8 @@ async function facebookPorUsuario(db: Cliente, ids: number[]) {
     .in('usuario_id', unicos)
   if (error) throw error
   for (const fila of data ?? []) {
-    const url = normalizarPerfilFacebook(String(fila.proveedor_id ?? ''))
-    if (url) mapa.set(fila.usuario_id as number, url)
+    const facebook = String(fila.proveedor_id ?? '').trim()
+    if (facebook) mapa.set(fila.usuario_id as number, facebook)
   }
   return mapa
 }

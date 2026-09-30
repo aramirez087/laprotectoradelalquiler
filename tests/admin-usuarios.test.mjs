@@ -23,6 +23,7 @@ function load(file, mocks = {}) {
 }
 
 const util = load('lib/util.ts')
+const enlaceFacebook = load('lib/enlace-facebook.ts', { '@/lib/util': util })
 const acceso = load('lib/acceso-consulta.ts')
 const fixture = [
   { id: 1, nombre: 'Ana', email: 'ana@example.test', activo: true, auth_user_id: 'auth-1' },
@@ -195,6 +196,7 @@ function page({ total = 45, filas = [] } = {}) {
     '@/lib/correo-resenas': { correoResenasConfigurado: () => false },
     '@/components/admin-ui': load('components/admin-ui.tsx', common),
     '@/components/paginacion': load('components/paginacion.tsx', common),
+    '@/components/perfil-facebook': load('components/perfil-facebook.tsx', { '@/lib/enlace-facebook': enlaceFacebook }),
     '@/components/form-invitacion-admin': { FormInvitacionAdmin: () => null },
     '@/components/admin-formularios': { FormUsuario: () => null },
   })
@@ -260,4 +262,16 @@ test('admin user cards distinguish account activation from login and consultatio
   assert.equal(valueAfter(cards[1], 'Inicio de sesión'), 'Creado')
   assert.equal(valueAfter(cards[1], 'Permiso para consultar fichas'), 'Por verificar')
   assert.equal(valueAfter(cards[2], 'Inicio de sesión'), 'No corresponde')
+})
+
+test('admin user cards display supplied Facebook names and preserve shared profile links', async () => {
+  const compartido = 'https://www.facebook.com/share/1Example/?mibextid=wwXIfr'
+  const filas = [
+    { ...fixture[0], tieneLogin: true, facebook: 'María Solís' },
+    { ...fixture[1], tieneLogin: true, facebook: compartido },
+  ]
+  const html = await page({ total: 2, filas }).render({})
+  assert.match(html, /Facebook: María Solís/)
+  assert.ok(!links(html).some(url => url.href.includes('Mar%C3%ADa')))
+  assert.ok(links(html).some(url => url.href === compartido))
 })

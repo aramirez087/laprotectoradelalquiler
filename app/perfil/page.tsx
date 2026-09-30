@@ -14,6 +14,7 @@ import { etiquetaEstado, etiquetaRol, fechaCorta, nombreCompleto, primer } from 
 import { CalificacionEstrellas } from '@/components/calificacion-estrellas'
 import { Avatar } from '@/components/avatar'
 import { Icono } from '@/components/icono'
+import { PerfilFacebook } from '@/components/perfil-facebook'
 
 export const metadata = { title: 'Mi perfil' }
 
@@ -65,10 +66,7 @@ export default async function PerfilPage(props: {
               {usuario.identificacion ? `Cédula ${usuario.identificacion}` : null}
               {usuario.identificacion && facebook ? ' · ' : null}
               {facebook && (
-                <a href={facebook} target="_blank" rel="noopener noreferrer" className="font-semibold text-seal underline-offset-2 hover:underline">
-                  Facebook
-                  <span className="sr-only"> (se abre en una pestaña nueva)</span>
-                </a>
+                <PerfilFacebook valor={facebook} etiqueta="Facebook" className="font-semibold text-seal underline-offset-2 hover:underline" />
               )}
             </p>
           )}

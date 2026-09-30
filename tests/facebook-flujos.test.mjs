@@ -249,6 +249,7 @@ test('both registration methods accept Facebook names and shared links without r
       ['  @maria.solis  ', '@maria.solis'],
       ['  María Solís  ', 'María Solís'],
       ['  https://www.facebook.com/share/1Example/?mibextid=wwXIfr  ', 'https://www.facebook.com/share/1Example/?mibextid=wwXIfr'],
+      [`https://www.facebook.com/share/1Example/?tracking=${'x'.repeat(300)}`, `https://www.facebook.com/share/1Example/?tracking=${'x'.repeat(300)}`],
       ['  maria.solis  ', 'https://www.facebook.com/maria.solis'],
     ]) {
       const registro = registroConRol()
@@ -277,6 +278,58 @@ test('both registration methods still require a nonempty Facebook value before p
       assert.equal(registro.solicitudesAdmin(), 0)
       assert.equal(registro.escrituras.length, 0)
     }
+  }
+})
+
+test('stored Facebook names and shared links count as complete and remain available for form prefill', async () => {
+  for (const valor of ['María Solís', 'https://www.facebook.com/share/1Example/']) {
+    const admin = {
+      from: tabla => consulta(() => ({
+        data: tabla === 'usuarios'
+          ? { id: 42, auth_user_id: 'auth-facebook', identificacion: '102340567', rol: 'propietario' }
+          : { proveedor_id: valor },
+        error: null,
+      }), tabla),
+    }
+    const alta = cargar('lib/facebook-alta.ts', {
+      '@/lib/supabase/admin': { createAdmin: () => admin },
+      '@/lib/supabase/server': {},
+    })
+    assert.equal(await alta.altaFacebookLista('auth-facebook'), true)
+    const previa = await alta.previaAltaFacebook('auth-facebook', 'persona@example.com')
+    assert.equal(previa.existe, true)
+    assert.equal(previa.facebook, valor)
+    assert.equal(previa.cedula, '102340567')
+  }
+})
+
+test('legacy accounts with Facebook names or shared links can finish linking after provider sign-in', async () => {
+  for (const valor of ['María Solís', 'https://www.facebook.com/share/1Example/']) {
+    const escrituras = []
+    const admin = {
+      from: tabla => consulta(({ operacion, valores, filtros }) => {
+        if (operacion === 'update') {
+          escrituras.push({ valores, filtros })
+          return { data: null, error: null }
+        }
+        if (tabla === 'usuarios') {
+          return { data: filtros.some(filtro => filtro[1] === 'auth_user_id')
+            ? null
+            : { id: 42, auth_user_id: null, identificacion: '102340567', rol: 'propietario' }, error: null }
+        }
+        return { data: { proveedor_id: valor }, error: null }
+      }, tabla),
+    }
+    const alta = cargar('lib/facebook-alta.ts', {
+      '@/lib/supabase/admin': { createAdmin: () => admin },
+      '@/lib/supabase/server': {},
+    })
+    assert.equal(await alta.vincularCuentaListaPorCorreo('auth-facebook', 'persona@example.com'), true)
+    assert.equal(escrituras.length, 1)
+    assert.equal(escrituras[0].valores.auth_user_id, 'auth-facebook')
+    assert.equal(escrituras[0].valores.rol, undefined)
+    assert.equal(escrituras[0].valores.identificacion, undefined)
+    assert.deepEqual(escrituras[0].filtros, [['eq', 'id', 42], ['is', 'auth_user_id', null]])
   }
 })
 

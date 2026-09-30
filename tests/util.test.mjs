@@ -1,6 +1,28 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida, identidadAutorResena } from '../lib/util.ts'
+import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida, identidadAutorResena, fechaCorta } from '../lib/util.ts'
+
+test('review timestamps change date at midnight in Costa Rica, not UTC', () => {
+  for (const iso of [
+    '2026-09-30T00:00:00Z',
+    '2026-09-30T05:59:59.999+00:00',
+    '2026-09-29T23:59:59.999-06:00',
+  ]) assert.equal(fechaCorta(iso), '29 sept 2026', iso)
+  assert.equal(fechaCorta('2026-09-30T06:00:00Z'), '30 sept 2026')
+  assert.equal(fechaCorta('2026-09-30T08:00:00+02:00'), '30 sept 2026')
+  assert.equal(fechaCorta('2027-01-01T05:59:59Z'), '31 dic 2026')
+})
+
+test('rental dates without a time keep their calendar date', () => {
+  assert.equal(fechaCorta('2026-09-29'), '29 sept 2026')
+  assert.equal(fechaCorta('2026-01-01'), '1 ene 2026')
+})
+
+test('missing or invalid dates do not render a date', () => {
+  for (const valor of [null, undefined, '', 'invalid', '2026-09-29Tinvalid']) {
+    assert.equal(fechaCorta(valor), null)
+  }
+})
 
 test('preserves internal search destinations through sign-in', () => {
   const destino = '/fichas?q=Jos%C3%A9+Sol%C3%ADs&provincia=1&pagina=2'

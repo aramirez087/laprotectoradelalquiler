@@ -120,10 +120,12 @@ export function normalizarPerfilFacebook(valor: string | null | undefined): stri
 
 export function fechaCorta(iso: string | null | undefined) {
   if (!iso) return null
-  const dia = iso.slice(0, 10)
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(`${dia}T12:00:00`) : new Date(iso)
+  // Las fechas de alquiler son días; los timestamps sí deben convertirse a hora de Costa Rica.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00-06:00`) : new Date(iso)
   if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('es-CR', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Costa_Rica',
+  })
 }
 
 export function iniciales(nombre: string) {

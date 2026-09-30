@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { buscarUsuarios, SinClaveAdmin, TAMANO_PAGINA_ADMIN, type FiltroTipoUsuario, type FiltroEstadoUsuario, type FiltroLoginUsuario } from '@/lib/admin'
 import { FormUsuario } from '@/components/admin-formularios'
 import { Paginacion } from '@/components/paginacion'
+import { PerfilFacebook } from '@/components/perfil-facebook'
 import { etiquetaRol, fechaCorta, formatoNumero, paginaSegura, primer } from '@/lib/util'
 
 export const metadata = { title: 'Usuarios' }
@@ -160,15 +161,10 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
               </dl>
               <p className="text-sm leading-6 text-ink-soft">{usuario.registro}</p>
               {usuario.facebook && (
-                <a
-                  href={usuario.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <PerfilFacebook
+                  valor={usuario.facebook}
                   className="text-sm font-semibold text-seal underline-offset-2 hover:underline"
-                >
-                  Perfil de Facebook
-                  <span className="sr-only"> (se abre en una pestaña nueva)</span>
-                </a>
+                />
               )}
             </div>
             <FormUsuario key={`${usuario.id}-${usuario.rol}-${usuario.activo}`} id={usuario.id} rol={usuario.rol} activo={usuario.activo} />

@@ -94,8 +94,8 @@ export async function completarPerfilRegistro(usuario: Usuario) {
     if (data) actual = data as Usuario
   }
 
-  const facebook =
-    typeof user.user_metadata?.facebook === 'string' ? normalizarPerfilFacebook(user.user_metadata.facebook) : null
+  const facebookMeta = typeof user.user_metadata?.facebook === 'string' ? user.user_metadata.facebook.trim() : ''
+  const facebook = normalizarPerfilFacebook(facebookMeta) ?? facebookMeta
   if (facebook) {
     const { data: ya } = await admin
       .from('autenticaciones')
@@ -124,7 +124,7 @@ export async function perfilFacebookDe(usuarioId: number) {
     .eq('proveedor', 'facebook')
     .maybeSingle()
   if (error || !data?.proveedor_id) return null
-  return normalizarPerfilFacebook(String(data.proveedor_id))
+  return String(data.proveedor_id).trim() || null
 }
 
 /** Requiere sesión; redirige a /login si no hay. */
