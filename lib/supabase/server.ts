@@ -28,7 +28,8 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             )
           } catch {
-            // en server actions no se pueden setear cookies; se ignora
+            // Server Components cannot write cookies; the proxy persists refreshes.
+            // Server Actions and Route Handlers can write them here.
           }
         },
       },

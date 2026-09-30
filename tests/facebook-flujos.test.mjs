@@ -429,9 +429,11 @@ test('proxy uses current provider after unlinking and rejects deleted accounts',
     '@/lib/util': util,
     '@/lib/supabase/server': {
       sinSupabase: () => false,
-      createClient: async () => ({ auth: {
+    },
+    '@/lib/supabase/proxy': {
+      createProxyClient: () => ({ applyCookies: response => response, supabase: { auth: {
         getUser: async () => ({ data: { user: usuarioActual } }),
-      } }),
+      } } }),
     },
   })
   const solicitud = new NextRequest('https://example.com/perfil')

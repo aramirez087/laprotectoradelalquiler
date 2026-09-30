@@ -47,12 +47,14 @@ function proxyCon({ configurado = true, indexable = true, user = { id: 'cuenta' 
     },
     '@/lib/supabase/server': {
       sinSupabase: () => !configurado,
-      createClient: async () => ({ auth: {
+    },
+    '@/lib/supabase/proxy': {
+      createProxyClient: () => ({ applyCookies: response => response, supabase: { auth: {
         getUser: async () => {
           if (error) throw new Error('Servicio no disponible')
           return { data: { user } }
         },
-      } }),
+      } } }),
     },
     '@/lib/util': { destinoInterno: path => path ?? '/' },
   })

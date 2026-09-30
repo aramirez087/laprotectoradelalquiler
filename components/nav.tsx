@@ -80,9 +80,10 @@ export function Nav({
         </>
       ) : (
         <>
-          <Link href="/login" aria-current={actual('/login')} className={clase('/login')}>
+          {/* Start a fresh request, including the shared header, if this tab's session changed. */}
+          <a href="/login" aria-current={actual('/login')} className={clase('/login')}>
             Iniciar sesión
-          </Link>
+          </a>
           <Link href="/registro" aria-current={actual('/registro')} className={`${clase('/registro')} acceso-nav`}>
             Registrarse
           </Link>

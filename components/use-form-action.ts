@@ -1,6 +1,7 @@
 'use client'
 
 import { startTransition, useActionState, useEffect, useRef, type FormEvent } from 'react'
+import { unstable_rethrow } from 'next/navigation'
 import type { EstadoForm } from '@/lib/actions/auth'
 import { registrarErrorCliente } from '@/lib/error-cliente'
 
@@ -17,6 +18,7 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
       onResultado?.(resultado)
       return resultado
     } catch (error) {
+      unstable_rethrow(error)
       registrarErrorCliente(error, 'accion')
       return { error: 'No pudimos confirmar la operación. Sus datos se conservan. Revise el resultado antes de volver a enviar.' }
     }

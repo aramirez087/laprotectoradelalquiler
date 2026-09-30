@@ -3,6 +3,7 @@
 import { registrarError } from '@/lib/registro-error'
 
 import { cookies, headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
 import { COOKIE_CORREO } from '@/lib/correo-recordado'
@@ -351,6 +352,7 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     secure: process.env.NODE_ENV === 'production',
   })
   const siguiente = destinoInterno(formData.get('siguiente'), '/')
+  revalidatePath('/', 'layout')
   redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
 }
 
@@ -458,5 +460,6 @@ export async function cambiarClave(_estado: EstadoForm, formData: FormData): Pro
 export async function cerrarSesion() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  revalidatePath('/', 'layout')
   redirect('/')
 }

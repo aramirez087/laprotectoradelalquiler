@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { altaFacebookLista } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, cuentaCreadaConFacebook, esRutaDeAltaFacebook } from '@/lib/facebook-auth'
-import { createClient, sinSupabase } from '@/lib/supabase/server'
+import { sinSupabase } from '@/lib/supabase/server'
+import { createProxyClient } from '@/lib/supabase/proxy'
 import { esEntornoIndexable } from '@/lib/seo'
 import { destinoInterno } from '@/lib/util'
 
@@ -78,25 +79,25 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/admin') ||
     path.startsWith('/registro/resena')
   const vigilarFacebook = authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
-  if (!protegida && !vigilarFacebook) return continuar()
+  const { supabase, applyCookies } = createProxyClient(request, requestHeaders)
+  const redirigir = (url: URL) => applyCookies(conSeguridad(NextResponse.redirect(url), csp, privada))
 
   try {
-    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (protegida && !user) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp, privada)
+    if (protegida && !user) return redirigir(urlLogin(request, path))
 
     if (vigilarFacebook && user && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) {
       const url = request.nextUrl.clone()
       url.pathname = '/registro/facebook'
       url.search = ''
       url.searchParams.set('siguiente', destinoInterno(path + request.nextUrl.search))
-      return conSeguridad(NextResponse.redirect(url), csp, privada)
+      return redirigir(url)
     }
   } catch {
-    if (protegida) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp, privada)
+    if (protegida) return redirigir(urlLogin(request, path))
   }
 
-  return continuar()
+  return applyCookies(continuar())
 }
 
 export const config = {
