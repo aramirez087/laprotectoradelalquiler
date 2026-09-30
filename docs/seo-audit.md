@@ -63,6 +63,23 @@ Los títulos y descripciones deben ser claros, únicos y concordar con el conten
 
 ## Publicación y comprobación
 
+### Validación local
+
+El build de producción y TypeScript pasan. La suite completa pasa con 220 pruebas.
+ESLint no presenta errores; quedan dos avisos existentes de variables sin usar en
+`tests/integration/accesos-importados.test.mjs`. La comprobación HTTP del build
+verifica los metadatos en `<head>` para un rastreador de tarjetas, los canonical,
+Open Graph/Twitter, un H1 por página, JSON-LD con el nonce de CSP, robots y sitemap,
+13 rutas privadas con `X-Robots-Tag` incluso al redirigir, el PNG de 1200 × 630 y
+el estado 404 de una ruta inexistente.
+
+Puede repetirla contra un servidor local con
+`node scripts/verificar-seo.mjs http://127.0.0.1:3107`. Después del despliegue,
+`node scripts/verificar-seo.mjs` comprueba el dominio de producción sin sesión.
+Esta prueba no acredita indexación, posiciones ni Core Web Vitals de usuarios reales.
+
+### Comprobación tras desplegar
+
 1. Desplegar la versión revisada por el flujo habitual del proyecto. Mantener `https://www.protectoradelalquiler.com` como origen público y conservar las redirecciones existentes de dominio.
 2. Consultar `/`, `/como-funciona` y `/privacidad` sin sesión: deben devolver 200 y mostrar su contenido principal en el HTML, un título propio y su canonical absoluto. No deben llevar `noindex` en producción.
 3. Consultar `/robots.txt` y `/sitemap.xml`: deben responder 200 con el tipo de contenido adecuado. El sitemap debe contener únicamente las tres páginas públicas previstas. No añadir las rutas de fichas, resultados de búsqueda, administración, perfil, acceso o tokens.

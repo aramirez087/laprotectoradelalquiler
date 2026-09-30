@@ -61,10 +61,11 @@ export default function PrivacidadPage() {
       <section id="resenas" className="space-y-3">
         <h2 className="text-xl">Reseñas y cédula</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
-          La reseña guarda el relato y la persona de quien se habla. Si la marca anónima, el público no ve su nombre.
+          La reseña guarda el relato y la persona de quien se habla. Si la marca anónima, otros usuarios no ven su nombre.
           La cédula completa no se publica: en el registro se muestra enmascarada. Administración ve la cuenta, la
-          cédula y el enlace de Facebook al revisar. Consultar reseñas de otras personas se abre cuando administración
-          aprueba una reseña suya.
+          cédula y el enlace de Facebook al revisar. Consultar reseñas de otras personas requiere una cuenta activa
+          y un permiso de consulta vigente. Su primera reseña aprobada activa 3 meses de consultas.
+          Las fichas y las reseñas no son páginas públicas para buscadores.
         </p>
       </section>
 
