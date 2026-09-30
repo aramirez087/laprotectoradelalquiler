@@ -16,6 +16,7 @@ function decisionesDe(estado: EstadoResena): Array<'publicar' | 'rechazar' | 're
 export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; nivelTitulo?: 2 | 3 }) {
   const nombre = nombreCompleto(fila.persona)
   const Titulo = nivelTitulo === 3 ? 'h3' : 'h2'
+  const notificacionesHabilitadas = correoResenasConfigurado()
 
   return (
     <article className="expediente space-y-5" aria-labelledby={`resena-${fila.id}`}>
@@ -40,7 +41,7 @@ export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; 
       </dl>
       <div><p className="eyebrow mb-2">Experiencia compartida</p><p className="whitespace-pre-wrap text-sm leading-7">{fila.comentario?.trim() || 'Sin comentario.'}</p></div>
       {fila.detalle_verificacion && <div className="border-l-2 border-line pl-4"><p className="etiqueta-campo">Última nota de moderación</p><p className="whitespace-pre-wrap text-sm leading-6 text-ink-soft">{fila.detalle_verificacion}</p></div>}
-      <div className="border-t border-line pt-5"><FormDecision id={fila.id} decisiones={decisionesDe(fila.estado)} /></div>
+      <div className="border-t border-line pt-5"><FormDecision id={fila.id} decisiones={decisionesDe(fila.estado)} notificacionesHabilitadas={notificacionesHabilitadas} /></div>
       <div className="space-y-2 border-t border-line pt-4">
         <FormEditarResena
           key={`${fila.id}-${fila.persona.id}-${fila.comentario ?? ''}-${fila.anonima ? 1 : 0}`}
@@ -48,9 +49,9 @@ export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; 
           persona={fila.persona}
           comentario={fila.comentario}
           anonima={fila.anonima}
-          notificacionesHabilitadas={correoResenasConfigurado()}
+          notificacionesHabilitadas={notificacionesHabilitadas}
         />
-        <FormEliminarResena id={fila.id} notificacionesHabilitadas={correoResenasConfigurado()} />
+        <FormEliminarResena id={fila.id} notificacionesHabilitadas={notificacionesHabilitadas} />
       </div>
     </article>
   )

@@ -129,6 +129,17 @@ export async function invitarAdmin(input: { nombre: string; email: string; envia
     const enviado = await enviarCorreo({
       to: email,
       subject: `${administracion ? 'Invitación de administración' : 'Active su inicio de sesión'} · La Protectora del Alquiler`,
+      contenido: {
+        titulo: administracion ? 'Su invitación de administración' : 'Active su inicio de sesión',
+        resumen: 'Complete su invitación en La Protectora del Alquiler.',
+        parrafos: [
+          `Hola, ${nombre}.`,
+          administracion ? 'Le invitamos a administrar La Protectora del Alquiler. No necesita escribir una reseña.' : 'Le invitamos a crear el inicio de sesión para su cuenta. Su rol y los requisitos para consultar fichas se mantienen.',
+          'Abra el enlace y elija una clave nueva para aceptar. Se cerrarán las otras sesiones de esta cuenta.',
+        ],
+        accion: { texto: 'Aceptar invitación', url: enlace.toString() },
+        nota: 'El enlace es de un solo uso y vence según la configuración de autenticación, como máximo en 24 horas. Si no esperaba esta invitación, ignórela. No comparta el enlace.',
+      },
       text: `Hola, ${nombre}.\n\n${administracion ? 'Le invitamos a administrar La Protectora del Alquiler. No necesita escribir una reseña.' : 'Le invitamos a crear el inicio de sesión para su cuenta. Su rol y los requisitos para consultar fichas se mantienen.'} Abra el enlace y elija una clave nueva para aceptar. Se cerrarán las otras sesiones de esta cuenta.\n\n${enlace}\n\nEl enlace es de un solo uso y vence según la configuración de autenticación, como máximo en 24 horas. Si no esperaba esta invitación, ignórela.`,
     })
     const { error: errorEntrega } = await db.from('invitaciones_admin')

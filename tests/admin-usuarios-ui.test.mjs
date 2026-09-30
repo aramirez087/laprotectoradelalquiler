@@ -63,6 +63,28 @@ test('pending permission updates disable the entire editable fieldset', () => {
   assert.match(html, /Guardando los permisos…/)
 })
 
+test('moderation notices default on only with delivery configured and approval copy describes its trigger', () => {
+  const { FormDecision, FormEditarResena, FormEliminarResena } = load('components/admin-formularios.tsx', mocks())
+  const samples = [
+    [FormDecision, { id: 42, decisiones: ['publicar', 'rechazar'] }],
+    [FormEditarResena, { id: 42, persona: { identificacion: '123456789', nombre: 'Ana', apellido1: 'Pérez', nombre2: null, apellido2: null }, comentario: 'An experience', anonima: true }],
+    [FormEliminarResena, { id: 42 }],
+  ]
+  for (const [Component, props] of samples) {
+    const configured = renderToStaticMarkup(createElement(Component, { ...props, notificacionesHabilitadas: true }))
+    assert.match(configured, /<input(?=[^>]*name="notificar")(?=[^>]*checked="")(?=[^>]*aria-describedby=)[^>]*>/)
+    assert.ok(!configured.match(/<input[^>]*name="notificar"[^>]*disabled/))
+    const unavailable = renderToStaticMarkup(createElement(Component, props))
+    assert.match(unavailable, /<input(?=[^>]*name="notificar")(?=[^>]*disabled="")[^>]*>/)
+    assert.ok(!unavailable.match(/<input[^>]*name="notificar"[^>]*checked/))
+    assert.match(unavailable, /Puede guardar la acción sin enviar/)
+  }
+  const approval = renderToStaticMarkup(createElement(FormDecision, { ...samples[0][1], notificacionesHabilitadas: true }))
+  assert.match(approval, /El aviso se envía al aprobar y publicar/)
+  const published = renderToStaticMarkup(createElement(FormDecision, { id: 42, decisiones: ['rechazar'], notificacionesHabilitadas: true }))
+  assert.ok(!published.includes('name="notificar"'))
+})
+
 test('access invitations explicitly preserve the role and require confirmation with distinct field ids', () => {
   const { FormInvitacionAdmin } = load('components/form-invitacion-admin.tsx', mocks())
   const html = renderToStaticMarkup(createElement('div', null,

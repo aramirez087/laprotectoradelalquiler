@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import test from 'node:test'
+import { plantillaCorreo } from '../lib/plantilla-correo.ts'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
@@ -12,7 +13,7 @@ function correo(env = {}, responses = []) {
   const code = ts.transpileModule(readFileSync('lib/correo-resenas.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-  const mocks = { 'server-only': {}, 'node:timers/promises': { setTimeout: async (ms) => waits.push(ms) } }
+  const mocks = { 'server-only': {}, '@/lib/plantilla-correo': { plantillaCorreo }, 'node:timers/promises': { setTimeout: async (ms) => waits.push(ms) } }
   vm.runInNewContext(code, {
     module: mod, exports: mod.exports, process: { env }, AbortSignal,
     require: (name) => mocks[name] ?? require(name),
@@ -39,9 +40,9 @@ test('configured but unchecked notifications never contact Resend', async () => 
   assert.equal((await c.notificarCambioResena({ ...input, solicitada: false })).mensaje, undefined)
   assert.equal(c.calls.length, 0)
 })
-test('edit and delete notices use server configuration, plain text and a profile link', async () => {
+test('approval, edit and delete notices retain plain text and the site theme with a profile action', async () => {
   const c = correo({ RESEND_API_KEY: 'fake-key', RESEND_FROM_EMAIL: 'Test <admin@verified.example>' })
-  for (const accion of ['modificada', 'eliminada']) {
+  for (const accion of ['aprobada', 'modificada', 'eliminada']) {
     assert.match((await c.notificarCambioResena({ ...input, accion })).mensaje, /enviada/)
     const request = c.calls.at(-1), payload = JSON.parse(request.body)
     assert.equal(request.url, 'https://api.resend.com/emails')
@@ -51,8 +52,26 @@ test('edit and delete notices use server configuration, plain text and a profile
     assert.match(payload.subject, new RegExp(accion))
     assert.match(payload.text, /#42/)
     assert.match(payload.text, /https:\/\/www.protectoradelalquiler.com\/perfil/)
-    assert.equal(payload.html, undefined)
+    assert.match(payload.html, /Ver mis reseñas/)
+    assert.match(payload.html, /#385443/)
+    assert.match(payload.html, /https:\/\/www.protectoradelalquiler.com\/perfil/)
+    assert.equal(payload.contenido, undefined)
+    if (accion === 'aprobada') {
+      assert.match(payload.text, /aprobó y publicó/)
+      assert.match(payload.html, /Gracias por compartir/)
+      assert.ok(!payload.text.includes('3 meses'), 'do not promise an unverified access extension')
+    }
   }
+})
+test('missing authors are skipped and author names cannot inject HTML into moderation emails', async () => {
+  const c = correo({ RESEND_API_KEY: 'fake-key' })
+  assert.match((await c.notificarCambioResena({ ...input, autor: null })).advertencia, /correo válido/)
+  assert.equal(c.calls.length, 0)
+  await c.notificarCambioResena({ ...input, accion: 'aprobada', autor: { ...input.autor, nombre: '<img src=x onerror=alert(1)>' } })
+  const payload = JSON.parse(c.calls[0].body)
+  assert.match(payload.html, /&lt;img/)
+  assert.ok(!payload.html.includes('<img'))
+  assert.equal(payload.from, 'La Protectora del Alquiler <no-reply@auth.protectoradelalquiler.com>')
 })
 test('transient and network errors retry once with the identical idempotency key and payload', async () => {
   for (const first of [{ status: 503, body: {} }, { status: 429, body: {} }, new Error('response lost')]) {

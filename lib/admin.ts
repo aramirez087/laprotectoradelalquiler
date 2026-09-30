@@ -303,11 +303,16 @@ export async function decidirResena(input: { id: number; estado: EstadoResena; n
     .from('resenas')
     .update(cambios)
     .eq('id', input.id)
-    .select('id, persona_id')
+    // Only one concurrent approval can change the state and notify its author.
+    .neq('estado', input.estado)
+    .select('id, persona_id, autor:usuarios(email, nombre)')
     .maybeSingle()
   if (error) throw error
-  if (!data) throw new AvisoAdmin('No encontramos esa reseña.')
-  return data.persona_id as number
+  if (!data) throw new AvisoAdmin('La reseña ya no está disponible para esta decisión. Actualice la página y revise su estado.')
+  return {
+    personaId: data.persona_id as number,
+    autor: uno(data.autor as { email: string; nombre: string } | Array<{ email: string; nombre: string }> | null),
+  }
 }
 
 type ResultadoCambioResena = {

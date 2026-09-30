@@ -81,13 +81,24 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
   if (!parsed.success) return { error: 'Revise la decisión.' }
 
   try {
-    const personaId = await decidirResena({
+    const resultado = await decidirResena({
       id: parsed.data.id,
       estado: ESTADO[parsed.data.decision],
       nota: parsed.data.nota ?? '',
     })
-    revalidarResena(personaId)
-    return { mensaje: 'Listo.' }
+    const correo = parsed.data.decision === 'publicar' ? await notificarCambioResena({
+      solicitada: formData.get('notificar') === '1',
+      accion: 'aprobada',
+      resenaId: parsed.data.id,
+      autor: resultado.autor,
+    }) : {}
+    revalidarResena(resultado.personaId)
+    const mensaje = {
+      publicar: 'Reseña aprobada y publicada.',
+      rechazar: 'Reseña rechazada.',
+      revisar: 'Reseña devuelta a revisión.',
+    }[parsed.data.decision]
+    return { mensaje: [mensaje, correo.mensaje].filter(Boolean).join(' '), advertencia: correo.advertencia }
   } catch (e) {
     unstable_rethrow(e)
     return { error: aviso(e) }

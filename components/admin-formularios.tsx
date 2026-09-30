@@ -19,14 +19,14 @@ const DECISIONES = {
 export function FormDecision({
   id,
   decisiones,
+  notificacionesHabilitadas = false,
 }: {
   id: number
   decisiones: Array<keyof typeof DECISIONES>
+  notificacionesHabilitadas?: boolean
 }) {
   const onResultado = useAvisoAdmin()
-  const { estado, pendiente, formProps } = useFormAction(decidirResenaAction, {
-    onResultado: (resultado) => onResultado(resultado?.mensaje ? { ...resultado, mensaje: `Se guardó la decisión sobre la reseña #${id}.` } : resultado),
-  })
+  const { estado, pendiente, formProps } = useFormAction(decidirResenaAction, { onResultado })
 
   return (
     <form {...formProps} className="space-y-3">
@@ -37,7 +37,8 @@ export function FormDecision({
         </label>
         <textarea id={`nota-${id}`} name="nota" rows={2} maxLength={2000} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer." />
       </div>
-      <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
+      {decisiones.includes('publicar') && <OpcionNotificar id={`notificar-aprobacion-${id}`} habilitada={notificacionesHabilitadas} soloAprobacion />}
+      <MensajeForm error={estado?.error} />
       <div className="flex flex-wrap gap-2">
         {decisiones.map((decision) => (
           <button key={decision} name="decision" value={decision} disabled={pendiente} className={decision === 'publicar' ? 'btn-primario' : decision === 'rechazar' ? 'btn-secundario btn-peligro' : 'btn-secundario'}>
@@ -58,17 +59,17 @@ function ErrorCampo({ nombre, mensaje }: { nombre: string; mensaje?: string }) {
   ) : null
 }
 
-function OpcionNotificar({ id, habilitada }: { id: string; habilitada: boolean }) {
+function OpcionNotificar({ id, habilitada, soloAprobacion = false }: { id: string; habilitada: boolean; soloAprobacion?: boolean }) {
   return (
     <div className={habilitada ? '' : 'text-ink-soft'}>
       <label htmlFor={id} className={`flex min-h-11 items-start gap-3 py-2 text-sm ${habilitada ? '' : 'opacity-60'}`}>
-        <input id={id} name="notificar" type="checkbox" value="1" disabled={!habilitada}
+        <input id={id} name="notificar" type="checkbox" value="1" defaultChecked={habilitada} disabled={!habilitada}
           aria-describedby={`${id}-ayuda`} className="mt-1 h-4 w-4 shrink-0" />
-        <span>Notificar por correo a quien escribió la reseña</span>
+        <span>{soloAprobacion ? 'Avisar al autor cuando se apruebe la reseña' : 'Notificar por correo a quien escribió la reseña'}</span>
       </label>
       <p id={`${id}-ayuda`} className="mt-2 text-xs text-ink-soft">
         {habilitada
-          ? 'Se enviará un aviso después de guardar esta acción.'
+          ? soloAprobacion ? 'El aviso se envía al aprobar y publicar. Puede desmarcarlo para esta acción.' : 'El aviso se envía después de guardar. Puede desmarcarlo para esta acción.'
           : 'El envío de correos aún no está configurado. Puede guardar la acción sin enviar una notificación.'}
       </p>
     </div>

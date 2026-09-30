@@ -3,8 +3,9 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as esperar } from 'node:timers/promises'
 import * as z from 'zod'
+import { plantillaCorreo, type ContenidoCorreo } from '@/lib/plantilla-correo'
 
-const REMITENTE = 'La Protectora del Alquiler <notificaciones@protectoradelalquiler.com>'
+const REMITENTE = 'La Protectora del Alquiler <no-reply@auth.protectoradelalquiler.com>'
 
 export function correoResenasConfigurado() {
   return Boolean(process.env.RESEND_API_KEY?.trim())
@@ -13,44 +14,63 @@ export function correoResenasConfigurado() {
 /** Called only after the admin mutation commits; the recipient comes from the database. */
 export async function notificarCambioResena(input: {
   solicitada: boolean
-  accion: 'modificada' | 'eliminada'
+  accion: 'aprobada' | 'modificada' | 'eliminada'
   resenaId: number
-  autor: { email: string; nombre: string }
+  autor: { email: string; nombre: string } | null
 }): Promise<{ mensaje?: string; advertencia?: string }> {
   if (!input.solicitada) return {}
   const key = process.env.RESEND_API_KEY?.trim()
   if (!key) return { advertencia: 'La acción se guardó, pero no se envió correo: Resend aún no está configurado.' }
 
-  const email = input.autor.email.trim().toLowerCase()
-  if (!z.email().safeParse(email).success || /@(legacy\.laprotec|[^@]*\.invalid)$/.test(email)) {
+  const email = input.autor?.email.trim().toLowerCase() ?? ''
+  if (!input.autor || !z.email().safeParse(email).success || /@(legacy\.laprotec|[^@]*\.invalid)$/.test(email)) {
     return { advertencia: 'La acción se guardó, pero el autor no tiene un correo válido para recibir notificaciones.' }
   }
 
+  const mensajes = {
+    aprobada: [
+      `La administración aprobó y publicó su reseña #${input.resenaId}. Gracias por compartir su experiencia.`,
+      'Puede ver su reseña y revisar su acceso al registro desde su perfil.',
+    ],
+    modificada: [
+      `La administración modificó su reseña #${input.resenaId}.`,
+      'Puede consultar la reseña actualizada en su perfil.',
+    ],
+    eliminada: [
+      `La administración eliminó su reseña #${input.resenaId}.`,
+      'La reseña ya no aparece en el registro. Puede consultar sus otras reseñas en su perfil.',
+    ],
+  }[input.accion]
+  const parrafos = [`Hola, ${input.autor.nombre}.`, ...mensajes]
   const enviado = await enviarCorreo({
     to: email,
     subject: `Su reseña fue ${input.accion} · La Protectora del Alquiler`,
+    contenido: {
+      titulo: `Su reseña fue ${input.accion}`,
+      resumen: 'Una actualización sobre su reseña en La Protectora del Alquiler.',
+      parrafos,
+      accion: { texto: 'Ver mis reseñas', url: 'https://www.protectoradelalquiler.com/perfil' },
+    },
     text: [
-      `Hola, ${input.autor.nombre}.`,
-      `La administración de La Protectora del Alquiler ha ${input.accion === 'modificada' ? 'modificado' : 'eliminado'} su reseña #${input.resenaId}.`,
-      input.accion === 'modificada'
-        ? 'Puede consultar la reseña actualizada en su perfil.'
-        : 'La reseña ya no aparece en el registro. Puede consultar sus otras reseñas en su perfil.',
+      ...parrafos,
       'https://www.protectoradelalquiler.com/perfil',
       'La Protectora del Alquiler',
     ].join('\n\n'),
   })
 
   return enviado
-    ? { mensaje: 'Notificación enviada por correo.' }
+    ? { mensaje: 'Notificación enviada al servicio de correo.' }
     : { advertencia: 'La acción se guardó, pero no pudimos confirmar el envío del correo. Revise la configuración y los registros de Resend antes de volver a avisar al autor.' }
 }
 
 /** Transport shared by review notices and administrative invitations. */
-export async function enviarCorreo(input: { to: string; subject: string; text: string }): Promise<boolean> {
+export async function enviarCorreo(input: { to: string; subject: string; text: string; contenido?: ContenidoCorreo }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY?.trim()
   if (!key) return false
   const idempotencia = randomUUID()
-  const body = JSON.stringify({ ...input, from: process.env.RESEND_FROM_EMAIL?.trim() || REMITENTE, to: [input.to] })
+  const body = JSON.stringify({ subject: input.subject, text: input.text,
+    ...(input.contenido ? { html: plantillaCorreo(input.contenido) } : {}),
+    from: process.env.RESEND_FROM_EMAIL?.trim() || REMITENTE, to: [input.to] })
 
   // Retry transient failures using the same idempotency key so an accepted
   // request whose response was lost cannot send the same notice twice.
