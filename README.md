@@ -164,12 +164,12 @@ reciben notificaciones.
    npm run db:migrar -- --solo-accesos --crear-accounts
    ```
 
-   El módulo **Importar datos** también ofrece **Simular importación**.
-   Tanto la simulación como la importación requieren `DATABASE_URL` (o las
-   variables de la integración `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL`).
-   **Crear accesos pendientes** revisa todos los perfiles actuales y procesa
-   hasta 100 cuentas por lote, sin volver a importar datos. Necesita la conexión
-   MySQL para comprobar identidades y recuperar las claves compatibles.
+    La simulación (`--seco`) y la importación requieren `DATABASE_URL` (o las
+    variables de la integración `POSTGRES_URL_NON_POOLING` / `POSTGRES_URL`).
+    `--solo-accesos --crear-accounts` revisa todos los perfiles actuales y
+    procesa los accesos pendientes por lotes (`--limite-auth`, por defecto
+    1000 cuentas), sin volver a importar datos. Necesita la conexión MySQL para
+    comprobar identidades y recuperar las claves compatibles.
    Conserva los accesos existentes, las cuentas inactivas y los autores sin
    correo. Muestra por separado las coincidencias ausentes, los conflictos y
    los fallos. Repita el botón mientras haya pendientes: continúa después del
@@ -250,18 +250,16 @@ reciben notificaciones.
    migración: sus tablas MyISAM no ofrecen una instantánea transaccional.
    Las fechas sin zona se interpretan como Costa Rica (`-06:00`); configure
    `LEGACY_MYSQL_TIMEZONE` si el servidor anterior usaba otra zona fija.
-   La web interrumpe el proceso a los cuatro minutos para poder responder;
-   para volúmenes mayores use `npm run db:migrar` desde un servidor con acceso
-   a ambas bases. No vuelva a ejecutar `db:aplicar` sobre datos existentes:
+    Para volúmenes mayores use `npm run db:migrar` desde un servidor con acceso
+    a ambas bases. No vuelva a ejecutar `db:aplicar` sobre datos existentes:
    ese comando recrea las tablas.
 
    Pruebas de integración aisladas (Docker, imágenes `mysql:8` y
    `postgres:16-alpine`; nunca usan las bases de `.env.local`):
 
    ```bash
-   npm run test:importacion
-   npm run test:importacion:bundle
-   ```
+    npm run test:importacion
+    ```
 
 5. Desarrolle:
 

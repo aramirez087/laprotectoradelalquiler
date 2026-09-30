@@ -12,9 +12,7 @@ export function TarjetaFicha({ ficha, href }: { ficha: VistaFicha; href: string 
       <div className="min-w-0">
         <h3 className="break-words text-lg font-medium leading-snug tracking-tight group-hover:text-seal">{nombre}</h3>
         <p className="mt-1 break-words text-sm text-ink-soft">
-          {[ficha.provincia, `Documento ${mascararCedula(ficha.persona.identificacion)}`]
-            .filter(Boolean)
-            .join(' · ')}
+          Documento {mascararCedula(ficha.persona.identificacion)}
         </p>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-ink-soft">
           <span className="font-medium text-seal">{ficha.resenas === 1 ? '1 reseña publicada' : `${ficha.resenas} reseñas publicadas`}</span>

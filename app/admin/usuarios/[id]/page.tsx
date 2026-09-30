@@ -77,7 +77,6 @@ export default async function CuentaAdminPage({ params, searchParams }: {
           <FormInvitacionAdmin habilitada={correoResenasConfigurado()} embedded initialNombre={cuenta.nombre} initialEmail={cuenta.email} proposito={cuenta.tieneLogin ? 'administracion' : 'acceso'} />
         </details>
       )}
-      {!cuenta.tieneLogin && !cuenta.esLegacy && <p className="text-sm leading-6 text-ink-soft">También puede completar los accesos importados desde <Link href="/admin/migracion" className="enlace-texto">Importar datos</Link>.</p>}
       <section className="expediente space-y-5" aria-labelledby="historial-cuenta">
         <div><h2 id="historial-cuenta" className="text-xl">Historial de administración</h2><p className="mt-2 text-sm text-ink-soft">Los últimos 20 cambios registrados, del más reciente al más antiguo.</p></div>
         {!cuenta.historial.length ? <p className="text-sm text-ink-soft">Aún no hay cambios registrados desde que se habilitó este historial.</p> : (

@@ -118,7 +118,7 @@ test('report disclosure follows permission and comments render as text', () => {
   assert.doesNotMatch(renderResena(), /Denunciar esta reseña|data-resena-denunciada/)
 })
 
-test('search cards preserve navigation, masked identity and publication counts without ratings', () => {
+test('search cards preserve navigation, masked identity and publication counts without historical context', () => {
   const ficha = {
     persona: { id: 7, nombre: 'Ana', nombre2: null, apellido1: 'Solís', apellido2: null, identificacion: '123456789', foto_url: null },
     provincia: 'San José', resenas: 2, ultima: '2026-09-20T12:00:00Z', promedio: 4.5,
@@ -129,16 +129,16 @@ test('search cards preserve navigation, masked identity and publication counts w
   const html = render()
   assert.match(html, /href="\/fichas\/7\?q=Ana&amp;pagina=2"/)
   assert.match(html, /Ana Solís/)
-  assert.match(html, /San José/)
+  assert.doesNotMatch(html, /San José/)
   assert.ok(html.includes(`Documento ${util.mascararCedula(ficha.persona.identificacion)}`))
   assert.doesNotMatch(html, /123456789/)
   assert.match(html, /2 reseñas/)
   assert.match(html, /Última reseña:/)
   assert.ok(html.includes(util.fechaCorta(ficha.ultima)))
   sinCamposHistoricos(html)
-  const unica = render({ resenas: 1, promedio: null, ultima: null })
+  const unica = render({ resenas: 1, promedio: null, ultima: null, provincia: 'Sin Especificar' })
   assert.match(unica, /1 reseña/)
-  assert.doesNotMatch(unica, /1 reseñas|Última reseña:/)
+  assert.doesNotMatch(unica, /1 reseñas|Última reseña:|Sin Especificar/)
   sinCamposHistoricos(unica)
 })
 
@@ -210,7 +210,7 @@ test('simple ficha reads retain named attribution and anonymous ownership withou
     const query = requests.find((request) => request.pathname.endsWith('/personas'))
     assert.equal(query.searchParams.get('id'), 'eq.7')
     assert.match(query.searchParams.get('select'), /id,estado,comentario,verificada,anonima,creado_en/)
-    assert.doesNotMatch(query.searchParams.get('select'), /calificacion|fecha_inicio_alquiler|fecha_fin_alquiler|tipo_contrato|tipo_alquiler|tiempo_alquiler|dano|proceso|etiquetas|conductas|fotos/)
+    assert.doesNotMatch(query.searchParams.get('select'), /\*|provincia|calificacion|fecha_inicio_alquiler|fecha_fin_alquiler|tipo_contrato|tipo_alquiler|tiempo_alquiler|dano|proceso|etiquetas|conductas|fotos/)
     assert.equal(requests.length, servicio ? 4 : 2)
   }
 })

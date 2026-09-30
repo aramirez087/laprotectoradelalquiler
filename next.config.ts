@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { archivosRuntimeLegacy } from './scripts/legacy-runtime-files.mjs';
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -14,17 +13,6 @@ const nextConfig: NextConfig = {
         ],
       },
     ]
-  },
-  outputFileTracingIncludes: {
-    '/admin/migracion': [
-      './scripts/migrar-legacy.mjs',
-      './scripts/legacy-catalogos.mjs',
-      './scripts/legacy-tablas.mjs',
-      './scripts/postgres-config.mjs',
-      './scripts/certs/supabase-prod-ca-2021.crt',
-      './db/importacion-legacy-resenas.sql',
-      ...archivosRuntimeLegacy(),
-    ],
   },
 };
 

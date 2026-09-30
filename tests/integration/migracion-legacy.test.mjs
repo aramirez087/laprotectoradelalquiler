@@ -7,7 +7,7 @@ import test from 'node:test';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { existeTablaLegacy } from '../../scripts/legacy-tablas.mjs';
-import { resumenDesdeSalida } from '../../lib/resultado-migracion-legacy.ts';
+import { resumenDesdeSalida } from '../../scripts/resultado-migracion-legacy.mjs';
 
 const exec = promisify(execFile);
 const docker = async (...args) => (await exec('docker', args)).stdout.trim();

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
-import { requireUsuario, obtenerFicha, obtenerUsuario, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
+import { requireUsuario, obtenerFicha, puedeConsultar, resenasPrivadasVisibles } from '@/lib/dal'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
@@ -25,18 +25,12 @@ function hrefVolver(q: string, pagina: string) {
   return destinoInterno(s ? `/fichas?${s}` : '/fichas')
 }
 
-export async function generateMetadata(props: PageProps<'/fichas/[id]'>): Promise<Metadata> {
-  const { id } = await props.params
-  const personaId = Number(id)
-  if (!Number.isInteger(personaId) || personaId <= 0 || sinSupabase()) return { title: 'Ficha' }
-  const usuario = await obtenerUsuario()
-  if (!usuario || !(await puedeConsultar(usuario))) return { title: 'Fichas' }
-  try {
-    const persona = await obtenerFicha(personaId)
-    return { title: persona ? nombreCompleto(persona) : 'Ficha' }
-  } catch {
-    return { title: 'Ficha' }
-  }
+export const metadata: Metadata = {
+  title: 'Ficha privada',
+  description: 'La consulta de esta ficha requiere una cuenta y permiso de acceso.',
+  robots: { index: false, follow: false, nosnippet: true, noimageindex: true },
+  openGraph: null,
+  twitter: null,
 }
 
 export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
@@ -117,7 +111,6 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
             <h1 className="break-words text-3xl sm:text-4xl">{nombre}</h1>
             <p className="mt-3 break-words text-sm text-ink-soft">
               Documento {verCedulaCompleta ? persona.identificacion : mascararCedula(persona.identificacion)}
-              {persona.provincia?.nombre ? ` · ${persona.provincia.nombre}` : ''}
             </p>
           </div>
         </div>

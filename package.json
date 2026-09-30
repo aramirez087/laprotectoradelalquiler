@@ -21,8 +21,7 @@
     "test:admin-usuarios-busqueda": "node --test tests/integration/admin-usuarios-busqueda.test.mjs",
     "test:admin-resenas": "node --test tests/integration/admin-resenas.test.mjs",
     "test:admin-usuarios": "node --test tests/integration/admin-usuarios.test.mjs",
-    "test:acceso-consultas": "node --test tests/integration/acceso-consultas.test.mjs",
-    "test:importacion:bundle": "npm run build && node --test tests/integration/migracion-legacy-bundle.test.mjs"
+    "test:acceso-consultas": "node --test tests/integration/acceso-consultas.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

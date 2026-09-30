@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { altaFacebookLista } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, cuentaCreadaConFacebook, esRutaDeAltaFacebook } from '@/lib/facebook-auth'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
+import { esEntornoIndexable } from '@/lib/seo'
 import { destinoInterno } from '@/lib/util'
 
 function politicaContenido(nonce: string) {
@@ -23,12 +24,29 @@ function politicaContenido(nonce: string) {
     .join('; ')
 }
 
-function conSeguridad(response: NextResponse, csp: string) {
+function rutaPrivada(path: string) {
+  return [
+    '/admin',
+    '/auth',
+    '/fichas',
+    '/invitacion',
+    '/login',
+    '/perfil',
+    '/recuperar',
+    '/registro',
+    '/resenas',
+    '/restablecer',
+    '/ux-resenas-preview',
+  ].some((ruta) => path === ruta || path.startsWith(`${ruta}/`))
+}
+
+function conSeguridad(response: NextResponse, csp: string, privada: boolean) {
   response.headers.set('Content-Security-Policy', csp)
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (privada) response.headers.set('X-Robots-Tag', 'noindex, nofollow, nosnippet, noimageindex')
   return response
 }
 
@@ -41,17 +59,18 @@ function urlLogin(request: NextRequest, path: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname
+  const privada = rutaPrivada(path) || !esEntornoIndexable()
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const csp = politicaContenido(nonce)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', csp)
   const continuar = () =>
-    conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp)
+    conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp, privada)
 
   if (sinSupabase()) return continuar()
 
-  const path = request.nextUrl.pathname
   const protegida =
     path.startsWith('/fichas') ||
     path.startsWith('/resenas') ||
@@ -64,17 +83,17 @@ export async function proxy(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (protegida && !user) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp)
+    if (protegida && !user) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp, privada)
 
     if (vigilarFacebook && user && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) {
       const url = request.nextUrl.clone()
       url.pathname = '/registro/facebook'
       url.search = ''
       url.searchParams.set('siguiente', destinoInterno(path + request.nextUrl.search))
-      return conSeguridad(NextResponse.redirect(url), csp)
+      return conSeguridad(NextResponse.redirect(url), csp, privada)
     }
   } catch {
-    if (protegida) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp)
+    if (protegida) return conSeguridad(NextResponse.redirect(urlLogin(request, path)), csp, privada)
   }
 
   return continuar()

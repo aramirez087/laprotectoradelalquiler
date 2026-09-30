@@ -217,7 +217,7 @@ export async function buscarFichas(opts: {
   let query = supabase
     .from('personas')
     .select(
-      '*, provincia:provincias(nombre), resenas!inner(id, estado, creado_en)',
+      'id, identificacion, nombre, nombre2, apellido1, apellido2, foto_url, resenas!inner(id, estado, creado_en)',
       { count: 'exact' },
     )
     .eq('resenas.estado', 'publicada')
@@ -243,19 +243,17 @@ export async function buscarFichas(opts: {
     estado: string
     creado_en: string
   }
-  type FilaPersona = Persona & {
-    provincia: { nombre: string } | null
+  type FilaPersona = VistaFicha['persona'] & {
     resenas: FilaBusqueda[] | null
   }
 
   const fichas: VistaFicha[] = ((data ?? []) as FilaPersona[]).map((fila) => {
     const rs = (fila.resenas ?? []).filter((r) => r.estado === 'publicada')
     const fechas = rs.map((r) => r.creado_en).sort()
-    const { provincia, resenas: _resenas, ...persona } = fila
+    const { resenas: _resenas, ...persona } = fila
     void _resenas
     return {
       persona,
-      provincia: provincia?.nombre ?? null,
       resenas: rs.length,
       ultima: fechas.at(-1) ?? null,
     }
@@ -308,8 +306,7 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
   const { data, error } = await supabase
     .from('personas')
     .select(
-      `*,
-       provincia:provincias(nombre),
+      `id, identificacion, nombre, nombre2, apellido1, apellido2, foto_url,
        resenas(
          id, estado, comentario, verificada, anonima, creado_en${autorIncrustado}
        )`,

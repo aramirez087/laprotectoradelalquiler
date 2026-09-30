@@ -96,8 +96,7 @@ export interface Denuncia {
 }
 
 export interface VistaFicha {
-  persona: Persona
-  provincia: string | null
+  persona: Pick<Persona, 'id' | 'identificacion' | 'nombre' | 'nombre2' | 'apellido1' | 'apellido2' | 'foto_url'>
   resenas: number
   ultima: string | null
 }
@@ -138,7 +137,5 @@ export interface FichaCompleta {
   apellido1: string
   apellido2: string | null
   foto_url: string | null
-  provincia_id: number | null
-  provincia: NombreId | null
   resenas: FilaResenaCompleta[]
 }

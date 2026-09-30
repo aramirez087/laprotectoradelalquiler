@@ -74,7 +74,7 @@ No draft is saved across a page reload or navigation. Only the current mounted f
 
 ### Search → record → return
 
-Use visible search/filter labels, a clear submit button, visible active filters, and a reset link. Show the result range and total. Cards display the full name, province, masked document, published-review count and last review date. All of a card is one link.
+Use visible search/filter labels, a clear submit button, visible active filters, and a reset link. Show the result range and total. Cards display the full name, masked document, published-review count and last review date. Do not show location fields the current form does not collect. All of a card is one link.
 
 A record has a clear back-to-results link preserving filters and page, including when returning from the review form. Its review action is explicit and leads to the existing review when someone has already contributed. Do not truncate the person's name at the point where someone needs to verify identity. Distinguish unavailable data from empty results.
 
