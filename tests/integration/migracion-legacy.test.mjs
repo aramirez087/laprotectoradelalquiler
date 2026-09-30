@@ -601,10 +601,46 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       // No catalog or review table is needed to finish access for imported users.
       await source.query('RENAME TABLE tb_inquilinos_no_nacionales TO access_fichas_fuera, tb_paises TO access_paises_fuera');
       sourceTablesRenamed = true;
+      const sequences = async () => (await variant.query(`SELECT schemaname, sequencename, last_value
+        FROM pg_sequences ORDER BY schemaname, sequencename`)).rows;
+      const beforeSequences = await sequences();
+      // An ordinary SELECT-only login must be enough for the access preview.
+      // Its database-level read-only default also catches unintended writes.
+      await variant.query(`CREATE ROLE access_preview_reader LOGIN;
+        GRANT USAGE ON SCHEMA public, auth TO access_preview_reader;
+        GRANT SELECT ON ALL TABLES IN SCHEMA public, auth TO access_preview_reader;
+        ALTER ROLE access_preview_reader SET default_transaction_read_only = on`);
+      const previewEnv = { DATABASE_URL: `postgres://access_preview_reader@127.0.0.1:${pgPort}/import_access_only` };
+      const preview = await run(['--solo-accesos', '--seco'], previewEnv);
+      assert.equal(preview.code, 0, preview.stderr);
+      assert.equal(preview.resumen.estado, 'simulacion');
+      assert.equal(preview.resumen.accesos.elegibles, 4);
+      assert.equal(preview.resumen.accesos.pendientes, 4);
+      assert.equal(preview.resumen.accesos.conflictos, 2, 'occupied Auth identities are excluded before provisioning');
+      assert.equal(preview.resumen.accesos.creadas, 0);
+      assert.equal(preview.resumen.accesos.enlazadas, 0);
+      assert.deepEqual(preview.resumen.previsionAccesos, {
+        crear: 3, enlazar: 1,
+        claves: { hashCompatible: 0, texto: 3, restablecer: 0 },
+        roles: { admin: 1, propietario: 3, agencia: 0, inquilino: 0 },
+        sinDocumentoComparable: 0,
+      });
+      assert.match(preview.resumen.advertencias.find((a) => a.codigo === 'prevision_accesos').mensaje, /previsión.*puede rechazar/);
+      // --seco must override the redundant creation flag even with valid Auth config.
+      const previewWithAuthFlag = await run(['--solo-accesos', '--crear-accounts', '--seco'], { ...authEnv, ...previewEnv });
+      assert.equal(previewWithAuthFlag.code, 0, previewWithAuthFlag.stderr);
+      assert.deepEqual(previewWithAuthFlag.resumen, preview.resumen);
+      assert.equal(requests.length, 0, 'previews never call the Auth API');
+      assert.deepEqual(await snapshot(variant), before, 'previews do not change any profile or imported data');
+      assert.deepEqual(await sequences(), beforeSequences, 'previews do not advance sequences');
+      assert.deepEqual((await variant.query('SELECT * FROM auth.users ORDER BY id')).rows, oldAuth, 'previews do not create or change Auth rows');
       const first = await run(args, authEnv);
       assert.equal(first.code, 2, first.stderr);
       const coverage = first.resumen.accesos;
       assert.equal(coverage.total, before.usuarios.length);
+      for (const campo of ['total', 'existentes', 'inactivas', 'sinCorreo', 'sinOrigen', 'conflictos', 'elegibles']) {
+        assert.equal(coverage[campo], preview.resumen.accesos[campo], `preview and apply use the same ${campo} classification`);
+      }
       assert.equal(coverage.total, coverage.existentes + coverage.inactivas + coverage.sinCorreo + coverage.sinOrigen + coverage.conflictos + coverage.elegibles);
       assert.equal(coverage.sinOrigen, 4, 'the detached imported profile and three unrelated seed profiles are reported');
       assert.equal(coverage.conflictos, 2);
@@ -649,6 +685,7 @@ test('legacy schema → seeded Postgres: complete, repeatable and atomic', { tim
       await new Promise((resolve) => server.close(resolve));
       await variant.end();
       await target.query('DROP DATABASE import_access_only');
+      await target.query('DROP ROLE IF EXISTS access_preview_reader');
     }
   });
 

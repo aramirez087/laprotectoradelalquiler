@@ -31,6 +31,13 @@ const SchemaResumen = z.object({
     restablecer: cantidad,
     siguienteId: cantidad.max(2147483647),
   }).optional(),
+  previsionAccesos: z.object({
+    crear: cantidad,
+    enlazar: cantidad,
+    claves: z.object({ hashCompatible: cantidad, texto: cantidad, restablecer: cantidad }),
+    roles: z.object({ admin: cantidad, propietario: cantidad, agencia: cantidad, inquilino: cantidad }),
+    sinDocumentoComparable: cantidad,
+  }).optional(),
   advertencias: z.array(z.object({
     codigo: z.string(), mensaje: z.string(), cantidad,
   })),
@@ -57,7 +64,15 @@ export function resumenDesdeSalida(salida: string, codigo: number | null): Resum
     || accesos.elegibles !== accesos.creadas + accesos.enlazadas + accesos.pendientes
     || accesos.creadas !== accesos.conservadas + accesos.restablecer
     || accesos.fallidas > accesos.pendientes
-    || ((accesos.pendientes + accesos.conflictos + accesos.sinOrigen > 0) && parsed.data.estado !== 'parcial')
+    || ((accesos.pendientes + accesos.conflictos + accesos.sinOrigen > 0) && !['parcial', 'simulacion'].includes(parsed.data.estado))
   )) throw new Error('La migración entregó un conteo de accesos inconsistente.')
+  const prevision = parsed.data.previsionAccesos
+  if (prevision && (parsed.data.estado !== 'simulacion' || !accesos
+    || prevision.crear + prevision.enlazar !== accesos.elegibles
+    || prevision.crear !== Object.values(prevision.claves).reduce((total, n) => total + n, 0)
+    || accesos.elegibles !== Object.values(prevision.roles).reduce((total, n) => total + n, 0)
+    || prevision.sinDocumentoComparable > accesos.elegibles
+    || accesos.creadas + accesos.enlazadas + accesos.fallidas !== 0
+  )) throw new Error('La migración entregó una previsión de accesos inconsistente.')
   return parsed.data
 }

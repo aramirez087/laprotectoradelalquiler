@@ -7,6 +7,7 @@
 //   node scripts/migrar-legacy.mjs --pasos=lookups,personas,usuarios,resenas
 //   node scripts/migrar-legacy.mjs --crear-accounts # crea identidades en Supabase Auth
 //   node scripts/migrar-legacy.mjs --solo-accesos --crear-accounts # enlaza perfiles ya importados
+//   node scripts/migrar-legacy.mjs --solo-accesos --seco # revisa accesos pendientes, solo lectura y sin Auth API
 //   Añadir --limite-auth=100 --tiempo-auth=150 para un lote de accesos desde la UI.
 //   --despues-auth=<id> continúa el lote anterior, sin bloquearse en cuentas fallidas.
 //   node scripts/migrar-legacy.mjs --probar-claves   # solo verifica el detector de claves
@@ -38,8 +39,8 @@ if (args.some((a) => !['--seco', '--crear-accounts', '--probar-claves', '--solo-
 const seco = args.includes('--seco');
 const SOLO_ACCESOS = args.includes('--solo-accesos');
 const pasoArg = args.find((a) => a.startsWith('--pasos='));
-if (SOLO_ACCESOS && (!args.includes('--crear-accounts') || seco || pasoArg)) {
-  throw new Error('--solo-accesos requiere --crear-accounts y no admite --pasos ni --seco.');
+if (SOLO_ACCESOS && ((!args.includes('--crear-accounts') && !seco) || pasoArg)) {
+  throw new Error('--solo-accesos requiere --crear-accounts o --seco y no admite --pasos.');
 }
 function limiteAuth(nombre, maximo) {
   const valores = args.filter((a) => a.startsWith(`${nombre}=`));
@@ -54,7 +55,7 @@ const TIEMPO_AUTH_MS = limiteAuth('--tiempo-auth', 3600) * 1000;
 const cursores = args.filter((a) => a.startsWith('--despues-auth='));
 const valorCursor = cursores[0]?.slice('--despues-auth='.length) ?? '0';
 if (cursores.length > 1 || !/^\d+$/.test(valorCursor) || Number(valorCursor) > 2147483647
-  || (cursores.length && !SOLO_ACCESOS)) throw new Error('--despues-auth requiere --solo-accesos y un entero entre 0 y 2147483647.');
+  || (cursores.length && (!SOLO_ACCESOS || seco))) throw new Error('--despues-auth requiere --solo-accesos sin --seco y un entero entre 0 y 2147483647.');
 const DESPUES_AUTH = Number(valorCursor);
 const ordenPasos = ['lookups', 'personas', 'usuarios', 'resenas'];
 const solicitados = pasoArg ? pasoArg.split('=').pop().split(',') : ordenPasos;
@@ -826,7 +827,7 @@ async function crearAcceso(c, secreto) {
 // cambia auth_user_id; nunca reactiva, cambia roles ni reimporta un perfil.
 async function crearCuentasAuth(cuentas) {
   const porEmail = new Map(cuentas.map((c) => [c.email, c]));
-  const todos = (await pool.query(`SELECT id, email, nombre, identificacion, auth_user_id, activo FROM usuarios ORDER BY id`)).rows;
+  const todos = (await pool.query(`SELECT id, email, nombre, identificacion, auth_user_id, activo, rol FROM usuarios ORDER BY id`)).rows;
   const perfiles = SOLO_ACCESOS ? todos : todos.filter((c) => porEmail.has(emailDe(c.email)));
   const porCorreoDestino = new Map();
   for (const c of todos) {
@@ -839,7 +840,7 @@ async function crearCuentasAuth(cuentas) {
     fallidas: 0, conservadas: 0, restablecer: 0, siguienteId: 0,
   };
   if (SOLO_ACCESOS) resumen.accesos = acceso;
-  const pendientes = [];
+  const candidatos = [];
   for (const c of perfiles) {
     const email = emailDe(c.email);
     const origen = porEmail.get(email);
@@ -849,9 +850,55 @@ async function crearCuentasAuth(cuentas) {
     else if (!origen) acceso.sinOrigen++;
     else if (origen.conflicto || porCorreoDestino.get(email) > 1 || !mismaIdentidad(c.identificacion, origen.identificacion)) acceso.conflictos++;
     else {
-      pendientes.push(c);
+      candidatos.push(c);
       acceso.elegibles++;
     }
+  }
+  // La vista previa y la ejecución comparten el mismo examen de identidades.
+  // La ejecución vuelve a comprobarlo bajo bloqueo antes de enlazar cada cuenta.
+  const authPorCorreo = new Map();
+  if (candidatos.length) {
+    const identidades = await pool.query(`SELECT a.id, lower(a.email) AS email, u.id AS usuario_id
+      FROM auth.users a LEFT JOIN usuarios u ON u.auth_user_id = a.id
+      WHERE lower(a.email) = ANY($1::text[])`, [candidatos.map((c) => emailDe(c.email))]);
+    for (const identidad of identidades.rows) {
+      const grupo = authPorCorreo.get(identidad.email) ?? [];
+      grupo.push(identidad);
+      authPorCorreo.set(identidad.email, grupo);
+    }
+  }
+  const pendientes = candidatos.filter((c) => {
+    const identidades = authPorCorreo.get(emailDe(c.email)) ?? [];
+    if (identidades.length > 1 || (identidades[0]?.usuario_id != null && identidades[0].usuario_id !== c.id)) {
+      acceso.elegibles--;
+      acceso.conflictos++;
+      return false;
+    }
+    return true;
+  });
+  if (seco) {
+    const prevision = {
+      crear: 0, enlazar: 0,
+      claves: { hashCompatible: 0, texto: 0, restablecer: 0 },
+      roles: { admin: 0, propietario: 0, agencia: 0, inquilino: 0 },
+      sinDocumentoComparable: 0,
+    };
+    for (const c of pendientes) {
+      prevision.roles[c.rol]++;
+      const origen = porEmail.get(emailDe(c.email));
+      if (!c.identificacion || !origen.identificacion) prevision.sinDocumentoComparable++;
+      if (authPorCorreo.has(emailDe(c.email))) prevision.enlazar++;
+      else {
+        prevision.crear++;
+        const tipo = bucketClave(origen.secreto);
+        prevision.claves[tipo === 'bcrypt' ? 'hashCompatible' : tipo === 'anterior' ? 'texto' : 'restablecer']++;
+      }
+    }
+    acceso.pendientes = acceso.elegibles;
+    resumen.previsionAccesos = prevision;
+    avisar('prevision_accesos', 'Vista previa de solo lectura: no se crearon ni enlazaron accesos. Los formatos de claves son una previsión; Auth puede rechazar una clave y exigir restablecerla.', acceso.elegibles);
+    console.log(`  Vista previa: ${prevision.crear} identidades nuevas, ${prevision.enlazar} existentes por enlazar, ${acceso.conflictos} conflictos`);
+    return;
   }
   const actualizarResumen = () => {
     acceso.pendientes = acceso.elegibles - acceso.creadas - acceso.enlazadas;
@@ -1165,7 +1212,7 @@ async function pasoResenas() {
 
 console.log('=== Migración legacy MySQL → v2 Postgres ===');
 console.log(`Fuente:  ${mysqlCfg.user}@${mysqlCfg.host}:${mysqlCfg.port}/${mysqlCfg.database}`);
-console.log(`Destino: ${seco ? 'SIMULACIÓN (ROLLBACK al terminar)' : 'Postgres vía DATABASE_URL'}`);
+console.log(`Destino: ${SOLO_ACCESOS && seco ? 'VISTA PREVIA (solo lectura, sin Auth API)' : seco ? 'SIMULACIÓN (ROLLBACK al terminar)' : 'Postgres vía DATABASE_URL'}`);
 console.log(`Pasos:   ${SOLO_ACCESOS ? 'solo accesos de perfiles existentes' : PASOS.join(', ')}${CREAR_ACCOUNTS ? ' + crear-accounts' : ''}`);
 
 let cuentasImportadas = [];
@@ -1174,7 +1221,7 @@ let conectado = false;
 try {
   await pool.connect();
   conectado = true;
-  await pool.query('BEGIN');
+  await pool.query(SOLO_ACCESOS && seco ? 'BEGIN READ ONLY' : 'BEGIN');
   const bloqueo = await pool.query("SELECT pg_try_advisory_xact_lock(736284, 1) AS ok");
   if (!bloqueo.rows[0].ok) throw new Error('Ya hay una importación en curso en la base de datos.');
   await pool.query("SET LOCAL statement_timeout = '60s'");
@@ -1199,6 +1246,7 @@ try {
   }
   resumen.personas = personasProcesadas.size;
   if (CREAR_ACCOUNTS) await pool.query('SELECT id, email FROM auth.users LIMIT 0');
+  if (SOLO_ACCESOS && seco) await crearCuentasAuth(cuentasImportadas);
   await pool.query(seco ? 'ROLLBACK' : 'COMMIT');
   confirmado = !seco;
   if (confirmado) console.log(SOLO_ACCESOS ? 'Perfiles conservados. Completando accesos.' : 'Datos confirmados en Postgres.');

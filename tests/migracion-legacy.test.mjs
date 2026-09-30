@@ -172,6 +172,27 @@ test('access coverage survives parsing and inconsistent or falsely complete cove
   assert.throws(() => resumenDesdeSalida(salida({ ...parcial, accesos: { ...accesos, fallidas: 181 } }), 2), /conteo.*inconsistente/)
 })
 
+test('read-only access preview keeps predicted counts separate from completed provisioning', () => {
+  const preview = {
+    ...resumen, estado: 'simulacion',
+    accesos: { ...accesos, creadas: 0, enlazadas: 0, pendientes: 280, conservadas: 0, restablecer: 0, siguienteId: 0 },
+    previsionAccesos: {
+      crear: 270, enlazar: 10,
+      claves: { hashCompatible: 80, texto: 180, restablecer: 10 },
+      roles: { admin: 2, propietario: 260, agencia: 10, inquilino: 8 },
+      sinDocumentoComparable: 5,
+    },
+  }
+  assert.deepEqual(resumenDesdeSalida(salida(preview), 0), preview)
+  for (const prevision of [
+    { ...preview.previsionAccesos, crear: 271 },
+    { ...preview.previsionAccesos, claves: { hashCompatible: 81, texto: 180, restablecer: 10 } },
+    { ...preview.previsionAccesos, roles: { admin: 3, propietario: 260, agencia: 10, inquilino: 8 } },
+    { ...preview.previsionAccesos, sinDocumentoComparable: 281 },
+  ]) assert.throws(() => resumenDesdeSalida(salida({ ...preview, previsionAccesos: prevision }), 0), /previsión.*inconsistente/)
+  assert.throws(() => resumenDesdeSalida(salida({ ...preview, estado: 'parcial' }), 2), /previsión.*inconsistente/)
+})
+
 test('user import refuses to create accounts when Supabase Auth is not configured', async () => {
   const a = acciones({ destino: { baseDatos: true, auth: false } })
   const r = await a.migrarLegacyAction(undefined, formulario('usuarios', true))
