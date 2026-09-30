@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { consultarCedula } from '@/lib/padron'
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
@@ -342,14 +343,16 @@ export async function editarResena(input: {
   anonima: boolean
 }) {
   const { usuario, db } = await exigirAdmin()
+  const consulta = await consultarCedula(input.identificacion)
+  const identidad = consulta.estado === 'encontrada' ? consulta.persona : input
   const { data, error } = await db.rpc('admin_editar_resena', {
     p_admin_id: usuario.id,
     p_id: input.id,
     p_identificacion: normalizarCedula(input.identificacion),
-    p_nombre: input.nombre,
-    p_nombre2: input.nombre2,
-    p_apellido1: input.apellido1,
-    p_apellido2: input.apellido2,
+    p_nombre: identidad.nombre,
+    p_nombre2: identidad.nombre2,
+    p_apellido1: identidad.apellido1,
+    p_apellido2: identidad.apellido2,
     p_comentario: input.comentario,
     p_anonima: input.anonima,
   }).single<ResultadoCambioResena>()
@@ -579,8 +582,10 @@ export async function actualizarDatosUsuario(input: {
   id: number; nombre: string; identificacion: string; telefono: string; versionEsperada: string
 }) {
   const { usuario, db } = await exigirAdmin()
+  const consulta = await consultarCedula(input.identificacion)
+  const nombre = consulta.estado === 'encontrada' ? consulta.persona.nombreCompleto : input.nombre
   const { data, error } = await db.rpc('admin_actualizar_perfil_usuario', {
-    p_admin_id: usuario.id, p_id: input.id, p_nombre: input.nombre,
+    p_admin_id: usuario.id, p_id: input.id, p_nombre: nombre,
     p_identificacion: input.identificacion, p_telefono: input.telefono,
     p_version_esperada: input.versionEsperada,
   }).single<{ id: number; nombre: string; actualizado_en: string }>()

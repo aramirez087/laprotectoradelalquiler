@@ -1,3 +1,4 @@
+import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -46,7 +47,7 @@ async function buscarConFilas(filas, opts = { pagina: 1 }, total = filas.length)
   vm.runInNewContext(ts.transpileModule(readFileSync('lib/dal.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    module: mod, exports: mod.exports, require: (name) => ({
+    module: mod, exports: mod.exports, require: (name) => mocksCedula[name] ?? ({
       'server-only': {}, react: { cache: (fn) => fn }, 'next/navigation': {},
       '@/lib/facebook-alta': {}, '@/lib/facebook-auth': { cuentaCreadaConFacebook: () => false },
       '@/lib/util': { palabrasBusqueda: () => [], variantesAcento: (v) => [v] },

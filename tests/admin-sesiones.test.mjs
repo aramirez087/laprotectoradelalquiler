@@ -1,3 +1,4 @@
+import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -50,7 +51,7 @@ function dal(options = {}) {
     '@/lib/supabase/server': { createClient: async () => supabase, sinSupabase: () => false },
   }
   vm.runInNewContext(code, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name), console, Error, URL, Date,
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? require(name), console, Error, URL, Date,
   })
   return { ...mod.exports, calls }
 }

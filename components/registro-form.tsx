@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useFormAction } from '@/components/use-form-action'
 import { registrarse } from '@/lib/actions/auth'
+import { CamposIdentidad } from '@/components/campos-identidad'
 import { CampoClave } from '@/components/campo-clave'
 import { MensajeForm } from '@/components/mensaje-form'
 
@@ -45,40 +46,7 @@ export function RegistroForm({
         </div>
       )}
       <p className="text-xs text-ink-soft">Todos los campos son obligatorios.</p>
-      <div>
-        <label className="etiqueta-campo" htmlFor="nombre">
-          Nombre completo
-        </label>
-        <input
-          id="nombre"
-          name="nombre"
-          required
-          minLength={3}
-          className="campo"
-          placeholder="María Solís Rodríguez"
-          autoComplete="name"
-        />
-      </div>
-      <div>
-        <label className="etiqueta-campo" htmlFor="cedula">
-          Número de cédula
-        </label>
-        <input
-          id="cedula"
-          name="cedula"
-          required
-          className="campo"
-          placeholder="1-0234-0567"
-          autoComplete="off"
-          inputMode="numeric"
-          spellCheck={false}
-          maxLength={30}
-          aria-describedby="ayuda-cedula"
-        />
-        <p id="ayuda-cedula" className="mt-1 text-xs text-ink-soft">
-          Identifica su cuenta. La cédula completa no se muestra al público.
-        </p>
-      </div>
+      <CamposIdentidad tipo="cuenta" campoCedula="cedula" />
       <div>
         <label className="etiqueta-campo" htmlFor="email">
           Correo electrónico

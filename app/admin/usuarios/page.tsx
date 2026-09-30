@@ -1,3 +1,4 @@
+import { CedulaAdmin } from '@/components/cedula-admin'
 import Link from 'next/link'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
@@ -133,6 +134,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
               <div className="min-w-0 flex-1 basis-64">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h2 className="min-w-0 break-words text-lg">{usuario.nombre}</h2><span className="text-xs text-ink-soft">{etiquetaRol(usuario.rol)}{usuario.rol === 'inquilino' ? ' · histórico' : ''}</span>{usuario.esLegacy && <span className="chip">Autor legacy</span>}</div>
                 <p className="mt-1 break-all text-sm text-ink-soft">{usuario.email}</p>
+                <CedulaAdmin identificacion={usuario.identificacion} nombre={usuario.nombre} />
                 {(usuario.identificacion || usuario.telefono) && <p className="mt-1 break-words text-xs leading-6 text-ink-soft">{[usuario.identificacion ? `Cédula: ${usuario.identificacion}` : null, usuario.telefono ? `Teléfono: ${usuario.telefono}` : null].filter(Boolean).join(' · ')}</p>}
               </div>
               <div className="flex flex-wrap gap-x-5"><Link href={hrefCuenta} className="enlace-texto" aria-label={`Ver cuenta de ${usuario.nombre}`}>Ver cuenta</Link><Link href={`/admin/conteo?${new URLSearchParams({ autor: String(usuario.id), regresar: hrefActual })}`} className="enlace-texto" aria-label={`Ver reseñas de ${usuario.nombre}`}>Ver reseñas</Link></div>

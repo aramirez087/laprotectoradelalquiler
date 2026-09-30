@@ -1,7 +1,24 @@
--- Edición y eliminación atómicas, accesibles solo al servidor (service_role).
--- La identidad del administrador viene de la sesión validada en lib/admin.ts.
+-- Manifiesto del índice privado del TSE. Los millones de nombres viven en Storage.
 BEGIN;
+CREATE TABLE IF NOT EXISTS public.padron_tse (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  version text NOT NULL CHECK (version ~ '^\d{4}-\d{2}-\d{2}-[a-f0-9]{16}$'),
+  fecha_padron date NOT NULL,
+  prefijos text[] NOT NULL,
+  registros integer NOT NULL CHECK (registros >= 3000000),
+  sha256 text NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+  actualizado_en timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.padron_tse ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.limites_consulta_padron (
+  clave text PRIMARY KEY CHECK (clave ~ '^[a-f0-9]{64}$'),
+  ventana timestamptz NOT NULL,
+  consultas integer NOT NULL
+);
+ALTER TABLE public.limites_consulta_padron ENABLE ROW LEVEL SECURITY;
+
+-- El padrón incluye nombres y apellidos legales de una sola letra.
 CREATE OR REPLACE FUNCTION public.admin_editar_resena(
   p_admin_id integer, p_id integer, p_identificacion text,
   p_nombre text, p_nombre2 text, p_apellido1 text, p_apellido2 text,
@@ -83,41 +100,63 @@ BEGIN
   RETURN QUERY SELECT destino, actual.persona_id, destino <> actual.persona_id, actual.email, actual.autor_nombre;
 END;
 $$;
+REVOKE ALL ON FUNCTION public.admin_editar_resena(integer, integer, text, text, text, text, text, text, boolean) FROM PUBLIC;
 
-CREATE OR REPLACE FUNCTION public.admin_eliminar_resena(p_admin_id integer, p_id integer)
-RETURNS TABLE (persona_id integer, autor_email text, autor_nombre text)
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = pg_catalog, public
-AS $$
+CREATE OR REPLACE FUNCTION public.publicar_padron_tse(
+  p_version text, p_fecha date, p_prefijos text[], p_registros integer, p_sha256 text
+) RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 BEGIN
-  PERFORM 1 FROM public.usuarios u WHERE u.id = p_admin_id AND u.rol = 'admin' AND u.activo FOR SHARE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'No puede administrar reseñas con esta cuenta.'; END IF;
-
-  RETURN QUERY DELETE FROM public.resenas r USING public.usuarios u
-    WHERE r.id = p_id AND u.id = r.autor_id
-    RETURNING r.persona_id, u.email, u.nombre;
-  IF NOT FOUND THEN RAISE EXCEPTION 'No encontramos esa reseña.'; END IF;
+  IF p_fecha > current_date OR cardinality(p_prefijos) < 1
+    OR EXISTS (SELECT FROM unnest(p_prefijos) p WHERE p !~ '^[1-9]\d{2}$')
+    OR p_version <> p_fecha::text || '-' || left(p_sha256, 16) THEN
+    RAISE EXCEPTION 'Manifiesto del padrón inválido.';
+  END IF;
+  INSERT INTO public.padron_tse AS actual (id, version, fecha_padron, prefijos, registros, sha256)
+  VALUES (1, p_version, p_fecha, p_prefijos, p_registros, p_sha256)
+  ON CONFLICT (id) DO UPDATE SET version = excluded.version, fecha_padron = excluded.fecha_padron,
+    prefijos = excluded.prefijos, registros = excluded.registros, sha256 = excluded.sha256, actualizado_en = now()
+  WHERE actual.fecha_padron <= excluded.fecha_padron;
+  RETURN FOUND;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.admin_editar_resena(integer, integer, text, text, text, text, text, text, boolean) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.admin_eliminar_resena(integer, integer) FROM PUBLIC;
+CREATE OR REPLACE FUNCTION public.consumir_consulta_padron(p_clave text) RETURNS boolean
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE cantidad integer;
+BEGIN
+  DELETE FROM public.limites_consulta_padron WHERE ventana < now() - interval '20 minutes';
+  INSERT INTO public.limites_consulta_padron AS l (clave, ventana, consultas)
+  VALUES (p_clave, now(), 1)
+  ON CONFLICT (clave) DO UPDATE SET
+    ventana = CASE WHEN l.ventana <= now() - interval '10 minutes' THEN now() ELSE l.ventana END,
+    consultas = CASE WHEN l.ventana <= now() - interval '10 minutes' THEN 1 ELSE least(l.consultas + 1, 31) END
+  RETURNING consultas INTO cantidad;
+  RETURN cantidad <= 30;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.consumir_consulta_padron(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.publicar_padron_tse(text, date, text[], integer, text) FROM PUBLIC;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON public.padron_tse, public.limites_consulta_padron FROM anon;
     REVOKE ALL ON FUNCTION public.admin_editar_resena(integer, integer, text, text, text, text, text, text, boolean) FROM anon;
-    REVOKE ALL ON FUNCTION public.admin_eliminar_resena(integer, integer) FROM anon;
+    REVOKE ALL ON FUNCTION public.consumir_consulta_padron(text) FROM anon;
+    REVOKE ALL ON FUNCTION public.publicar_padron_tse(text, date, text[], integer, text) FROM anon;
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON public.padron_tse, public.limites_consulta_padron FROM authenticated;
     REVOKE ALL ON FUNCTION public.admin_editar_resena(integer, integer, text, text, text, text, text, text, boolean) FROM authenticated;
-    REVOKE ALL ON FUNCTION public.admin_eliminar_resena(integer, integer) FROM authenticated;
+    REVOKE ALL ON FUNCTION public.consumir_consulta_padron(text) FROM authenticated;
+    REVOKE ALL ON FUNCTION public.publicar_padron_tse(text, date, text[], integer, text) FROM authenticated;
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.padron_tse, public.limites_consulta_padron TO service_role;
     GRANT EXECUTE ON FUNCTION public.admin_editar_resena(integer, integer, text, text, text, text, text, text, boolean) TO service_role;
-    GRANT EXECUTE ON FUNCTION public.admin_eliminar_resena(integer, integer) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.consumir_consulta_padron(text) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.publicar_padron_tse(text, date, text[], integer, text) TO service_role;
   END IF;
 END;
 $$;
-NOTIFY pgrst, 'reload schema';
 COMMIT;

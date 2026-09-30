@@ -56,9 +56,9 @@ function revalidarResena(personaId?: number | Array<number | null | undefined>) 
 const SchemaEditarResena = z.object({
   id: z.coerce.number().int().positive(),
   identificacion: z.string().trim().max(30),
-  nombre: z.string().trim().min(2, 'Escriba el nombre'),
+  nombre: z.string().trim().min(1, 'Escriba el nombre'),
   nombre2: z.string().trim().max(100).optional().or(z.literal('')),
-  apellido1: z.string().trim().min(2, 'Escriba el primer apellido'),
+  apellido1: z.string().trim().min(1, 'Escriba el primer apellido'),
   apellido2: z.string().trim().max(100).optional().or(z.literal('')),
   comentario: z.string().trim().min(1, 'Escriba el relato').max(5000, 'El relato es muy largo'),
 })

@@ -1,3 +1,4 @@
+import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -16,7 +17,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
   vm.runInNewContext(code, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name),
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? require(name),
     console, Error, URL, URLSearchParams, Date, process,
   }, { filename: file })
   return mod.exports

@@ -1,5 +1,9 @@
 'use client'
 
+import { useCallback, useRef } from 'react'
+import { useConsultaCedula } from '@/components/use-consulta-cedula'
+import { EstadoCedula } from '@/components/estado-cedula'
+import { cedulaNacional, type NombrePadron } from '@/lib/cedula'
 import { useBorradorAdmin } from '@/components/use-borrador-admin'
 import { guardarDatosUsuarioAction } from '@/lib/actions/admin'
 import { useFormAction } from '@/components/use-form-action'
@@ -15,6 +19,13 @@ export function FormDatosUsuarioAdmin({ id, nombre, identificacion, telefono, ve
   const [borrador, setBorrador, limpiarBorrador] = useBorradorAdmin(`datos:${id}`, { ...actuales, originales: actuales }, (valor) => !valor.guardado && (valor.nombre !== valor.originales.nombre || valor.identificacion !== valor.originales.identificacion || valor.telefono !== valor.originales.telefono))
   const modificado = borrador.nombre !== borrador.originales.nombre || borrador.identificacion !== borrador.originales.identificacion || borrador.telefono !== borrador.originales.telefono
   const valores = borrador.guardado || (!modificado && borrador.version !== version) ? { ...actuales, originales: actuales } : borrador
+  const autocompletada = useRef<string | null>(null)
+  const alEncontrar = useCallback((persona: NombrePadron) => {
+    autocompletada.current = persona.identificacion
+    setBorrador(anterior => cedulaNacional(anterior.identificacion) === persona.identificacion
+      ? { ...anterior, nombre: persona.nombreCompleto, guardado: false } : anterior)
+  }, [setBorrador])
+  const consulta = useConsultaCedula(valores.identificacion, alEncontrar)
   const cambio = valores.nombre !== valores.originales.nombre || valores.identificacion !== valores.originales.identificacion || valores.telefono !== valores.originales.telefono
   const versionCambio = cambio && valores.version !== version
   const { estado, pendiente, formProps } = useFormAction(guardarDatosUsuarioAction, {
@@ -44,11 +55,17 @@ export function FormDatosUsuarioAdmin({ id, nombre, identificacion, telefono, ve
             <div key={campo.name} className={campo.name === 'nombre' ? 'sm:col-span-2' : undefined}>
               <label htmlFor={`cuenta-${campo.name}`} className="etiqueta-campo">{campo.label}</label>
               <input id={`cuenta-${campo.name}`} name={campo.name} type={campo.type} className="campo"
-                value={valores[campo.name]} onChange={e => setBorrador({ ...valores, [campo.name]: e.target.value, guardado: false })} required={campo.required} maxLength={campo.maxLength}
+                value={valores[campo.name]} onChange={e => {
+                  const valor = e.target.value
+                  const limpiar = campo.name === 'identificacion' && autocompletada.current && cedulaNacional(valor) !== autocompletada.current
+                  if (limpiar) autocompletada.current = null
+                  setBorrador({ ...valores, ...(limpiar ? { nombre: '' } : {}), [campo.name]: valor, guardado: false })
+                }} readOnly={campo.name === 'nombre' && consulta.estado === 'encontrada'} required={campo.required} maxLength={campo.maxLength}
                 minLength={campo.name === 'nombre' ? 3 : undefined} autoComplete="off"
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? `cuenta-error-${campo.name}` : campo.name === 'identificacion' ? 'cuenta-documento-ayuda' : undefined} />
               {error && <p id={`cuenta-error-${campo.name}`} className="mt-2 text-sm text-alerta">{error}</p>}
+              {campo.name === 'identificacion' && <EstadoCedula resultado={consulta} />}
               {campo.name === 'identificacion' && <p id="cuenta-documento-ayuda" className="mt-2 text-sm text-ink-soft">Use de 6 a 12 dígitos; puede incluir guiones. Puede conservar un documento histórico sin modificarlo.</p>}
             </div>
           )

@@ -1,3 +1,4 @@
+import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -24,7 +25,7 @@ function cargar(ruta, mocks = {}) {
   vm.runInNewContext(codigo, {
     module: modulo,
     exports: modulo.exports,
-    require: nombre => nombre in mocks ? mocks[nombre] : require(nombre),
+    require: nombre => nombre in mocks ? mocks[nombre] : nombre in mocksCedula ? mocksCedula[nombre] : require(nombre),
     process,
     URL,
     URLSearchParams,

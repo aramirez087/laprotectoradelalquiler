@@ -3,6 +3,7 @@
 import { useFormAction } from '@/components/use-form-action'
 import { useAvisoAdmin } from '@/components/avisos-admin'
 import { decidirResenaAction, editarResenaAction, eliminarResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
+import { CamposIdentidad } from '@/components/campos-identidad'
 import { MensajeForm } from '@/components/mensaje-form'
 import { etiquetaRol } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
@@ -111,68 +112,7 @@ export function FormEditarResena({
         </p>
         <fieldset key={JSON.stringify([persona.identificacion, persona.nombre, persona.nombre2, persona.apellido1, persona.apellido2])} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="etiqueta-campo" htmlFor={`identificacion-${id}`}>
-              Cédula del inquilino
-            </label>
-            <input
-              id={`identificacion-${id}`}
-              name="identificacion"
-              required
-              maxLength={30}
-              defaultValue={persona.identificacion}
-              aria-invalid={!!errorCampo('identificacion')}
-              aria-describedby={errorCampo('identificacion') ? `error-identificacion-${id}` : undefined}
-              className="campo"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <ErrorCampo nombre={`identificacion-${id}`} mensaje={errorCampo('identificacion')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor={`nombre-${id}`}>
-              Nombre
-            </label>
-            <input
-              id={`nombre-${id}`}
-              name="nombre"
-              required
-              minLength={2}
-              defaultValue={persona.nombre}
-              aria-invalid={!!errorCampo('nombre')}
-              aria-describedby={errorCampo('nombre') ? `error-nombre-${id}` : undefined}
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre={`nombre-${id}`} mensaje={errorCampo('nombre')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor={`nombre2-${id}`}>
-              Segundo nombre
-            </label>
-            <input id={`nombre2-${id}`} name="nombre2" maxLength={100} defaultValue={persona.nombre2 ?? ''} className="campo" autoComplete="off" />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor={`apellido1-${id}`}>
-              Primer apellido
-            </label>
-            <input
-              id={`apellido1-${id}`}
-              name="apellido1"
-              required
-              minLength={2}
-              defaultValue={persona.apellido1}
-              aria-invalid={!!errorCampo('apellido1')}
-              aria-describedby={errorCampo('apellido1') ? `error-apellido1-${id}` : undefined}
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre={`apellido1-${id}`} mensaje={errorCampo('apellido1')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor={`apellido2-${id}`}>
-              Segundo apellido
-            </label>
-            <input id={`apellido2-${id}`} name="apellido2" maxLength={100} defaultValue={persona.apellido2 ?? ''} className="campo" autoComplete="off" />
+            <CamposIdentidad idBase={`resena-${id}-`} inicial={{ ...persona, nombre2: persona.nombre2 ?? '', apellido2: persona.apellido2 ?? '' }} errores={estado?.campos} />
           </div>
         </fieldset>
         <div>

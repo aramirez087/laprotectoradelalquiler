@@ -46,6 +46,12 @@ export default function PrivacidadPage() {
           el enlace público del perfil de Facebook. Si entra con correo y clave, la clave la guarda el servicio de
           acceso, no esta base en texto legible. La sesión usa una cookie de ese servicio.
         </p>
+        <p className="text-sm leading-relaxed text-ink-soft">
+          Para completar el nombre consultamos la cédula en una copia privada del padrón electoral mensual del TSE.
+          Conservamos únicamente cédula, nombres y apellidos de esa fuente. Administración ve la coincidencia,
+          la fecha del padrón y cualquier diferencia con el nombre registrado. Esta consulta confirma un registro
+          en el padrón; la identidad de quien presenta el número requiere revisión.
+        </p>
       </section>
 
       <section id="facebook" className="space-y-3">

@@ -1,3 +1,4 @@
+import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -11,7 +12,7 @@ function load(file, mocks) {
   const mod = { exports: {} }
   vm.runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? require(name), console, Error, URL, Date })
+  }).outputText, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? mocksCedula[name] ?? require(name), console, Error, URL, Date })
   return mod.exports
 }
 const id = 'b2222222-2222-4222-8222-222222222222'

@@ -328,3 +328,9 @@ del panel es 17.6.1.171. Antes de actualizar, revise copias de seguridad,
 compatibilidad y la ventana de mantenimiento; el panel advierte hasta una hora
 de indisponibilidad. La protección de claves filtradas requiere Pro en este
 proyecto y sigue pendiente.
+
+## Verificación automática de cédulas
+
+El registro, las reseñas y las ediciones administrativas consultan el padrón mensual oficial del TSE para completar los nombres. Administración ve una marca verde con la fecha de la fuente y un aviso si un nombre histórico difiere. Documentos extranjeros, ausencias y fallos permiten revisión manual.
+
+Para preparar una instalación existente use `npm run db:padron-tse` y `npm run padron:actualizar`. La [guía de verificación de cédulas](docs/runbooks/verificacion-cedulas-tse.md) explica el almacenamiento privado, la actualización mensual, los límites y la validación.

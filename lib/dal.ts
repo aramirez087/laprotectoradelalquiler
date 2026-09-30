@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import type { AccesoConsulta } from '@/lib/acceso-consulta'
 import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
 import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
+import { consultarCedula } from '@/lib/padron'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import {
@@ -389,14 +390,16 @@ export async function crearResena(input: {
   }
 
   if (!persona) {
+    const consulta = await consultarCedula(identificacion)
+    const identidad = consulta.estado === 'encontrada' ? consulta.persona : input
     const { data: nueva, error } = await dbPersona
       .from('personas')
       .insert({
         identificacion,
-        nombre: input.nombre,
-        nombre2: input.nombre2 ?? null,
-        apellido1: input.apellido1,
-        apellido2: input.apellido2 ?? null,
+        nombre: identidad.nombre,
+        nombre2: identidad.nombre2 || null,
+        apellido1: identidad.apellido1,
+        apellido2: identidad.apellido2 || null,
         provincia_id: input.provinciaId ?? null,
       })
       .select('id')

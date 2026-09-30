@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
 import { COOKIE_CORREO } from '@/lib/correo-recordado'
+import { consultarCedula } from '@/lib/padron'
 import { requireUsuario, destinoTrasLogin } from '@/lib/dal'
 import { authFacebookHabilitado, cuentaCreadaConFacebook } from '@/lib/facebook-auth'
 import { createAdmin } from '@/lib/supabase/admin'
@@ -73,7 +74,8 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message }
   }
-  const { nombre, email, clave, rol } = parsed.data
+  const { email, clave, rol } = parsed.data
+  let nombre = parsed.data.nombre
   const cedula = normalizarCedula(parsed.data.cedula)
   const facebook = normalizarPerfilFacebook(parsed.data.facebook) ?? parsed.data.facebook
   if (!esCedulaValida(cedula)) {
@@ -87,6 +89,8 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
 
   try {
     if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
+    const consulta = await consultarCedula(cedula)
+    if (consulta.estado === 'encontrada') nombre = consulta.persona.nombreCompleto
     const { data: facebookTomado, error: errorFacebook } = await admin
       .from('autenticaciones')
       .select('id')
@@ -203,7 +207,8 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise los datos.' }
 
-  const { nombre, email } = parsed.data
+  const { email } = parsed.data
+  let nombre = parsed.data.nombre
   const cedula = normalizarCedula(parsed.data.cedula)
   const facebook = normalizarPerfilFacebook(parsed.data.facebook) ?? parsed.data.facebook
   if (!esCedulaValida(cedula)) {
@@ -218,6 +223,8 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
   let usuarioId = 0
   try {
     if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
+    const consulta = await consultarCedula(cedula)
+    if (consulta.estado === 'encontrada') nombre = consulta.persona.nombreCompleto
 
     const { data: porAuth, error: errorAuth } = await admin
       .from('usuarios')

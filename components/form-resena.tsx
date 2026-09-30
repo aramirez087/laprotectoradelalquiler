@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFormAction } from '@/components/use-form-action'
 import type { EstadoForm } from '@/lib/actions/auth'
 import { MensajeForm } from '@/components/mensaje-form'
+import { CamposIdentidad } from '@/components/campos-identidad'
 import { nombreCompleto } from '@/lib/util'
 
 export interface PropsFormResena {
@@ -95,90 +96,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             <input type="hidden" name="apellido1" value={personaInicial.apellido1} />
             <input type="hidden" name="apellido2" value={personaInicial.apellido2 ?? ''} />
           </div>
-        ) : <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="etiqueta-campo" htmlFor="identificacion">
-              Cédula del inquilino *
-            </label>
-            <input
-              {...atributosError('identificacion')}
-              id="identificacion"
-              name="identificacion"
-              required
-              className="campo"
-              placeholder="1-0234-0567"
-              autoComplete="off"
-              spellCheck={false}
-              inputMode="numeric"
-              maxLength={30}
-              aria-describedby={
-                errorCampo('identificacion') ? 'error-identificacion ayuda-documento' : 'ayuda-documento'
-              }
-            />
-            <ErrorCampo nombre="identificacion" mensaje={errorCampo('identificacion')} />
-            <p id="ayuda-documento" className="mt-2 text-xs text-ink-soft">
-              Puede escribirla con o sin guiones. La cédula completa no se muestra al público.
-            </p>
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor="nombre">
-              Nombre *
-            </label>
-            <input
-              {...atributosError('nombre')}
-              minLength={2}
-              id="nombre"
-              name="nombre"
-              required
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre="nombre" mensaje={errorCampo('nombre')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor="nombre2">
-              Segundo nombre
-            </label>
-            <input
-              {...atributosError('nombre2')}
-              maxLength={100}
-              id="nombre2"
-              name="nombre2"
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre="nombre2" mensaje={errorCampo('nombre2')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor="apellido1">
-              Primer apellido *
-            </label>
-            <input
-              {...atributosError('apellido1')}
-              minLength={2}
-              id="apellido1"
-              name="apellido1"
-              required
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre="apellido1" mensaje={errorCampo('apellido1')} />
-          </div>
-          <div>
-            <label className="etiqueta-campo" htmlFor="apellido2">
-              Segundo apellido
-            </label>
-            <input
-              {...atributosError('apellido2')}
-              maxLength={100}
-              id="apellido2"
-              name="apellido2"
-              className="campo"
-              autoComplete="off"
-            />
-            <ErrorCampo nombre="apellido2" mensaje={errorCampo('apellido2')} />
-          </div>
-        </div>}
+        ) : <CamposIdentidad errores={estado?.campos} />}
       </Paso>
 
       <Paso

@@ -1,3 +1,4 @@
+import { CedulaAdmin } from '@/components/cedula-admin'
 import Link from 'next/link'
 import { notFound, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin } from '@/components/admin-ui'
@@ -65,6 +66,7 @@ export default async function CuentaAdminPage({ params, searchParams }: {
       <section className="expediente space-y-5" aria-labelledby="datos-cuenta">
         <h2 id="datos-cuenta" className="text-xl">Datos de la cuenta</h2>
         <p className="text-sm leading-6 text-ink-soft">Las invitaciones de acceso se envían al correo que identifica esta cuenta.</p>
+        <CedulaAdmin identificacion={cuenta.identificacion} nombre={cuenta.nombre} />
         <FormDatosUsuarioAdmin id={id} nombre={cuenta.nombre} identificacion={cuenta.identificacion} telefono={cuenta.telefono} version={cuenta.actualizado_en} />
       </section>
       <section className="expediente space-y-4" aria-labelledby="permisos-cuenta">

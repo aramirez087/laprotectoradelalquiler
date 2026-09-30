@@ -9,9 +9,9 @@ import type { EstadoForm } from './auth'
 
 const CamposPersona = {
   identificacion: z.string().trim().max(30).optional().or(z.literal('')),
-  nombre: z.string().trim().min(2, 'Escriba el nombre'),
+  nombre: z.string().trim().min(1, 'Escriba el nombre'),
   nombre2: z.string().trim().max(100).optional().or(z.literal('')),
-  apellido1: z.string().trim().min(2, 'Escriba el apellido'),
+  apellido1: z.string().trim().min(1, 'Escriba el apellido'),
   apellido2: z.string().trim().max(100).optional().or(z.literal('')),
 }
 

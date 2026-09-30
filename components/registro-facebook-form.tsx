@@ -2,6 +2,7 @@
 
 import { useFormAction } from '@/components/use-form-action'
 import { completarAltaFacebook, cerrarSesion } from '@/lib/actions/auth'
+import { CamposIdentidad } from '@/components/campos-identidad'
 import { MensajeForm } from '@/components/mensaje-form'
 
 const ROLES = [
@@ -28,45 +29,11 @@ export function RegistroFacebookForm({
     <div className="space-y-4">
       <form {...formProps} className="space-y-4">
         <p className="text-xs text-ink-soft">Todos los campos son obligatorios.</p>
-        <div>
-          <label className="etiqueta-campo" htmlFor="nombre">
-            Nombre completo
-          </label>
-          <input
-            id="nombre"
-            name="nombre"
-            required
-            minLength={3}
-            className="campo"
-            defaultValue={nombre}
-            autoComplete="name"
-          />
-        </div>
+        <CamposIdentidad tipo="cuenta" campoCedula="cedula" inicial={{ nombre, identificacion: cedula }} />
         <dl className="rounded-xl border border-line bg-paper p-3">
           <dt className="text-xs text-ink-soft">Correo confirmado por Facebook</dt>
           <dd className="mt-1 break-all text-sm font-medium">{email}</dd>
         </dl>
-        <div>
-          <label className="etiqueta-campo" htmlFor="cedula">
-            Número de cédula
-          </label>
-          <input
-            id="cedula"
-            name="cedula"
-            required
-            className="campo"
-            defaultValue={cedula}
-            placeholder="1-0234-0567"
-            autoComplete="off"
-            inputMode="numeric"
-            spellCheck={false}
-            maxLength={30}
-            aria-describedby="ayuda-cedula"
-          />
-          <p id="ayuda-cedula" className="mt-1 text-xs text-ink-soft">
-            Identifica su cuenta. La cédula completa no se muestra al público.
-          </p>
-        </div>
         <div>
           <label className="etiqueta-campo" htmlFor="facebook">
             Perfil de Facebook
