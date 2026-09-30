@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies, headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { redirect, unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
 import { COOKIE_CORREO } from '@/lib/correo-recordado'
 import { requireUsuario, destinoTrasLogin } from '@/lib/dal'
@@ -401,34 +401,48 @@ const SchemaClave = z
 
 async function origenDeLaPeticion() {
   const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
+  const host = (h.get('x-forwarded-host') ?? h.get('host'))?.split(',')[0]?.trim()
   if (!host) return null
-  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https')
+  const proto = h.get('x-forwarded-proto')?.split(',')[0]?.trim()
+    || (host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https')
   return `${proto}://${host}`
+}
+
+function falloRecuperacion(error: unknown) {
+  const datos = error && typeof error === 'object' ? error as Record<string, unknown> : {}
+  const code = typeof datos.code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(datos.code) ? datos.code : 'unknown'
+  const status = typeof datos.status === 'number' && Number.isInteger(datos.status)
+    && datos.status >= 400 && datos.status <= 599 ? datos.status : null
+  // Only diagnostic codes are safe to log; messages may contain addresses or tokens.
+  console.error('recuperacion_clave_error', { code, status })
+  if (status === 429 || code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit') {
+    return { error: 'Espere al menos un minuto antes de pedir otro enlace. Si el problema continúa, intente más tarde.' }
+  }
+  return { error: 'No pudimos solicitar el enlace en este momento. Intente de nuevo más tarde.' }
 }
 
 export async function solicitarRecuperacion(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   if (sinSupabase()) return avisoSinSupabase()
 
-  const parsed = z.object({ email: z.email('Escriba un correo válido') }).safeParse({
-    email: (formData.get('email') as string)?.toLowerCase(),
+  const parsed = z.object({ email: z.string('Escriba un correo válido').trim().toLowerCase().pipe(z.email('Escriba un correo válido')) }).safeParse({
+    email: formData.get('email'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Escriba un correo válido.' }
 
-  const origen = await origenDeLaPeticion()
-  if (!origen) return { error: 'No pudimos armar el enlace. Intente de nuevo.' }
+  try {
+    const origen = await origenDeLaPeticion()
+    if (!origen) return { error: 'No pudimos armar el enlace. Intente de nuevo.' }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${origen}/auth/confirmar?next=/restablecer`,
-  })
-  if (error && /redirect|not allowed/i.test(error.message)) {
-    return { error: 'Falta autorizar el enlace de retorno en Supabase, en Authentication → URL Configuration.' }
+    const supabase = await createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      redirectTo: `${origen}/auth/confirmar?next=/restablecer`,
+    })
+    if (error) return falloRecuperacion(error)
+  } catch (error) {
+    unstable_rethrow(error)
+    return falloRecuperacion(error)
   }
-  if (error && /rate limit/i.test(error.message)) {
-    return { error: 'Espere un momento antes de pedir otro enlace.' }
-  }
-  return { mensaje: 'Si ese correo tiene cuenta, le enviamos un enlace para elegir una clave nueva.' }
+  return { mensaje: 'Solicitud recibida. Si el correo corresponde a una cuenta, revise su bandeja de entrada para continuar.' }
 }
 
 export async function establecerClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {

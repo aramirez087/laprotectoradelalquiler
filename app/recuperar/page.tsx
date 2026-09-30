@@ -12,7 +12,7 @@ export default async function RecuperarPage(props: {
   const enlaceVencido = primer((await props.searchParams).error) === 'enlace'
 
   return (
-    <MarcoAcceso titulo="Recupere su acceso" texto="Escriba el correo de su cuenta. Le enviaremos un enlace para crear una clave nueva.">
+    <MarcoAcceso titulo="Recupere su acceso" texto="Escriba el correo de su cuenta para solicitar un enlace y elegir una clave nueva.">
       {enlaceVencido && <p role="alert" className="aviso aviso-error mb-4">El enlace venció o ya se usó. Escriba su correo para solicitar uno nuevo.</p>}
       {sinSupabase() ? <AvisoConfiguracion /> : <RecuperarForm />}
     </MarcoAcceso>
