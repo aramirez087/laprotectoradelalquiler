@@ -310,7 +310,7 @@ test('registration forms only offer owner and agency account types', () => {
     assert.doesNotMatch(html, /inquilino/i)
   }
   const html = renderToStaticMarkup(createElement(RegistroForm))
-  assert.match(html, /Crear cuenta y escribir mi primera reseña/)
+  assert.match(html, /Crear cuenta y confirmar mi correo/)
   assert.match(html, /Iniciar sesión/)
 })
 

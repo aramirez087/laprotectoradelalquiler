@@ -15,7 +15,7 @@ import { configuracionPostgres } from './postgres-config.mjs';
 const argumentos = process.argv.slice(2);
 const opciones = new Set([
   '--solo-schema', '--solo-invitaciones-admin', '--solo-admin-resenas',
-  '--solo-admin-usuarios', '--solo-acceso-consultas',
+  '--solo-admin-usuarios', '--solo-acceso-consultas', '--solo-seguridad-supabase',
 ]);
 const desconocidos = argumentos.filter((arg) => !opciones.has(arg));
 if (desconocidos.length) {
@@ -47,7 +47,10 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
-  if (soloAdminUsuarios) {
+  if (argumentos.includes('--solo-seguridad-supabase')) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'seguridad-supabase.sql'), 'utf8'));
+    console.log('✓ Seguridad de Supabase actualizada; los datos se conservan.');
+  } else if (soloAdminUsuarios) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'administrar-usuarios.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'invitaciones-admin.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'sesiones-admin.sql'), 'utf8'));

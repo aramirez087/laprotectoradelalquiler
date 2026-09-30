@@ -16,7 +16,7 @@ const preload = `
   process.loadEnvFile = () => { process.stdout.write('ENV_LOAD\\n'); };
   const files = ['schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
     'db/invitaciones-admin.sql', 'db/sesiones-admin.sql', 'db/administrar-resenas.sql',
-    'db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql'];
+    'db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/seguridad-supabase.sql'];
   pg.Pool = class {
     constructor() { process.stdout.write('POOL_CREATED\\n'); }
     async query(sql) {
@@ -63,6 +63,7 @@ test('conflicting or repeated migration flags fail before environment loading or
 
 test('valid additive flags dispatch only their migrations and restore session guards last', () => {
   for (const [flag, expected] of [
+    ['--solo-seguridad-supabase', ['db/seguridad-supabase.sql']],
     ['--solo-admin-usuarios', ['db/administrar-usuarios.sql', 'db/invitaciones-admin.sql', 'db/sesiones-admin.sql']],
     ['--solo-invitaciones-admin', ['db/administrar-usuarios.sql', 'db/invitaciones-admin.sql', 'db/sesiones-admin.sql']],
     ['--solo-admin-resenas', ['db/administrar-resenas.sql']],

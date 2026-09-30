@@ -297,3 +297,36 @@ npm run db:invitaciones-admin
 ```
 
 El enlace apunta al dominio de producción `https://www.protectoradelalquiler.com/invitacion/admin`. La invitación no otorga acceso hasta que el destinatario verifica el enlace y establece una clave. No consume el enlace al abrir la página (evita que un escáner de correo lo acepte). El token vence según la configuración de Auth y la invitación tiene un máximo de 24 horas. Generar otra invitación para el mismo correo reemplaza el enlace anterior. Comparta el enlace solo con el destinatario indicado: permite activar una cuenta de administración. Si falla el envío o la aceptación, se puede reenviar con el mismo formulario. Las cuentas ya existentes nunca se promueven ni reactivan por este flujo; la persona que invitó debe seguir siendo administrador activo al aceptar. La tabla de invitaciones registra quién invitó y cuándo se aceptó; solo el servidor tiene acceso.
+
+## Actualización de seguridad de Supabase
+
+Para una base existente, `npm run db:seguridad` aplica únicamente
+`db/seguridad-supabase.sql`; conserva los datos. El mismo contenido se incluye
+en `schema.sql` para instalaciones nuevas y en la migración de Supabase
+`20260930033313_seguridad_supabase.sql`. No use `db:aplicar` para una actualización.
+
+La actualización limita las columnas de INSERT, impide crear fichas directamente
+con la sesión de usuario y provisiona el perfil cuando Supabase Auth confirma
+el correo. Despliegue conjuntamente el cambio de registro: ahora usa `signUp`,
+manda la confirmación mediante Supabase y no fuerza la verificación del correo.
+Mantenga **Confirm email** habilitado y permita la URL
+`https://www.protectoradelalquiler.com/auth/confirmar` en Authentication → URL
+Configuration. El perfil y su enlace público de Facebook se crean atómicamente
+al confirmar; una cédula o enlace ya ocupado requiere corregir el registro.
+
+Los roles elegibles para autoalta son únicamente propietario/agencia. No se
+crean perfiles administrativos desde metadata de usuario. Cuentas existentes,
+invitaciones e importaciones sin la marca `registro_correo` se conservan.
+
+`npm run test:seguridad-supabase` prueba la actualización en Postgres desechable
+con Docker. No carga credenciales ni escribe en el proyecto real. Las nuevas
+migraciones deben conceder permisos de forma explícita: los objetos creados por
+`postgres` ya no reciben permisos automáticos para anon/authenticated.
+Los defaults del rol interno `supabase_admin` requieren revisión de Supabase.
+
+La versión de PostgreSQL se actualiza mediante la plataforma, no mediante SQL.
+Al 29 de septiembre de 2026, el proyecto aún no ofrece 17.11: la única opción
+del panel es 17.6.1.171. Antes de actualizar, revise copias de seguridad,
+compatibilidad y la ventana de mantenimiento; el panel advierte hasta una hora
+de indisponibilidad. La protección de claves filtradas requiere Pro en este
+proyecto y sigue pendiente.

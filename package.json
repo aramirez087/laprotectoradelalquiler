@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --import ./tests/register.mjs --test tests/*.test.mjs",
+    "db:seguridad": "node scripts/aplicar-esquema.mjs --solo-seguridad-supabase",
+    "test:seguridad-supabase": "node --test tests/integration/seguridad-supabase.test.mjs",
     "db:aplicar": "node scripts/aplicar-esquema.mjs",
     "db:invitaciones-admin": "node scripts/aplicar-esquema.mjs --solo-invitaciones-admin",
     "db:admin-resenas": "node scripts/aplicar-esquema.mjs --solo-admin-resenas",

@@ -66,7 +66,7 @@ test('Facebook registration refuses an email-less session before using admin pri
   process.env.AUTH_FACEBOOK = '1'
   let adminSolicitado = false
   const acciones = cargar('lib/actions/auth.ts', {
-    'next/headers': {},
+    'next/headers': { headers: async () => new Headers({ host: 'www.protectoradelalquiler.com' }) },
     'next/navigation': { redirect: redirigir },
     '@/lib/dal': {},
     '@/lib/supabase/admin': { createAdmin: () => { adminSolicitado = true; return null } },
@@ -104,7 +104,7 @@ test('Facebook registration uses the provider email even if the form submits ano
     }, tabla),
   }
   const acciones = cargar('lib/actions/auth.ts', {
-    'next/headers': {},
+    'next/headers': { headers: async () => new Headers({ host: 'www.protectoradelalquiler.com' }) },
     'next/navigation': { redirect: redirigir },
     '@/lib/dal': {},
     '@/lib/supabase/admin': { createAdmin: () => admin },
@@ -145,7 +145,7 @@ test('registration does not take over an unlinked profile', async () => {
     }, tabla),
   }
   const acciones = cargar('lib/actions/auth.ts', {
-    'next/headers': {},
+    'next/headers': { headers: async () => new Headers({ host: 'www.protectoradelalquiler.com' }) },
     'next/navigation': { redirect: redirigir },
     '@/lib/dal': {},
     '@/lib/supabase/admin': { createAdmin: () => admin },
@@ -162,7 +162,7 @@ test('registration does not take over an unlinked profile', async () => {
   assert.equal(creoAuth, false)
 })
 
-function registroConRol({ existente = null } = {}) {
+function registroConRol({ existente = null, signupError = null } = {}) {
   const escrituras = []
   let solicitudesAdmin = 0
   const admin = {
@@ -187,13 +187,17 @@ function registroConRol({ existente = null } = {}) {
     }, tabla),
   }
   const acciones = cargar('lib/actions/auth.ts', {
-    'next/headers': {},
+    'next/headers': { headers: async () => new Headers({ host: 'www.protectoradelalquiler.com' }) },
     'next/navigation': { redirect: redirigir },
     '@/lib/dal': {},
     '@/lib/supabase/admin': { createAdmin: () => { solicitudesAdmin += 1; return admin } },
     '@/lib/supabase/server': {
       sinSupabase: () => false,
       createClient: async () => ({ auth: {
+        signUp: async input => {
+          escrituras.push({ tabla: 'auth', operacion: 'signup', valores: input })
+          return { data: { user: { id: 'auth-nueva' }, session: null }, error: signupError }
+        },
         signInWithPassword: async () => ({ error: null }),
         getUser: async () => ({ data: { user: {
           id: 'auth-nueva', email: 'persona@example.com',
@@ -233,6 +237,16 @@ test('owners and agencies can register through either method and continue to the
   for (const accion of ['registrarse', 'completarAltaFacebook']) {
     for (const rol of ['propietario', 'agencia']) {
       const registro = registroConRol()
+      if (accion === 'registrarse') {
+        const resultado = await registro.acciones.registrarse(undefined, formularioConRol(rol))
+        assert.match(resultado.mensaje, /confirme su cuenta/)
+        assert.equal(registro.escrituras.some(e => e.tabla !== 'auth'), false)
+        const solicitud = registro.escrituras[0].valores
+        assert.equal(solicitud.options.data.rol, rol)
+        assert.equal(solicitud.email_confirm, undefined)
+        assert.match(solicitud.options.emailRedirectTo, /auth\/confirmar\?next=\/registro\/resena$/)
+        continue
+      }
       await assert.rejects(registro.acciones[accion](undefined, formularioConRol(rol)), error => error.ruta === '/registro/resena')
       const perfil = registro.escrituras.find(escritura => escritura.tabla === 'usuarios')
       assert.equal(perfil.valores.rol, rol)
@@ -255,6 +269,13 @@ test('both registration methods accept Facebook names and shared links without r
       const registro = registroConRol()
       const formulario = formularioConRol('propietario')
       formulario.set('facebook', entrada)
+      if (accion === 'registrarse') {
+        const resultado = await registro.acciones.registrarse(undefined, formulario)
+        assert.match(resultado.mensaje, /confirme su cuenta/)
+        assert.equal(registro.escrituras[0].valores.options.data.facebook, esperado)
+        assert.equal(registro.escrituras.some(e => e.tabla !== 'auth'), false)
+        continue
+      }
       await assert.rejects(registro.acciones[accion](undefined, formulario), error => error.ruta === '/registro/resena')
       const enlace = registro.escrituras.find(escritura => escritura.tabla === 'autenticaciones')
       assert.equal(enlace.valores.proveedor, 'facebook')
@@ -495,4 +516,12 @@ test('failed identity unlink restores the public Facebook link', async () => {
   const resultado = await eliminacion.ejecutarEliminacionFacebook('facebook-id', 'codigo')
   assert.equal(resultado.ok, false)
   assert.deepEqual(enlaceActual, enlace)
+})
+
+test('email registration fails safely when Auth throttles confirmation delivery', async () => {
+  const registro = registroConRol({ signupError: { status: 429 } })
+  const resultado = await registro.acciones.registrarse(undefined, formularioConRol('propietario'))
+  assert.match(resultado.error, /más tarde/)
+  assert.equal(registro.escrituras.length, 1)
+  assert.equal(registro.escrituras[0].operacion, 'signup')
 })

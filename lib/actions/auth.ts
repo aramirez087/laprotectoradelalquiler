@@ -20,10 +20,10 @@ export type EstadoForm = {
 } | undefined
 
 const SchemaRegistro = z.object({
-  nombre: z.string().min(3, 'Escriba su nombre completo'),
+  nombre: z.string().trim().min(3, 'Escriba su nombre completo').max(200),
   email: z.email('Escriba un correo válido'),
   cedula: z.string().trim().min(1, 'Escriba su número de cédula'),
-  facebook: z.string().trim().min(1, 'Escriba su perfil de Facebook'),
+  facebook: z.string().trim().min(1, 'Escriba su perfil de Facebook').max(2000),
   clave: z
     .string()
     .min(8, 'La clave debe tener al menos 8 caracteres')
@@ -44,15 +44,6 @@ function avisoSinSupabase() {
     error:
       'El backend aún no está configurado. Cree un proyecto en Supabase, copie .env.example a .env.local y rellene las credenciales. Luego corra: npm run db:aplicar',
   } satisfies EstadoForm
-}
-
-async function deshacerRegistro(admin: NonNullable<ReturnType<typeof createAdmin>>, authUserId: string) {
-  const { data } = await admin.from('usuarios').select('id').eq('auth_user_id', authUserId).maybeSingle()
-  if (data?.id) {
-    await admin.from('autenticaciones').delete().eq('usuario_id', data.id)
-    await admin.from('usuarios').delete().eq('id', data.id)
-  }
-  await admin.auth.admin.deleteUser(authUserId)
 }
 
 async function cedulaEnUso(admin: NonNullable<ReturnType<typeof createAdmin>>, cedula: string, email: string) {
@@ -113,67 +104,25 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
     if (errorEmail) return { error: 'No pudimos crear la cuenta. Intente de nuevo.' }
     if (porEmail) return { error: CUENTA_OCUPADA }
 
-    const { data, error } = await admin.auth.admin.createUser({
+    const origen = await origenDeLaPeticion()
+    if (!origen) return { error: 'No pudimos iniciar el registro. Intente de nuevo.' }
+    const supabase = await createClient()
+    // Public signup enforces Auth's email confirmation and abuse limits. The
+    // database creates the profile only when Auth confirms ownership of email.
+    const { error } = await supabase.auth.signUp({
       email,
       password: clave,
-      email_confirm: true,
-      user_metadata: { nombre, rol, identificacion: cedula, facebook },
+      options: {
+        emailRedirectTo: `${origen}/auth/confirmar?next=/registro/resena`,
+        data: { registro_correo: true, nombre, rol, identificacion: cedula, facebook },
+      },
     })
-    if (error || !data.user) {
-      return {
-        error:
-          error && /already|registered/i.test(error.message)
-            ? CUENTA_OCUPADA
-            : 'No pudimos crear la cuenta. Intente de nuevo.',
-      }
-    }
-    const authUserId = data.user.id
-
-    const perfil = await admin
-      .from('usuarios')
-      .insert({
-        auth_user_id: authUserId,
-        email,
-        nombre,
-        rol,
-        identificacion: cedula,
-      })
-      .select('id')
-      .single()
-    if (perfil.error || !perfil.data) {
-      await deshacerRegistro(admin, authUserId)
-      return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
-    }
-
-    const { error: errorPerfilFacebook } = await admin.from('autenticaciones').insert({
-      usuario_id: perfil.data.id,
-      proveedor: 'facebook',
-      proveedor_id: facebook,
-    })
-    if (errorPerfilFacebook) {
-      await deshacerRegistro(admin, authUserId)
-      return {
-        error:
-          errorPerfilFacebook.code === '23505'
-            ? CUENTA_OCUPADA
-            : 'No pudimos guardar su perfil de Facebook. Intente de nuevo.',
-      }
-    }
-
-    const supabase = await createClient()
-    let { error: errorSesion } = await supabase.auth.signInWithPassword({ email, password: clave })
-    if (errorSesion && /email not confirmed/i.test(errorSesion.message)) {
-      await admin.auth.admin.updateUserById(authUserId, { email_confirm: true })
-      ;({ error: errorSesion } = await supabase.auth.signInWithPassword({ email, password: clave }))
-    }
-    if (errorSesion) {
-      return { error: 'Su cuenta quedó creada. Inicie sesión para escribir la reseña.' }
-    }
+    if (error) return { error: 'No pudimos enviar la confirmación. Intente de nuevo más tarde.' }
+    return { mensaje: 'Revise su correo y confirme su cuenta para escribir su primera reseña. Si ya tiene cuenta, inicie sesión.' }
   } catch {
     return { error: 'No pudimos crear la cuenta. Intente de nuevo.' }
   }
 
-  redirect('/registro/resena')
 }
 
 const SchemaAltaFacebook = z.object({

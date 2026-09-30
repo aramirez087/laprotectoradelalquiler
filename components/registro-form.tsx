@@ -148,7 +148,7 @@ export function RegistroForm({
       </fieldset>
       <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
       <button disabled={pendiente} className="btn-primario w-full">
-        {pendiente ? 'Creando cuenta…' : 'Crear cuenta y escribir mi primera reseña'}
+        {pendiente ? 'Creando cuenta…' : 'Crear cuenta y confirmar mi correo'}
       </button>
       <p className="text-center text-xs leading-relaxed text-ink-soft">
         Conozca cómo cuidamos sus datos en la{' '}

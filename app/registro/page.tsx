@@ -24,7 +24,7 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   return (
     <MarcoAcceso
       titulo="Cree su cuenta"
-      texto="Registro exclusivo para propietarios y agencias. Cree su cuenta y después escriba su primera reseña."
+      texto="Registro exclusivo para propietarios y agencias. Confirme su correo y después escriba su primera reseña."
       pasoRegistro={1}
     >
       {sinSupabase() ? (

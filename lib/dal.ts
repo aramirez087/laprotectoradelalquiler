@@ -384,12 +384,10 @@ export async function crearResena(input: {
 
   const supabase = await createClient()
   const admin = createAdmin()
-  const dbPersona = admin ?? supabase
+  if (!admin) throw new Error('No pudimos enviar la reseña. Falta la configuración de administración.')
+  const dbPersona = admin
   const enRevision = yo.rol !== 'admin'
-  if (enRevision && !admin) {
-    throw new Error('No pudimos enviar la reseña a revisión. Falta la configuración de administración.')
-  }
-  const dbResena = enRevision ? admin! : supabase
+  const dbResena = enRevision ? admin : supabase
   const identificacion = input.identificacion.trim().replace(/\s+/g, '')
 
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.
