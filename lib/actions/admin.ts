@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
-import { actualizarUsuario, AvisoAdmin, decidirResena, editarResena, eliminarResena, resolverDenuncia } from '@/lib/admin'
+import { actualizarDatosUsuario, actualizarUsuario, AvisoAdmin, decidirResena, editarResena, eliminarResena, resolverDenuncia } from '@/lib/admin'
 import { notificarCambioResena } from '@/lib/correo-resenas'
 import type { EstadoForm } from './auth'
 import type { EstadoResena } from '@/lib/tipos'
@@ -16,7 +16,8 @@ const SchemaDecision = z.object({
 
 const SchemaUsuario = z.object({
   id: z.coerce.number().int().positive(),
-  rol: z.enum(['admin', 'propietario', 'agencia']),
+  rol: z.enum(['admin', 'propietario', 'agencia', 'inquilino']),
+  version: z.string().min(1).max(60),
 })
 
 const SchemaDenuncia = z.object({
@@ -154,18 +155,44 @@ export async function guardarUsuarioAction(_prev: EstadoForm, formData: FormData
   const parsed = SchemaUsuario.safeParse({
     id: formData.get('id'),
     rol: formData.get('rol'),
+    version: formData.get('version'),
   })
   if (!parsed.success) return { error: 'Revise el usuario.' }
 
   try {
-    await actualizarUsuario({
+    const cuenta = await actualizarUsuario({
       id: parsed.data.id,
       rol: parsed.data.rol,
       activo: formData.get('activo') === 'on',
+      versionEsperada: parsed.data.version,
     })
     revalidatePath('/admin/usuarios')
     revalidatePath('/admin')
-    return { mensaje: 'Cuenta actualizada.' }
+    revalidatePath(`/admin/usuarios/${cuenta.id}`)
+    revalidatePath('/admin/conteo')
+    return { mensaje: `Permisos de ${cuenta.nombre} actualizados.` }
+  } catch (e) {
+    unstable_rethrow(e)
+    return { error: aviso(e) }
+  }
+}
+
+export async function guardarDatosUsuarioAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  const schema = z.object({
+    id: z.coerce.number().int().positive(), version: z.string().min(1).max(60),
+    nombre: z.string().trim().min(3, 'Escriba un nombre de al menos 3 caracteres.').max(150, 'El nombre admite hasta 150 caracteres.'),
+    identificacion: z.string().trim().max(30, 'El documento es demasiado largo.'),
+    telefono: z.string().trim().max(30, 'El teléfono admite hasta 30 caracteres.'),
+  })
+  const parsed = schema.safeParse(Object.fromEntries(['id', 'version', 'nombre', 'identificacion', 'telefono'].map(k => [k, formData.get(k)])))
+  if (!parsed.success) return { error: 'Revise los campos indicados.', campos: camposDe(parsed.error) }
+  try {
+    const cuenta = await actualizarDatosUsuario({ ...parsed.data, versionEsperada: parsed.data.version })
+    revalidatePath('/', 'layout')
+    revalidatePath('/admin/usuarios')
+    revalidatePath(`/admin/usuarios/${cuenta.id}`)
+    revalidatePath('/admin/conteo')
+    return { mensaje: `Datos de ${cuenta.nombre} actualizados.` }
   } catch (e) {
     unstable_rethrow(e)
     return { error: aviso(e) }

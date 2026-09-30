@@ -1,10 +1,10 @@
-import { redirect } from 'next/navigation'
+import { redirect, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import Link from 'next/link'
 import { consultarResenas, conteoPorUsuario, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
-import { etiquetaRol, formatoNumero, paginaSegura, primer } from '@/lib/util'
+import { etiquetaRol, formatoNumero, paginaSegura, primer, regresoUsuarios } from '@/lib/util'
 
 export const metadata = { title: 'Conteo por usuario' }
 
@@ -16,11 +16,12 @@ function hrefConteo(opts: { q?: string; pagina?: number }) {
   return s ? `/admin/conteo?${s}` : '/admin/conteo'
 }
 
-function hrefAutor(autor: number, q: string, paginaLista: number, pagina = 1) {
+function hrefAutor(autor: number, q: string, paginaLista: number, pagina = 1, regresar?: string | null) {
   const p = new URLSearchParams({ autor: String(autor) })
   if (q) p.set('q', q)
   if (paginaLista > 1) p.set('paginaLista', String(paginaLista))
   if (pagina > 1) p.set('pagina', String(pagina))
+  if (regresar) p.set('regresar', regresar)
   return `/admin/conteo?${p}`
 }
 
@@ -31,6 +32,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
   const autorId = Number.isInteger(autorRaw) && autorRaw > 0 ? autorRaw : null
   const pagina = paginaSegura(primer(params.pagina))
   const paginaLista = paginaSegura(primer(params.paginaLista))
+  const regresar = regresoUsuarios(primer(params.regresar))
 
   let aviso: string | null = null
 
@@ -42,16 +44,17 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
       filas = resultado.filas
       total = resultado.total
     } catch (e) {
+      unstable_rethrow(e)
       aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar las reseñas de esa cuenta.'
     }
     const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
-    if (!aviso && pagina > paginas) redirect(hrefAutor(autorId, q, paginaLista, paginas))
+    if (!aviso && pagina > paginas) redirect(hrefAutor(autorId, q, paginaLista, paginas, regresar))
     const autor = filas[0]?.autor
 
     return (
       <div className="contenedor space-y-7">
-        <Link href={hrefConteo({ q, pagina: paginaLista })} className="enlace-texto">
-          <span aria-hidden="true">← </span>Volver al conteo por usuario
+        <Link href={regresar ?? hrefConteo({ q, pagina: paginaLista })} className="enlace-texto">
+          <span aria-hidden="true">← </span>{regresar ? 'Volver a usuarios' : 'Volver al conteo por usuario'}
         </Link>
         <CabeceraAdmin titulo={autor?.nombre ?? 'Reseñas de la cuenta'} descripcion="Todas las experiencias aportadas por esta cuenta, con su estado de publicación." />
         {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
@@ -65,7 +68,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
         <Paginacion
           pagina={pagina}
           paginas={paginas}
-          href={(n) => hrefAutor(autorId, q, paginaLista, n)}
+          href={(n) => hrefAutor(autorId, q, paginaLista, n, regresar)}
         />
       </div>
     )
@@ -75,6 +78,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
   try {
     filas = await conteoPorUsuario(q)
   } catch (e) {
+    unstable_rethrow(e)
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos calcular el conteo.'
   }
 

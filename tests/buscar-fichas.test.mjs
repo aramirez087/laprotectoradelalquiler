@@ -30,8 +30,18 @@ test('search excludes fichas without published reviews before counting and pagin
     from: (table) => table === 'usuarios'
       ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 1, rol: 'admin', activo: true }, error: null }) }) }) }
       : postgrest.from(table),
-    rpc: async () => ({ data: [{ puede_consultar: true, usuario_id: 1 }], error: null }),
-    auth: { getUser: async () => ({ data: { user: { id: 'auth-id' } } }) },
+    rpc: async (nombre, parametros) => {
+      if (nombre === 'sesion_administracion_vigente') {
+        assert.equal(parametros.p_auth_user_id, 'auth-id')
+        assert.equal(parametros.p_session_id, '11111111-1111-4111-8111-111111111111')
+        return { data: true, error: null }
+      }
+      return { data: [{ puede_consultar: true, usuario_id: 1 }], error: null }
+    },
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'auth-id' } } }),
+      getClaims: async () => ({ data: { claims: { sub: 'auth-id', session_id: '11111111-1111-4111-8111-111111111111' } }, error: null }),
+    },
   }
   const mod = { exports: {} }
   vm.runInNewContext(ts.transpileModule(readFileSync('lib/dal.ts', 'utf8'), {

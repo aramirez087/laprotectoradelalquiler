@@ -1,8 +1,9 @@
 import { NavAdmin } from '@/components/nav-admin'
+import { SesionBorradoresAdmin } from '@/components/use-borrador-admin'
 import { requerirRol } from '@/lib/dal'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requerirRol('admin')
+  const usuario = await requerirRol('admin')
 
   return (
     <div>
@@ -11,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <NavAdmin />
         </div>
       </div>
-      {children}
+      <SesionBorradoresAdmin key={usuario.id}>{children}</SesionBorradoresAdmin>
     </div>
   )
 }

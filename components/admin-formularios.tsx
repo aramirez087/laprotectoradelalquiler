@@ -5,7 +5,10 @@ import { useAvisoAdmin } from '@/components/avisos-admin'
 import { decidirResenaAction, editarResenaAction, eliminarResenaAction, guardarUsuarioAction, resolverDenunciaAction } from '@/lib/actions/admin'
 import { MensajeForm } from '@/components/mensaje-form'
 import { etiquetaRol } from '@/lib/util'
-import type { Rol, RolAsignable } from '@/lib/tipos'
+import type { Rol } from '@/lib/tipos'
+import { useRef, type FormEvent } from 'react'
+import { useBorradorAdmin } from '@/components/use-borrador-admin'
+import { ProtectorEdicionAdmin } from '@/components/protector-edicion-admin'
 
 const DECISIONES = {
   publicar: 'Aprobar y publicar',
@@ -222,45 +225,97 @@ export function FormEliminarResena({ id, notificacionesHabilitadas = false }: { 
   )
 }
 
-export function FormUsuario({
-  id,
-  rol,
-  activo,
-}: {
+export function FormUsuario({ id, nombre, rol, activo, version }: {
   id: number
+  nombre: string
   rol: Rol
   activo: boolean
+  version: string
 }) {
-  const { estado, pendiente, formProps } = useFormAction(guardarUsuarioAction)
-  const roles: RolAsignable[] = ['propietario', 'agencia', 'admin']
+  const onResultado = useAvisoAdmin()
+  const { estado, pendiente, formProps } = useFormAction(guardarUsuarioAction, {
+    onResultado: (resultado) => {
+      if (resultado?.mensaje) {
+        limpiarBorrador()
+        setBorrador((anterior) => ({ ...anterior, guardado: true }))
+        onResultado({ ...resultado, mensaje: `Se actualizó la cuenta de ${nombre}.` }, { enfocar: true })
+      }
+    },
+  })
+  const actuales = { version, rol, activo, rolOriginal: rol, activoOriginal: activo, guardado: false }
+  const [borrador, setBorrador, limpiarBorrador] = useBorradorAdmin(`permisos:${id}`, actuales, (valor) => !valor.guardado && (valor.rol !== valor.rolOriginal || valor.activo !== valor.activoOriginal))
+  const borradorModificado = borrador.rol !== borrador.rolOriginal || borrador.activo !== borrador.activoOriginal
+  const valores = borrador.guardado || (!borradorModificado && borrador.version !== version) ? actuales : borrador
+  const hayCambios = valores.rol !== valores.rolOriginal || valores.activo !== valores.activoOriginal
+  const versionCambio = hayCambios && valores.version !== version
+  const dialogo = useRef<HTMLDialogElement>(null)
+  const confirmado = useRef(false)
+  const roles: Rol[] = ['propietario', 'agencia']
+  if (rol === 'admin' || rol === 'inquilino') roles.unshift(rol)
+
+
+  function enviar(event: FormEvent<HTMLFormElement>) {
+    if (!hayCambios || pendiente) { event.preventDefault(); return }
+    if (!confirmado.current) {
+      event.preventDefault()
+      dialogo.current?.showModal()
+      return
+    }
+    confirmado.current = false
+    formProps.onSubmit(event)
+  }
+
+  function cancelar() {
+    setBorrador(actuales)
+    const detalles = formProps.ref.current?.closest('details')
+    if (detalles) { detalles.open = false; detalles.querySelector('summary')?.focus() }
+  }
 
   return (
-    <form {...formProps} className="grid items-end gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(0,16rem)_auto_auto] sm:justify-start">
-      <input type="hidden" name="id" value={id} />
-      <div className="min-w-0">
-        <label className="etiqueta-campo" htmlFor={`rol-${id}`}>
-          Rol
-        </label>
-        <select id={`rol-${id}`} name="rol" defaultValue={rol === 'inquilino' ? '' : rol} required className="campo">
-          {rol === 'inquilino' && <option value="" disabled>Seleccione un rol vigente</option>}
-          {roles.map((opcion) => (
-            <option key={opcion} value={opcion}>
-              {etiquetaRol(opcion)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <label className="flex min-h-11 items-center gap-2 text-sm">
-        <input type="checkbox" name="activo" defaultChecked={activo} />
-        Cuenta activa
-      </label>
-      <button disabled={pendiente} className="btn-secundario">
-        {pendiente ? 'Guardando…' : 'Guardar permisos'}
-      </button>
-      <div className="sm:col-span-3">
-        <MensajeForm error={estado?.error} mensaje={estado?.mensaje} />
-      </div>
-    </form>
+    <>
+      <form {...formProps} onSubmit={enviar} className="space-y-4" aria-label={`Editar permisos de ${nombre}`}>
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="version" value={valores.version} />
+        <fieldset disabled={pendiente} className="space-y-4">
+          <legend className="sr-only">Permisos de {nombre}</legend>
+          {versionCambio && <div className="aviso aviso-error" role="alert" tabIndex={-1}><p>Otra persona modificó esta cuenta. Cargue sus permisos actuales antes de continuar.</p><button type="button" className="enlace-texto" onClick={() => setBorrador(actuales)}>Cargar versión actual</button></div>}
+          <div className="grid items-end gap-4 sm:grid-cols-[minmax(0,20rem)_auto] sm:justify-start">
+            <div className="min-w-0">
+              <label className="etiqueta-campo" htmlFor={`rol-${id}`}>Rol de la cuenta</label>
+              <select id={`rol-${id}`} name="rol" value={valores.rol} onChange={(event) => setBorrador({ ...valores, rol: event.target.value as Rol })} required className="campo" aria-describedby={`rol-ayuda-${id}`}>
+                {roles.map((opcion) => <option key={opcion} value={opcion}>{etiquetaRol(opcion)}{opcion === 'inquilino' ? ' · histórico' : ''}</option>)}
+              </select>
+            </div>
+            <label className="flex min-h-12 items-center gap-3 text-sm">
+              <input type="checkbox" name="activo" checked={valores.activo} onChange={(event) => setBorrador({ ...valores, activo: event.target.checked })} className="h-4 w-4" />
+              Cuenta activa
+            </label>
+          </div>
+          <p id={`rol-ayuda-${id}`} className="text-sm leading-6 text-ink-soft">Una cuenta inactiva no puede usar funciones que requieren acceso. Para conceder administración, envíe una invitación y espere su aceptación.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button disabled={pendiente || !hayCambios || versionCambio} className="btn-primario">{pendiente ? 'Guardando…' : 'Revisar cambios'}</button>
+            <button type="button" onClick={cancelar} className="btn-secundario">Cancelar edición</button>
+            <p aria-live="polite" className="text-sm text-ink-soft">{pendiente ? 'Guardando los permisos…' : hayCambios ? 'Tiene cambios sin guardar.' : 'Sin cambios pendientes.'}</p>
+          </div>
+        </fieldset>
+        <MensajeForm error={estado?.error} />
+      </form>
+      <dialog ref={dialogo} className="dialogo-admin" aria-labelledby={`confirmar-usuario-${id}`} aria-describedby={`confirmar-usuario-ayuda-${id}`}>
+        <h2 id={`confirmar-usuario-${id}`} className="text-2xl">Confirmar cambios</h2>
+        <p id={`confirmar-usuario-ayuda-${id}`} className="mt-3 break-words text-sm text-ink-soft">Revise los nuevos permisos de <strong className="text-ink">{nombre}</strong> antes de guardar.</p>
+        <dl className="my-5 space-y-3 rounded-xl border border-line p-4 text-sm">
+          {valores.rol !== rol && <div><dt className="font-semibold">Rol</dt><dd className="mt-1 text-ink-soft">{etiquetaRol(rol)} → {etiquetaRol(valores.rol)}</dd></div>}
+          {valores.activo !== activo && <div><dt className="font-semibold">Estado de la cuenta</dt><dd className="mt-1 text-ink-soft">{activo ? 'Activa' : 'Inactiva'} → {valores.activo ? 'Activa' : 'Inactiva'}</dd></div>}
+        </dl>
+        {!valores.activo && <p className="aviso aviso-error mb-5">Esta persona perderá el acceso a las funciones de su cuenta.</p>}
+        {rol === 'admin' && valores.rol !== 'admin' && <p className="aviso aviso-error mb-5">Esta persona dejará de tener permisos de administración.</p>}
+        <div className="flex flex-wrap justify-end gap-3">
+          <button type="button" className="btn-secundario" onClick={() => dialogo.current?.close()}>Volver a editar</button>
+          <button type="button" className="btn-primario" onClick={() => { confirmado.current = true; dialogo.current?.close(); formProps.ref.current?.requestSubmit() }}>Confirmar cambios</button>
+        </div>
+      </dialog>
+      <ProtectorEdicionAdmin pendiente={hayCambios} nombre={nombre} />
+    </>
   )
 }
 

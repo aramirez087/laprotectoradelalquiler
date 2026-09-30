@@ -87,10 +87,10 @@ function form(notify = false) {
   return f
 }
 
-test('administration accepts current account roles but rejects assigning a tenant role', async () => {
+test('permission actions forward the original version and let the atomic operation preserve historical roles', async () => {
   const actualizaciones = []
   const api = load('lib/actions/admin.ts', {
-    '@/lib/admin': { actualizarUsuario: async input => { actualizaciones.push(input) } },
+    '@/lib/admin': { actualizarUsuario: async input => { actualizaciones.push(input); return { id: 42, nombre: 'Ana Pérez' } } },
     '@/lib/correo-resenas': {},
     'next/cache': { revalidatePath() {} },
     'next/navigation': { unstable_rethrow() {} },
@@ -100,11 +100,17 @@ test('administration accepts current account roles but rejects assigning a tenan
     formulario.set('id', '42')
     formulario.set('rol', rol)
     formulario.set('activo', 'on')
+    formulario.set('version', '2026-09-30T00:00:00.123456+00:00')
     const resultado = await api.guardarUsuarioAction(undefined, formulario)
-    if (['inquilino', 'otro'].includes(rol)) assert.ok(resultado.error)
-    else assert.equal(resultado.mensaje, 'Cuenta actualizada.')
+    if (rol === 'otro') assert.ok(resultado.error)
+    else assert.equal(resultado.mensaje, 'Permisos de Ana Pérez actualizados.')
   }
-  assert.deepEqual(actualizaciones.map(usuario => usuario.rol), ['propietario', 'agencia', 'admin'])
+  assert.deepEqual(actualizaciones.map(usuario => usuario.rol), ['propietario', 'agencia', 'admin', 'inquilino'])
+  assert.ok(actualizaciones.every(usuario => usuario.versionEsperada === '2026-09-30T00:00:00.123456+00:00'))
+  const sinVersion = new FormData()
+  sinVersion.set('id', '42'); sinVersion.set('rol', 'propietario')
+  assert.ok((await api.guardarUsuarioAction(undefined, sinVersion)).error)
+  assert.equal(actualizaciones.length, 4)
 })
 
 test('edit/delete notification follows a successful mutation and uses its stored author', async () => {

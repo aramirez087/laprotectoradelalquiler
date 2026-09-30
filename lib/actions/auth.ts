@@ -16,7 +16,7 @@ export type EstadoForm = {
   campos?: Record<string, string>
   mensaje?: string
   advertencia?: string
-  invitacion?: { enlace: string; email: string }
+  invitacion?: { enlace: string; email: string; venceEn: string; proposito: 'administracion' | 'acceso' }
 } | undefined
 
 const SchemaRegistro = z.object({

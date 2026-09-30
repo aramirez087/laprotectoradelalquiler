@@ -1264,3 +1264,67 @@ fieldset {
     border-radius: 0.65rem;
   }
 }
+
+/* Account administration keeps the overview compact and editing deliberate. */
+.detalles-admin > summary {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--seal);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.detalles-admin > summary::-webkit-details-marker {
+  display: none;
+}
+.detalles-admin > summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.indicador-admin {
+  flex: none;
+  font-size: 1.25rem;
+  transition: transform 150ms ease;
+}
+.detalles-admin[open] > summary .indicador-admin {
+  transform: rotate(180deg);
+}
+.resumen-usuarios {
+  padding-block: 0.35rem;
+}
+.dialogo-admin {
+  width: min(34rem, calc(100% - 2rem));
+  max-height: calc(100svh - 2rem);
+  margin: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.5rem;
+  border: 1px solid var(--control-line);
+  border-radius: 1rem;
+  background: var(--card);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.dialogo-admin::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+@media (max-width: 639px) {
+  .dialogo-admin {
+    padding: 1.25rem;
+  }
+  .resumen-usuarios > summary > span:first-child > span {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .indicador-admin {
+    transition: none;
+  }
+}

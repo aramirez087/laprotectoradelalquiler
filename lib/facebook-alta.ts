@@ -14,10 +14,13 @@ export async function altaFacebookLista(authUserId: string) {
   if (!admin) return false
   const { data, error } = await admin
     .from('usuarios')
-    .select('id, identificacion')
+    .select('id, identificacion, rol, activo')
     .eq('auth_user_id', authUserId)
     .maybeSingle()
   if (error || !data) return false
+  // Una invitación de administración no exige el alta ordinaria de propietarios.
+  // La autorización y la vigencia de su sesión se verifican después en el DAL.
+  if (data.rol === 'admin' && data.activo === true) return true
   const { data: facebook, error: errorFacebook } = await admin
     .from('autenticaciones')
     .select('proveedor_id')

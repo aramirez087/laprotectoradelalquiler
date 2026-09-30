@@ -303,6 +303,49 @@ test('stored Facebook names and shared links count as complete and remain availa
   }
 })
 
+test('accepted active Facebook administrators bypass ordinary document and Facebook-profile onboarding', async () => {
+  process.env.AUTH_FACEBOOK = '1'
+  const consultas = []
+  const user = { id: 'facebook-admin', email: 'admin@example.com', app_metadata: { provider: 'facebook' } }
+  const admin = {
+    from: tabla => consulta(({ operacion, filtros }) => {
+      consultas.push({ tabla, operacion, filtros })
+      assert.equal(tabla, 'usuarios', 'an invited admin needs no public Facebook-profile lookup')
+      assert.equal(operacion, 'select', 'the exemption must not provision or edit an account')
+      return { data: { id: 42, auth_user_id: user.id, identificacion: null, rol: 'admin', activo: true }, error: null }
+    }, tabla),
+  }
+  const alta = cargar('lib/facebook-alta.ts', {
+    '@/lib/supabase/admin': { createAdmin: () => admin },
+    '@/lib/supabase/server': { createClient: async () => ({ auth: { getUser: async () => ({ data: { user } }) } }) },
+  })
+  assert.equal(await alta.altaFacebookLista(user.id), true)
+  assert.equal(await alta.altaFacebookPendiente(), false, 'subsequent authenticated requests do not resume ordinary onboarding')
+  assert.equal(await alta.vincularCuentaListaPorCorreo(user.id, user.email), true, 'OAuth callback recognizes the already-bound administrator')
+  assert.equal(consultas.length, 3)
+  assert.ok(consultas.every(({ filtros }) => filtros.some(([metodo, columna, valor]) => metodo === 'eq' && columna === 'auth_user_id' && valor === user.id)))
+})
+
+test('Facebook administrator exemption does not apply to inactive or ordinary incomplete accounts', async () => {
+  for (const perfil of [
+    { rol: 'admin', activo: false },
+    { rol: 'propietario', activo: true },
+    { rol: 'agencia', activo: true },
+    { rol: 'inquilino', activo: true },
+  ]) {
+    const alta = cargar('lib/facebook-alta.ts', {
+      '@/lib/supabase/admin': { createAdmin: () => ({
+        from: tabla => consulta(() => ({
+          data: tabla === 'usuarios' ? { id: 42, identificacion: null, ...perfil } : null,
+          error: null,
+        }), tabla),
+      }) },
+      '@/lib/supabase/server': {},
+    })
+    assert.equal(await alta.altaFacebookLista('auth-facebook'), false, `${perfil.rol}, active=${perfil.activo}`)
+  }
+})
+
 test('legacy accounts with Facebook names or shared links can finish linking after provider sign-in', async () => {
   for (const valor of ['María Solís', 'https://www.facebook.com/share/1Example/']) {
     const escrituras = []

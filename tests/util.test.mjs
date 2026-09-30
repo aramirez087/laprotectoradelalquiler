@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida, identidadAutorResena, fechaCorta } from '../lib/util.ts'
+import { destinoInterno, paginaSegura, mascararCedula, normalizarPerfilFacebook, normalizarCedula, esCedulaValida, identidadAutorResena, fechaCorta, regresoUsuarios } from '../lib/util.ts'
+
+test('user drilldowns preserve list filters while malformed or external return links safely fall back', () => {
+  assert.equal(regresoUsuarios('/admin/usuarios?q=Ana&rol=agencia&pagina=2'), '/admin/usuarios?q=Ana&rol=agencia&pagina=2')
+  for (const valor of ['', 'http://[', '//example.test/admin/usuarios', 'https://example.test/admin/usuarios', '/admin/usuarios/1', '/login']) assert.equal(regresoUsuarios(valor), null, valor)
+})
 
 test('review timestamps change date at midnight in Costa Rica, not UTC', () => {
   for (const iso of [

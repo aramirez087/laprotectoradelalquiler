@@ -50,7 +50,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         >
           {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
         </Nav>
-        <AvisosAdmin>
+        <AvisosAdmin key={usuario?.id ?? 'publico'}>
           <main id="contenido" tabIndex={-1} className="flex-1">
             {props.children}
           </main>

@@ -36,14 +36,27 @@ import type {
 // Sesión / usuario
 // ============================================================================
 
+async function sesionAdministracionVigente(supabase: Awaited<ReturnType<typeof createClient>>, authUserId: string, admin: ReturnType<typeof createAdmin>) {
+  try {
+    const { data, error } = await supabase.auth.getClaims()
+    const claims = data?.claims
+    const sessionId = claims?.session_id
+    if (error || claims?.sub !== authUserId || typeof sessionId !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) return false
+    const resultado = admin
+      ? await admin.rpc('sesion_administracion_vigente', { p_auth_user_id: authUserId, p_session_id: sessionId })
+      : await supabase.rpc('mi_sesion_administracion_vigente')
+    return !resultado.error && resultado.data === true
+  } catch {
+    return false
+  }
+}
+
 export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
   if (sinSupabase()) return null
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  // Una cuenta nueva de Facebook elige cédula y rol en /registro/facebook.
-  if (cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
-
   const admin = createAdmin()
   if (admin) {
     const { data, error } = await admin
@@ -52,6 +65,9 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
       .eq('auth_user_id', user.id)
       .maybeSingle()
     if (error || !data) return null
+    if (!(await sesionAdministracionVigente(supabase, user.id, admin))) return null
+    // Accepted administrators do not need ordinary Facebook onboarding.
+    if (data.rol !== 'admin' && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
     return data as Usuario
   }
 
@@ -61,6 +77,8 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
     .eq('auth_user_id', user.id)
     .maybeSingle()
   if (error || !data) return null
+  if (!(await sesionAdministracionVigente(supabase, user.id, null))) return null
+  if (data.rol !== 'admin' && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
   return {
     ...data,
     email: user.email ?? '',

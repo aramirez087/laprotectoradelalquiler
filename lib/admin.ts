@@ -5,7 +5,7 @@ import { requerirRol } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, palabrasBusqueda, variantesAcento } from '@/lib/util'
-import type { EstadoResena, Rol, RolAsignable } from '@/lib/tipos'
+import type { EstadoResena, Rol } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export class AvisoAdmin extends Error {
@@ -62,6 +62,7 @@ export interface FilaAdminUsuario {
   activo: boolean
   ultimo_acceso: string | null
   creado_en: string
+  actualizado_en: string
   facebook: string | null
   tieneLogin: boolean
   esLegacy: boolean
@@ -72,6 +73,7 @@ export interface FilaAdminUsuario {
 export type FiltroTipoUsuario = 'cuentas' | 'legacy' | 'todos'
 export type FiltroEstadoUsuario = 'todos' | 'activas' | 'inactivas'
 export type FiltroLoginUsuario = 'todos' | 'creado' | 'pendiente'
+export type FiltroRolUsuario = 'todos' | Rol
 
 export interface ResumenUsuariosAdmin {
   cuentas: number
@@ -449,36 +451,43 @@ export async function buscarUsuarios(opts: {
   tipo?: FiltroTipoUsuario
   estado?: FiltroEstadoUsuario
   login?: FiltroLoginUsuario
+  rol?: FiltroRolUsuario
 }): Promise<{ filas: FilaAdminUsuario[]; total: number; resumen: ResumenUsuariosAdmin }> {
   const { db } = await exigirAdmin()
   const pagina = Math.max(1, opts.pagina ?? 1)
   const tipo = opts.tipo ?? 'cuentas'
   const estado = opts.estado ?? 'todos'
   const login = opts.login ?? 'todos'
-  let consulta = db
-    .from('usuarios')
-    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en, auth_user_id', { count: 'exact' })
-
-  if (tipo === 'cuentas') consulta = consulta.not('email', 'ilike', PATRON_CORREO_LEGACY)
-  else if (tipo === 'legacy') consulta = consulta.ilike('email', PATRON_CORREO_LEGACY)
-  if (estado !== 'todos') consulta = consulta.eq('activo', estado === 'activas')
-  if (login === 'creado') consulta = consulta.not('auth_user_id', 'is', null)
-  else if (login === 'pendiente') consulta = consulta.is('auth_user_id', null)
-
-  const q = textoPlano(opts.q ?? '')
-  if (q.length >= 2) {
-    const p = patron(q)
-    consulta = consulta.or(
-      `nombre.ilike.${p},email.ilike.${p},identificacion.ilike.${p},telefono.ilike.${p}`,
-    )
+  const q = (opts.q ?? '').trim().replace(/\s+/g, ' ')
+  // Escape a literal substring and quote the PostgREST expression independently.
+  // ILIKE treats '*' as a '%' alias even inside quotes; imatch avoids that alias.
+  const p = JSON.stringify(q.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'))
+  const filtrar = (consulta: ReturnType<ReturnType<Cliente['from']>['select']>) => {
+    if (tipo === 'cuentas') consulta = consulta.not('email', 'ilike', PATRON_CORREO_LEGACY)
+    else if (tipo === 'legacy') consulta = consulta.ilike('email', PATRON_CORREO_LEGACY)
+    if (estado !== 'todos') consulta = consulta.eq('activo', estado === 'activas')
+    if (login === 'creado') consulta = consulta.not('auth_user_id', 'is', null)
+    else if (login === 'pendiente') consulta = consulta.is('auth_user_id', null)
+    if (opts.rol && opts.rol !== 'todos') consulta = consulta.eq('rol', opts.rol)
+    if (q) consulta = consulta.or(`nombre.imatch.${p},email.imatch.${p},identificacion.imatch.${p},telefono.imatch.${p}`)
+    return consulta
   }
+  const consulta = filtrar(db.from('usuarios')
+    .select('id, email, nombre, identificacion, telefono, rol, activo, ultimo_acceso, creado_en, actualizado_en, auth_user_id', { count: 'exact' }))
 
   const desde = (pagina - 1) * POR_PAGINA
   const [{ data, error, count }, resumen] = await Promise.all([
     consulta.order('nombre', { ascending: true }).order('id', { ascending: true }).range(desde, desde + POR_PAGINA - 1),
     resumenUsuarios(db),
   ])
+  if (error?.code === 'PGRST103') {
+    const conteo = await filtrar(db.from('usuarios').select('id', { count: 'exact', head: true }))
+    if (conteo.error) throw conteo.error
+    if (typeof conteo.count !== 'number') throw new AvisoAdmin('No pudimos verificar los resultados. Intente de nuevo.')
+    return { filas: [], total: conteo.count, resumen }
+  }
   if (error) throw error
+  if (typeof count !== 'number') throw new AvisoAdmin('No pudimos verificar los resultados. Intente de nuevo.')
   const base = (data ?? []) as Array<Omit<FilaAdminUsuario, 'facebook' | 'registro' | 'tieneLogin' | 'esLegacy' | 'puedeConsultar'> & { auth_user_id: string | null }>
   if (!base.length) return { filas: [], total: count ?? 0, resumen }
   const ids = base.map((fila) => fila.id)
@@ -504,20 +513,90 @@ export async function buscarUsuarios(opts: {
   }
 }
 
-export async function actualizarUsuario(input: { id: number; rol: RolAsignable; activo: boolean }) {
+export async function actualizarUsuario(input: { id: number; rol: Rol; activo: boolean; versionEsperada: string }) {
   const { usuario, db } = await exigirAdmin()
-  if (!usuario.activo) throw new AvisoAdmin('No puede editar cuentas con la suya inactiva.')
-  if (input.id === usuario.id && (input.rol !== 'admin' || !input.activo)) {
-    throw new AvisoAdmin('No puede quitarse el acceso de administración.')
+  const { data, error } = await db.rpc('admin_actualizar_usuario', {
+    p_admin_id: usuario.id,
+    p_id: input.id,
+    p_rol: input.rol,
+    p_activo: input.activo,
+    p_version_esperada: input.versionEsperada,
+  }).single<{ id: number; nombre: string; actualizado_en: string }>()
+  const mensajes = [
+    'No puede administrar usuarios con esta cuenta.',
+    'No encontramos esa cuenta.',
+    'Esta cuenta cambió desde que la abrió. Actualice la página y revise los cambios.',
+    'Revise los permisos de la cuenta.',
+    'El rol histórico de inquilino solo puede conservarse en cuentas existentes.',
+    'Para conceder administración, envíe una invitación de acceso.',
+    'No puede quitarse el acceso de administración.',
+    'Debe quedar al menos una cuenta de administración activa.',
+  ]
+  if (error?.code === 'P0001' && mensajes.includes(error.message)) {
+    throw new AvisoAdmin(error.message)
   }
-  const { data, error } = await db
-    .from('usuarios')
-    .update({ rol: input.rol, activo: input.activo, actualizado_en: new Date().toISOString() })
-    .eq('id', input.id)
-    .select('id')
-    .maybeSingle()
   if (error) throw error
   if (!data) throw new AvisoAdmin('No encontramos esa cuenta.')
+  return data
+}
+
+export interface CambioUsuarioAdmin {
+  id: number
+  actor_nombre: string
+  usuario_nombre: string
+  accion: string
+  antes: Record<string, unknown> | null
+  despues: Record<string, unknown> | null
+  creado_en: string
+}
+
+export async function obtenerCuentaAdmin(id: number) {
+  const { usuario: actor, db } = await exigirAdmin()
+  const { data, error } = await db.from('usuarios')
+    .select('id, nombre, email, identificacion, telefono, rol, activo, creado_en, actualizado_en, ultimo_acceso, auth_user_id')
+    .eq('id', id).maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const [historial, accesos, perfiles] = await Promise.all([
+    db.rpc('admin_historial_usuario', { p_admin_id: actor.id, p_usuario_id: id, p_limite: 20 }),
+    db.rpc('accesos_consulta', { p_usuario_ids: [id] }),
+    facebookPorUsuario(db, [id]),
+  ])
+  if (historial.error) throw historial.error
+  if (accesos.error) throw accesos.error
+  const acceso = (accesos.data as AccesoConsulta[] | null)?.[0]
+  const { auth_user_id: authUserId, ...perfil } = data
+  return {
+    ...perfil,
+    tieneLogin: Boolean(authUserId),
+    esLegacy: String(data.email).toLowerCase().endsWith('@legacy.laprotec'),
+    facebook: perfiles.get(id) ?? null,
+    puedeConsultar: typeof acceso?.puede_consultar === 'boolean' ? acceso.puede_consultar : null,
+    registro: acceso ? mensajeAcceso(acceso) : 'No se pudo verificar el permiso de consulta.',
+    historial: (historial.data ?? []) as CambioUsuarioAdmin[],
+  } as FilaAdminUsuario & { historial: CambioUsuarioAdmin[] }
+}
+
+export async function actualizarDatosUsuario(input: {
+  id: number; nombre: string; identificacion: string; telefono: string; versionEsperada: string
+}) {
+  const { usuario, db } = await exigirAdmin()
+  const { data, error } = await db.rpc('admin_actualizar_perfil_usuario', {
+    p_admin_id: usuario.id, p_id: input.id, p_nombre: input.nombre,
+    p_identificacion: input.identificacion, p_telefono: input.telefono,
+    p_version_esperada: input.versionEsperada,
+  }).single<{ id: number; nombre: string; actualizado_en: string }>()
+  const mensajes = [
+    'No puede administrar usuarios con esta cuenta.', 'No encontramos esa cuenta.',
+    'Esta cuenta cambió desde que la abrió. Actualice la página y revise los cambios.',
+    'Revise el nombre y el teléfono de la cuenta.',
+    'Escriba una cédula de 6 a 12 dígitos, o deje el campo vacío.',
+    'Esa cédula ya pertenece a otra cuenta.',
+  ]
+  if (error?.code === 'P0001' && mensajes.includes(error.message)) throw new AvisoAdmin(error.message)
+  if (error) throw error
+  if (!data) throw new AvisoAdmin('No encontramos esa cuenta.')
+  return data
 }
 
 export async function listarDenunciasPendientes(): Promise<FilaDenuncia[]> {

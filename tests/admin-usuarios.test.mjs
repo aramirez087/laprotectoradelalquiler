@@ -36,7 +36,7 @@ const fixture = [
 
 // Use the installed PostgREST builder so assertions inspect real HTTP queries,
 // including filter operators, exact counts and ranges sent to the database.
-function admin({ rows = fixture, unauthorized = false, failCounts = false, missingCount = false } = {}) {
+function admin({ rows = fixture, unauthorized = false, failCounts = false, missingCount = false, invalidRange = false } = {}) {
   const requests = []
   const db = new PostgrestClient('http://localhost/rest/v1', {
     fetch: async (url, options) => {
@@ -59,15 +59,21 @@ function admin({ rows = fixture, unauthorized = false, failCounts = false, missi
       const active = request.searchParams.get('activo')
       if (active === 'eq.true') found = found.filter(row => row.activo)
       if (active === 'eq.false') found = found.filter(row => !row.activo)
+      const role = request.searchParams.get('rol')
+      if (role?.startsWith('eq.')) found = found.filter(row => row.rol === role.slice(3))
       const auth = request.searchParams.get('auth_user_id')
       if (auth === 'is.null') found = found.filter(row => row.auth_user_id === null)
       if (auth === 'not.is.null') found = found.filter(row => row.auth_user_id !== null)
-      const search = request.searchParams.get('or')?.match(/%([^%]+)%/)?.[1]?.toLowerCase()
+      const quoted = request.searchParams.get('or')?.match(/nombre\.imatch\.("(?:\\.|[^"\\])*")/)?.[1]
+      const search = quoted ? JSON.parse(quoted).replace(/\\(.)/g, '$1').toLowerCase() : undefined
       if (search) found = found.filter(row => [row.nombre, row.email, row.identificacion, row.telefono].some(value => value?.toLowerCase().includes(search)))
       found.sort((a, b) => a.nombre.localeCompare(b.nombre) || a.id - b.id)
       const total = found.length
       const offset = Number(request.searchParams.get('offset') ?? 0)
       const limit = Number(request.searchParams.get('limit') ?? total)
+      if (invalidRange && options.method !== 'HEAD' && offset >= total && offset > 0) {
+        return Response.json({ code: 'PGRST103', message: 'Requested range not satisfiable' }, { status: 416, headers: { 'content-range': `*/${total}` } })
+      }
       found = found.slice(offset, offset + limit)
       const headers = { 'content-type': 'application/json' }
       if (!(options.method === 'HEAD' && missingCount)) headers['content-range'] = `${offset}-${offset + found.length}/${total}`
@@ -137,8 +143,8 @@ test('filtered pages have stable name/id ordering, correct totals and enrichment
   assert.equal(params.get('offset'), '20')
   assert.equal(params.get('limit'), '20')
   assert.equal(params.get('order'), 'nombre.asc,id.asc')
-  assert.match(params.get('or'), /nombre\.ilike/)
-  assert.match(params.get('or'), /email\.ilike/)
+  assert.match(params.get('or'), /nombre\.imatch/)
+  assert.match(params.get('or'), /email\.imatch/)
   assert.equal(result.resumen.cuentas, 29)
   assert.ok(h.requests.filter(({ options }) => options.method === 'HEAD').every(({ request }) => !request.searchParams.has('or')))
   const accessRequest = h.requests.find(({ request }) => request.pathname.endsWith('/rpc/accesos_consulta'))
@@ -185,6 +191,8 @@ function page({ total = 45, filas = [] } = {}) {
   const api = load('app/admin/usuarios/page.tsx', {
     ...common,
     'next/navigation': { redirect: href => { const error = new Error('Redirect'); error.href = href; throw error } },
+    '@/lib/invitaciones-admin': { listarInvitacionesAdmin: async () => [] },
+    '@/components/invitaciones-admin': { InvitacionesAdmin: () => null },
     '@/lib/admin': {
       TAMANO_PAGINA_ADMIN: 20,
       SinClaveAdmin: class extends Error {},
@@ -274,4 +282,30 @@ test('admin user cards display supplied Facebook names and preserve shared profi
   assert.match(html, /Facebook: María Solís/)
   assert.ok(!links(html).some(url => url.href.includes('Mar%C3%ADa')))
   assert.ok(links(html).some(url => url.href === compartido))
+})
+
+test('literal email punctuation, quotes and single-character searches are applied', async () => {
+  const rows = [
+    { ...fixture[0], email: 'ana_maria@example.test' },
+    { ...fixture[1], nombre: 'Un 5% literal ("nuevo") * [a-z] \\' },
+  ]
+  for (const [q, expected] of [['ana_maria@example.test', [1]], ['5%', [2]], ['("nuevo")', [2]], ['*', [2]], ['[a-z]', [2]], ['\\', [2]], ['B', [2]]]) {
+    const h = admin({ rows })
+    assert.deepEqual(Array.from((await h.buscarUsuarios({ q })).filas, row => row.id), expected)
+    assert.ok(userRequest(h).request.searchParams.has('or'))
+  }
+})
+
+test('role filtering and range-error recovery preserve the full filtered count', async () => {
+  const rows = [...fixture, { ...fixture[0], id: 7, rol: 'admin' }]
+  const h = admin({ rows, invalidRange: true })
+  const result = await h.buscarUsuarios({ pagina: 9, tipo: 'cuentas', estado: 'activas', login: 'creado', rol: 'admin' })
+  assert.equal(result.total, 1)
+  assert.equal(result.filas.length, 0, 'the page can redirect before enriching an invalid range')
+  const recovery = h.requests.find(({ request, options }) => options.method === 'HEAD' && request.searchParams.get('rol') === 'eq.admin')
+  assert.ok(recovery)
+  assert.equal(recovery.request.searchParams.get('activo'), 'eq.true')
+  assert.equal(recovery.request.searchParams.get('auth_user_id'), 'not.is.null')
+  assert.equal(recovery.request.searchParams.has('offset'), false)
+  assert.equal(recovery.request.searchParams.has('limit'), false)
 })

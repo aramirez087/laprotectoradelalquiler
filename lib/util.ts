@@ -290,3 +290,12 @@ export function variantesAcento(palabra: string) {
   }
   return [...new Set(variantes)]
 }
+
+/** Preserve only a user-list destination supplied by administration navigation. */
+export function regresoUsuarios(valor: string): string | null {
+  try {
+    const url = new URL(valor, 'https://protectora.invalid')
+    if (url.origin !== 'https://protectora.invalid' || url.pathname !== '/admin/usuarios') return null
+    return `${url.pathname}${url.search}`
+  } catch { return null }
+}

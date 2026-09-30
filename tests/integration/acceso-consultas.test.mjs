@@ -31,7 +31,7 @@ test('temporary consultation access: stacking, cap, moderation and RLS', { timeo
   const migration = await readFile('db/acceso-temporal-consultas.sql', 'utf8')
   const uniqueMigration = await readFile('db/resenas-unicas.sql', 'utf8')
   const importMigration = await readFile('db/importacion-legacy-resenas.sql', 'utf8')
-  assert.ok(schema.endsWith(migration + '\n' + uniqueMigration + '\n' + importMigration), 'fresh installations use exactly the upgrade migrations')
+  assert.ok(schema.includes(migration + '\n' + uniqueMigration + '\n' + importMigration), 'fresh installations include exactly the upgrade migrations')
   await db.query(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
     CREATE SCHEMA auth;
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;

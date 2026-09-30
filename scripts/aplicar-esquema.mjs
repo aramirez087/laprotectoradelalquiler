@@ -10,6 +10,23 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { configuracionPostgres } from './postgres-config.mjs';
 
+// Validate before reading credentials or creating a connection. A misspelled
+// additive migration flag must never fall through to the full schema reset.
+const argumentos = process.argv.slice(2);
+const opciones = new Set([
+  '--solo-schema', '--solo-invitaciones-admin', '--solo-admin-resenas',
+  '--solo-admin-usuarios', '--solo-acceso-consultas',
+]);
+const desconocidos = argumentos.filter((arg) => !opciones.has(arg));
+if (desconocidos.length) {
+  console.error(`Opciones desconocidas: ${desconocidos.join(', ')}. Use una sola opción válida: ${[...opciones].join(', ')}.`);
+  process.exit(1);
+}
+if (argumentos.length > 1) {
+  console.error('Las opciones de migración son excluyentes. Ejecute una sola opción por comando.');
+  process.exit(1);
+}
+
 // Carga .env.local (convención Next.js) y, si existe, .env; no sobreescribe lo ya definido
 for (const f of ['.env.local', '.env']) {
   try { process.loadEnvFile(new URL(`../${f}`, import.meta.url)); } catch { /* opcional */ }
@@ -20,21 +37,30 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const soloSchema = process.argv.includes('--solo-schema');
-const soloInvitaciones = process.argv.includes('--solo-invitaciones-admin');
-const soloAdminResenas = process.argv.includes('--solo-admin-resenas');
-const soloAccesoConsultas = process.argv.includes('--solo-acceso-consultas');
+const soloSchema = argumentos.includes('--solo-schema');
+const soloInvitaciones = argumentos.includes('--solo-invitaciones-admin');
+const soloAdminResenas = argumentos.includes('--solo-admin-resenas');
+const soloAdminUsuarios = argumentos.includes('--solo-admin-usuarios');
+const soloAccesoConsultas = argumentos.includes('--solo-acceso-consultas');
 const dir = path.dirname(fileURLToPath(import.meta.url));
 
 const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
-  if (soloAccesoConsultas) {
+  if (soloAdminUsuarios) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'administrar-usuarios.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'invitaciones-admin.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'sesiones-admin.sql'), 'utf8'));
+    console.log('✓ Administración de usuarios, invitaciones y sesiones actualizada; los datos se conservan.');
+  } else if (soloAccesoConsultas) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'resenas-unicas.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'acceso-temporal-consultas.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'sesiones-admin.sql'), 'utf8'));
     console.log('✓ Acceso temporal a consultas actualizado; los datos se conservan.');
   } else if (soloInvitaciones) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'administrar-usuarios.sql'), 'utf8'));
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'invitaciones-admin.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'sesiones-admin.sql'), 'utf8'));
     console.log('✓ Invitaciones de administración actualizadas; los datos se conservan.');
   } else if (soloAdminResenas) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'administrar-resenas.sql'), 'utf8'));

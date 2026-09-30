@@ -604,63 +604,6 @@ END;
 $$;
 
 -- Administración atómica de reseñas (también en db/administrar-resenas.sql).
--- Additive migration: pending invitations confer no privileges until accepted.
-BEGIN;
-CREATE TABLE IF NOT EXISTS public.invitaciones_admin (
-  id uuid PRIMARY KEY,
-  email text NOT NULL UNIQUE CHECK (email = lower(email)),
-  nombre text NOT NULL,
-  auth_user_id uuid NOT NULL UNIQUE,
-  invitado_por integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
-  token_digest text NOT NULL,
-  tipo text NOT NULL CHECK (tipo IN ('invite', 'recovery')),
-  vence_en timestamptz NOT NULL,
-  aceptada_en timestamptz,
-  creado_en timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE public.invitaciones_admin ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.invitaciones_admin FROM PUBLIC;
-
-CREATE OR REPLACE FUNCTION public.aceptar_invitacion_admin(p_id uuid, p_auth_user_id uuid, p_digest text)
-RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
-DECLARE invitacion public.invitaciones_admin%ROWTYPE;
-BEGIN
-  SELECT * INTO invitacion FROM public.invitaciones_admin
-    WHERE id = p_id AND auth_user_id = p_auth_user_id AND token_digest = p_digest FOR UPDATE;
-  IF NOT FOUND OR invitacion.aceptada_en IS NOT NULL OR invitacion.vence_en <= now() THEN
-    RAISE EXCEPTION 'Invitación no disponible';
-  END IF;
-  PERFORM 1 FROM public.usuarios WHERE id = invitacion.invitado_por AND rol = 'admin' AND activo FOR SHARE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Invitación no disponible'; END IF;
-  -- Never promote or reactivate an existing account as a side effect of an invite.
-  IF EXISTS (SELECT 1 FROM public.usuarios WHERE auth_user_id = p_auth_user_id OR lower(email) = invitacion.email) THEN
-    RAISE EXCEPTION 'La cuenta ya existe';
-  END IF;
-  INSERT INTO public.usuarios(auth_user_id, email, nombre, rol, activo)
-    VALUES(p_auth_user_id, invitacion.email, invitacion.nombre, 'admin', true);
-  UPDATE public.invitaciones_admin SET aceptada_en = now() WHERE id = p_id;
-END;
-$$;
-REVOKE ALL ON FUNCTION public.aceptar_invitacion_admin(uuid, uuid, text) FROM PUBLIC;
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    REVOKE ALL ON public.invitaciones_admin FROM anon;
-    REVOKE ALL ON FUNCTION public.aceptar_invitacion_admin(uuid, uuid, text) FROM anon;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    REVOKE ALL ON public.invitaciones_admin FROM authenticated;
-    REVOKE ALL ON FUNCTION public.aceptar_invitacion_admin(uuid, uuid, text) FROM authenticated;
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    GRANT SELECT, INSERT, UPDATE ON public.invitaciones_admin TO service_role;
-    GRANT EXECUTE ON FUNCTION public.aceptar_invitacion_admin(uuid, uuid, text) TO service_role;
-  END IF;
-END;
-$$;
-NOTIFY pgrst, 'reload schema';
-COMMIT;
-
 -- Edición y eliminación atómicas, accesibles solo al servidor (service_role).
 -- La identidad del administrador viene de la sesión validada en lib/admin.ts.
 BEGIN;
@@ -1135,3 +1078,532 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION privado.registrar_primera_aprobacion() FROM PUBLIC;
+
+-- Migración aditiva: cambios de cuentas atómicos y trazables. Conserva los datos.
+BEGIN;
+
+CREATE SCHEMA IF NOT EXISTS privado;
+REVOKE ALL ON SCHEMA privado FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS privado.administracion_usuarios_historial (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  actor_id integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
+  usuario_id integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
+  actor_nombre text NOT NULL,
+  usuario_nombre text NOT NULL,
+  accion text NOT NULL CHECK (length(trim(accion)) BETWEEN 1 AND 80),
+  antes jsonb,
+  despues jsonb,
+  creado_en timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS idx_administracion_usuarios_historial_usuario
+  ON privado.administracion_usuarios_historial(usuario_id, creado_en DESC, id DESC);
+ALTER TABLE privado.administracion_usuarios_historial ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE privado.administracion_usuarios_historial FROM PUBLIC;
+REVOKE ALL ON SEQUENCE privado.administracion_usuarios_historial_id_seq FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION public.admin_actualizar_usuario(
+  p_admin_id integer, p_id integer, p_rol text, p_activo boolean,
+  p_version_esperada timestamptz
+)
+RETURNS TABLE(id integer, nombre text, actualizado_en timestamptz)
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
+DECLARE
+  actor public.usuarios%ROWTYPE;
+  objetivo public.usuarios%ROWTYPE;
+  nueva_version timestamptz;
+BEGIN
+  -- Toda mutación de permisos y aceptación de invitaciones comparte este bloqueo.
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  SELECT u.* INTO actor FROM public.usuarios u
+    WHERE u.id = p_admin_id AND u.rol = 'admin' AND u.activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No puede administrar usuarios con esta cuenta.'; END IF;
+  SELECT u.* INTO objetivo FROM public.usuarios u WHERE u.id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No encontramos esa cuenta.'; END IF;
+  IF p_version_esperada IS NULL OR objetivo.actualizado_en IS DISTINCT FROM p_version_esperada THEN
+    RAISE EXCEPTION 'Esta cuenta cambió desde que la abrió. Actualice la página y revise los cambios.';
+  END IF;
+  IF p_rol IS NULL OR p_rol NOT IN ('admin', 'propietario', 'agencia', 'inquilino') OR p_activo IS NULL THEN
+    RAISE EXCEPTION 'Revise los permisos de la cuenta.';
+  END IF;
+  IF p_rol = 'inquilino' AND objetivo.rol <> 'inquilino' THEN
+    RAISE EXCEPTION 'El rol histórico de inquilino solo puede conservarse en cuentas existentes.';
+  END IF;
+  IF p_rol = 'admin' AND objetivo.rol <> 'admin' THEN
+    RAISE EXCEPTION 'Para conceder administración, envíe una invitación de acceso.';
+  END IF;
+  IF p_id = p_admin_id AND (p_rol <> 'admin' OR NOT p_activo) THEN
+    RAISE EXCEPTION 'No puede quitarse el acceso de administración.';
+  END IF;
+  IF objetivo.rol = 'admin' AND objetivo.activo AND (p_rol <> 'admin' OR NOT p_activo)
+    AND NOT EXISTS (SELECT 1 FROM public.usuarios u WHERE u.id <> p_id AND u.rol = 'admin' AND u.activo)
+  THEN
+    RAISE EXCEPTION 'Debe quedar al menos una cuenta de administración activa.';
+  END IF;
+  IF objetivo.rol = p_rol AND objetivo.activo = p_activo THEN
+    RETURN QUERY SELECT objetivo.id, objetivo.nombre, objetivo.actualizado_en;
+    RETURN;
+  END IF;
+
+  nueva_version := greatest(clock_timestamp(), objetivo.actualizado_en + interval '1 microsecond');
+  UPDATE public.usuarios u SET rol = p_rol, activo = p_activo, actualizado_en = nueva_version
+    WHERE u.id = p_id;
+  INSERT INTO privado.administracion_usuarios_historial
+    (actor_id, usuario_id, actor_nombre, usuario_nombre, accion, antes, despues)
+  VALUES (actor.id, objetivo.id, actor.nombre, objetivo.nombre, 'permisos',
+    jsonb_build_object('rol', objetivo.rol, 'activo', objetivo.activo),
+    jsonb_build_object('rol', p_rol, 'activo', p_activo));
+  RETURN QUERY SELECT objetivo.id, objetivo.nombre, nueva_version;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_actualizar_perfil_usuario(
+  p_admin_id integer, p_id integer, p_nombre text, p_identificacion text,
+  p_telefono text, p_version_esperada timestamptz
+)
+RETURNS TABLE(id integer, nombre text, actualizado_en timestamptz)
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
+DECLARE
+  actor public.usuarios%ROWTYPE;
+  objetivo public.usuarios%ROWTYPE;
+  nombre_nuevo text := btrim(p_nombre);
+  identificacion_nueva text := nullif(btrim(p_identificacion), '');
+  telefono_nuevo text := nullif(btrim(p_telefono), '');
+  nueva_version timestamptz;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  SELECT u.* INTO actor FROM public.usuarios u
+    WHERE u.id = p_admin_id AND u.rol = 'admin' AND u.activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No puede administrar usuarios con esta cuenta.'; END IF;
+  SELECT u.* INTO objetivo FROM public.usuarios u WHERE u.id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No encontramos esa cuenta.'; END IF;
+  IF p_version_esperada IS NULL OR objetivo.actualizado_en IS DISTINCT FROM p_version_esperada THEN
+    RAISE EXCEPTION 'Esta cuenta cambió desde que la abrió. Actualice la página y revise los cambios.';
+  END IF;
+  IF nombre_nuevo IS NULL OR char_length(nombre_nuevo) NOT BETWEEN 3 AND 150
+    OR char_length(telefono_nuevo) > 30
+  THEN
+    RAISE EXCEPTION 'Revise el nombre y el teléfono de la cuenta.';
+  END IF;
+  -- Los documentos históricos pueden conservarse sin inventar un documento nuevo.
+  IF identificacion_nueva IS DISTINCT FROM objetivo.identificacion AND identificacion_nueva IS NOT NULL THEN
+    IF identificacion_nueva !~ '^[0-9 -]+$'
+      OR regexp_replace(identificacion_nueva, '[^0-9]', '', 'g') !~ '^[0-9]{6,12}$'
+    THEN
+      RAISE EXCEPTION 'Escriba una cédula de 6 a 12 dígitos, o deje el campo vacío.';
+    END IF;
+    identificacion_nueva := regexp_replace(identificacion_nueva, '[^0-9]', '', 'g');
+    IF EXISTS (SELECT 1 FROM public.usuarios u WHERE u.id <> p_id
+      AND regexp_replace(coalesce(u.identificacion, ''), '[^0-9]', '', 'g') = identificacion_nueva)
+    THEN
+      RAISE EXCEPTION 'Esa cédula ya pertenece a otra cuenta.';
+    END IF;
+  END IF;
+  IF nombre_nuevo = objetivo.nombre
+    AND identificacion_nueva IS NOT DISTINCT FROM objetivo.identificacion
+    AND telefono_nuevo IS NOT DISTINCT FROM objetivo.telefono
+  THEN
+    RETURN QUERY SELECT objetivo.id, objetivo.nombre, objetivo.actualizado_en;
+    RETURN;
+  END IF;
+  nueva_version := greatest(clock_timestamp(), objetivo.actualizado_en + interval '1 microsecond');
+  UPDATE public.usuarios u SET nombre = nombre_nuevo, identificacion = identificacion_nueva,
+    telefono = telefono_nuevo, actualizado_en = nueva_version WHERE u.id = p_id;
+  INSERT INTO privado.administracion_usuarios_historial
+    (actor_id, usuario_id, actor_nombre, usuario_nombre, accion, antes, despues)
+  VALUES (actor.id, objetivo.id, actor.nombre, nombre_nuevo, 'perfil',
+    jsonb_build_object('nombre', objetivo.nombre, 'identificacion', objetivo.identificacion, 'telefono', objetivo.telefono),
+    jsonb_build_object('nombre', nombre_nuevo, 'identificacion', identificacion_nueva, 'telefono', telefono_nuevo));
+  RETURN QUERY SELECT objetivo.id, nombre_nuevo, nueva_version;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_historial_usuario(
+  p_admin_id integer, p_usuario_id integer, p_limite integer DEFAULT 20
+)
+RETURNS SETOF privado.administracion_usuarios_historial
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.usuarios u WHERE u.id = p_admin_id AND u.rol = 'admin' AND u.activo) THEN
+    RAISE EXCEPTION 'No puede administrar usuarios con esta cuenta.';
+  END IF;
+  RETURN QUERY SELECT h.* FROM privado.administracion_usuarios_historial h
+    WHERE h.usuario_id = p_usuario_id
+    ORDER BY h.creado_en DESC, h.id DESC LIMIT greatest(1, least(coalesce(p_limite, 20), 100));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_actualizar_usuario(integer, integer, text, boolean, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_actualizar_perfil_usuario(integer, integer, text, text, text, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_historial_usuario(integer, integer, integer) FROM PUBLIC;
+DO $$
+DECLARE rol_db text;
+BEGIN
+  FOREACH rol_db IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = rol_db) THEN
+      EXECUTE format('REVOKE ALL ON TABLE privado.administracion_usuarios_historial FROM %I', rol_db);
+      EXECUTE format('REVOKE ALL ON SEQUENCE privado.administracion_usuarios_historial_id_seq FROM %I', rol_db);
+      EXECUTE format('REVOKE ALL ON FUNCTION public.admin_actualizar_usuario(integer, integer, text, boolean, timestamptz) FROM %I', rol_db);
+      EXECUTE format('REVOKE ALL ON FUNCTION public.admin_actualizar_perfil_usuario(integer, integer, text, text, text, timestamptz) FROM %I', rol_db);
+      EXECUTE format('REVOKE ALL ON FUNCTION public.admin_historial_usuario(integer, integer, integer) FROM %I', rol_db);
+    END IF;
+  END LOOP;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT USAGE ON SCHEMA privado TO service_role;
+    REVOKE ALL ON TABLE privado.administracion_usuarios_historial FROM service_role;
+    REVOKE ALL ON SEQUENCE privado.administracion_usuarios_historial_id_seq FROM service_role;
+    GRANT SELECT, INSERT ON TABLE privado.administracion_usuarios_historial TO service_role;
+    GRANT USAGE ON SEQUENCE privado.administracion_usuarios_historial_id_seq TO service_role;
+    GRANT EXECUTE ON FUNCTION public.admin_actualizar_usuario(integer, integer, text, boolean, timestamptz) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.admin_actualizar_perfil_usuario(integer, integer, text, text, text, timestamptz) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.admin_historial_usuario(integer, integer, integer) TO service_role;
+  END IF;
+END;
+$$;
+NOTIFY pgrst, 'reload schema';
+COMMIT;
+
+-- Additive migration; apply administrar-usuarios.sql first.
+-- Mailbox verification and session revocation precede every acceptance.
+BEGIN;
+CREATE TABLE IF NOT EXISTS public.invitaciones_admin (
+  id uuid PRIMARY KEY,
+  email text NOT NULL CHECK (email = lower(email)),
+  nombre text NOT NULL,
+  auth_user_id uuid NOT NULL,
+  invitado_por integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
+  token_digest text NOT NULL,
+  tipo text NOT NULL CHECK (tipo IN ('invite', 'recovery')),
+  vence_en timestamptz NOT NULL,
+  aceptada_en timestamptz,
+  creado_en timestamptz NOT NULL DEFAULT now()
+);
+-- Preserve previous invitations instead of overwriting their history on renewal.
+ALTER TABLE public.invitaciones_admin DROP CONSTRAINT IF EXISTS invitaciones_admin_email_key;
+ALTER TABLE public.invitaciones_admin DROP CONSTRAINT IF EXISTS invitaciones_admin_auth_user_id_key;
+ALTER TABLE public.invitaciones_admin
+  ADD COLUMN IF NOT EXISTS target_usuario_id integer REFERENCES public.usuarios(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS target_version timestamptz,
+  ADD COLUMN IF NOT EXISTS proposito text NOT NULL DEFAULT 'administracion' CHECK (proposito IN ('administracion', 'acceso')),
+  ADD COLUMN IF NOT EXISTS revocada_en timestamptz,
+  ADD COLUMN IF NOT EXISTS enviada_en timestamptz,
+  ADD COLUMN IF NOT EXISTS error_envio_en timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS invitaciones_admin_pendiente_email
+  ON public.invitaciones_admin(email) WHERE aceptada_en IS NULL AND revocada_en IS NULL;
+CREATE INDEX IF NOT EXISTS invitaciones_admin_creado ON public.invitaciones_admin(creado_en DESC, id DESC);
+ALTER TABLE public.invitaciones_admin ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.invitaciones_admin FROM PUBLIC;
+
+-- The Auth API invalidates older tokens when it generates another. Reserve the
+-- mailbox before that external call so concurrent renewals cannot swap tokens.
+CREATE TABLE IF NOT EXISTS privado.invitaciones_admin_emisiones (
+  email text PRIMARY KEY CHECK (email = lower(trim(email))),
+  id uuid NOT NULL UNIQUE,
+  vence_en timestamptz NOT NULL
+);
+ALTER TABLE privado.invitaciones_admin_emisiones ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON privado.invitaciones_admin_emisiones FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION public.reservar_emision_invitacion_admin(p_admin_id integer, p_email text, p_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  PERFORM 1 FROM public.usuarios WHERE id = p_admin_id AND rol = 'admin' AND activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Se requiere una cuenta de administración activa'; END IF;
+  IF p_id IS NULL OR p_email IS NULL OR p_email <> lower(trim(p_email)) THEN
+    RAISE EXCEPTION 'Revise los datos de la invitación';
+  END IF;
+  IF EXISTS(SELECT 1 FROM privado.invitaciones_admin_emisiones WHERE email = p_email AND vence_en > clock_timestamp()) THEN
+    RAISE EXCEPTION 'Ya se está generando una invitación para ese correo. Espere un momento antes de intentar de nuevo';
+  END IF;
+  -- Auth requests have a 20-second timeout; the lease leaves a large margin for
+  -- interrupted requests and recovers automatically if the server process exits.
+  INSERT INTO privado.invitaciones_admin_emisiones(email, id, vence_en)
+    VALUES(p_email, p_id, clock_timestamp() + interval '10 minutes')
+    ON CONFLICT(email) DO UPDATE SET id = excluded.id, vence_en = excluded.vence_en;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.liberar_emision_invitacion_admin(p_id uuid)
+RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path = pg_catalog
+AS $$ DELETE FROM privado.invitaciones_admin_emisiones WHERE id = p_id; $$;
+
+-- Exact normalized comparison: email punctuation is never a LIKE pattern.
+CREATE OR REPLACE FUNCTION public.cuenta_para_invitacion_admin(p_admin_id integer, p_email text)
+RETURNS SETOF public.usuarios LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.usuarios WHERE id = p_admin_id AND rol = 'admin' AND activo) THEN
+    RAISE EXCEPTION 'Se requiere una cuenta de administración activa';
+  END IF;
+  RETURN QUERY SELECT * FROM public.usuarios WHERE lower(email) = lower(trim(p_email));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.registrar_invitacion_admin(
+  p_id uuid, p_admin_id integer, p_email text, p_nombre text, p_auth_user_id uuid,
+  p_digest text, p_tipo text, p_vence_en timestamptz, p_proposito text,
+  p_target_usuario_id integer DEFAULT NULL, p_target_version timestamptz DEFAULT NULL
+)
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE
+  actor public.usuarios%ROWTYPE;
+  destino public.usuarios%ROWTYPE;
+  renovada boolean;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  SELECT * INTO actor FROM public.usuarios WHERE id = p_admin_id AND rol = 'admin' AND activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Se requiere una cuenta de administración activa'; END IF;
+  PERFORM 1 FROM privado.invitaciones_admin_emisiones WHERE email = p_email AND id = p_id AND vence_en > clock_timestamp() FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'La emisión venció. Genere una nueva invitación'; END IF;
+  IF p_email IS NULL OR p_email <> lower(trim(p_email)) OR p_email LIKE '%@legacy.laprotec'
+    OR p_nombre IS NULL OR length(trim(p_nombre)) < 3 OR length(p_nombre) > 150
+    OR p_auth_user_id IS NULL OR p_digest IS NULL OR length(p_digest) <> 64
+    OR p_tipo IS NULL OR p_tipo NOT IN ('invite', 'recovery')
+    OR p_proposito IS NULL OR p_proposito NOT IN ('administracion', 'acceso')
+    OR p_vence_en IS NULL OR p_vence_en <= clock_timestamp() OR p_vence_en > clock_timestamp() + interval '24 hours'
+  THEN RAISE EXCEPTION 'Revise los datos de la invitación'; END IF;
+  IF p_target_usuario_id IS NOT NULL THEN
+    SELECT * INTO destino FROM public.usuarios WHERE id = p_target_usuario_id FOR UPDATE;
+    IF NOT FOUND OR p_target_version IS NULL OR destino.actualizado_en IS DISTINCT FROM p_target_version
+      OR lower(destino.email) <> p_email
+      OR (destino.auth_user_id IS NOT NULL AND destino.auth_user_id <> p_auth_user_id)
+    THEN RAISE EXCEPTION 'La cuenta cambió. Actualice la lista antes de invitar'; END IF;
+    IF NOT destino.activo THEN RAISE EXCEPTION 'Active la cuenta antes de enviar una invitación'; END IF;
+    IF p_proposito = 'administracion' AND destino.rol = 'admin' THEN
+      RAISE EXCEPTION 'Esta cuenta ya tiene permisos de administración';
+    END IF;
+    IF p_proposito = 'acceso' AND destino.auth_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'Esta cuenta ya tiene un inicio de sesión';
+    END IF;
+  ELSIF p_proposito = 'acceso' OR p_target_version IS NOT NULL THEN
+    RAISE EXCEPTION 'Seleccione una cuenta existente sin inicio de sesión';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.usuarios WHERE (lower(email) = p_email OR auth_user_id = p_auth_user_id)
+    AND id IS DISTINCT FROM p_target_usuario_id) THEN
+    RAISE EXCEPTION 'La cuenta cambió. Actualice la lista antes de invitar';
+  END IF;
+  SELECT EXISTS(SELECT 1 FROM public.invitaciones_admin WHERE email = p_email) INTO renovada;
+  UPDATE public.invitaciones_admin SET revocada_en = clock_timestamp()
+    WHERE email = p_email AND aceptada_en IS NULL AND revocada_en IS NULL;
+  INSERT INTO public.invitaciones_admin(id, email, nombre, auth_user_id, invitado_por, token_digest, tipo,
+    vence_en, target_usuario_id, target_version, proposito)
+  VALUES(p_id, p_email, p_nombre, p_auth_user_id, actor.id, p_digest, p_tipo,
+    p_vence_en, p_target_usuario_id, p_target_version, p_proposito);
+  INSERT INTO privado.administracion_usuarios_historial(actor_id, actor_nombre, usuario_id, usuario_nombre, accion, antes, despues)
+  VALUES(actor.id, actor.nombre, destino.id, coalesce(destino.nombre, p_nombre),
+    CASE WHEN renovada THEN 'invitacion_renovada' ELSE 'invitacion_creada' END, NULL,
+    jsonb_build_object('invitacion_id', p_id, 'email', p_email, 'proposito', p_proposito, 'vence_en', p_vence_en));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.cancelar_invitacion_admin(p_admin_id integer, p_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE
+  actor public.usuarios%ROWTYPE;
+  invitacion public.invitaciones_admin%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  SELECT * INTO actor FROM public.usuarios WHERE id = p_admin_id AND rol = 'admin' AND activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Se requiere una cuenta de administración activa'; END IF;
+  SELECT * INTO invitacion FROM public.invitaciones_admin WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'No encontramos esa invitación'; END IF;
+  IF invitacion.aceptada_en IS NOT NULL THEN
+    RAISE EXCEPTION 'La invitación ya fue aceptada. Revise los permisos de la cuenta';
+  END IF;
+  IF invitacion.revocada_en IS NOT NULL THEN RETURN; END IF;
+  UPDATE public.invitaciones_admin SET revocada_en = clock_timestamp() WHERE id = p_id;
+  INSERT INTO privado.administracion_usuarios_historial(actor_id, actor_nombre, usuario_id, usuario_nombre, accion, antes, despues)
+  VALUES(actor.id, actor.nombre, invitacion.target_usuario_id, invitacion.nombre, 'invitacion_revocada',
+    jsonb_build_object('invitacion_id', p_id, 'email', invitacion.email, 'proposito', invitacion.proposito),
+    jsonb_build_object('estado', 'revocada'));
+END;
+$$;
+
+-- Remove the previous overload: acceptance always needs a verified live session.
+DROP FUNCTION IF EXISTS public.aceptar_invitacion_admin(uuid, uuid, text);
+CREATE OR REPLACE FUNCTION public.aceptar_invitacion_admin(p_id uuid, p_auth_user_id uuid, p_digest text, p_session_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE
+  invitacion public.invitaciones_admin%ROWTYPE;
+  actor public.usuarios%ROWTYPE;
+  destino public.usuarios%ROWTYPE;
+  anterior jsonb;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('administracion_usuarios', 0));
+  SELECT * INTO invitacion FROM public.invitaciones_admin
+    WHERE id = p_id AND auth_user_id = p_auth_user_id AND token_digest = p_digest FOR UPDATE;
+  IF NOT FOUND OR invitacion.aceptada_en IS NOT NULL OR invitacion.revocada_en IS NOT NULL OR invitacion.vence_en <= clock_timestamp() THEN
+    RAISE EXCEPTION 'Invitación no disponible';
+  END IF;
+  SELECT * INTO actor FROM public.usuarios WHERE id = invitacion.invitado_por AND rol = 'admin' AND activo FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Invitación no disponible'; END IF;
+  IF NOT public.sesion_administracion_vigente(p_auth_user_id, p_session_id) THEN
+    RAISE EXCEPTION 'La sesión de aceptación ya no está disponible';
+  END IF;
+  IF invitacion.target_usuario_id IS NOT NULL THEN
+    SELECT * INTO destino FROM public.usuarios WHERE id = invitacion.target_usuario_id FOR UPDATE;
+    IF NOT FOUND OR invitacion.target_version IS NULL OR destino.actualizado_en IS DISTINCT FROM invitacion.target_version
+      OR NOT destino.activo OR lower(destino.email) <> invitacion.email
+      OR (destino.auth_user_id IS NOT NULL AND destino.auth_user_id <> p_auth_user_id)
+      OR (invitacion.proposito = 'administracion' AND destino.rol = 'admin')
+      OR (invitacion.proposito = 'acceso' AND destino.auth_user_id IS NOT NULL)
+    THEN RAISE EXCEPTION 'La cuenta cambió. Pida una nueva invitación'; END IF;
+    IF EXISTS(SELECT 1 FROM public.usuarios WHERE id <> destino.id
+      AND (auth_user_id = p_auth_user_id OR lower(email) = invitacion.email)) THEN
+      RAISE EXCEPTION 'La cuenta cambió. Pida una nueva invitación';
+    END IF;
+    anterior := jsonb_build_object('rol', destino.rol, 'activo', destino.activo, 'tiene_login', destino.auth_user_id IS NOT NULL);
+    UPDATE public.usuarios SET auth_user_id = p_auth_user_id,
+      rol = CASE WHEN invitacion.proposito = 'administracion' THEN 'admin' ELSE destino.rol END,
+      actualizado_en = greatest(clock_timestamp(), destino.actualizado_en + interval '1 microsecond')
+      WHERE id = destino.id RETURNING * INTO destino;
+  ELSE
+    -- Deleting an invited target must never turn it into a new profile.
+    IF invitacion.target_version IS NOT NULL OR invitacion.proposito <> 'administracion'
+      OR EXISTS(SELECT 1 FROM public.usuarios WHERE auth_user_id = p_auth_user_id OR lower(email) = invitacion.email)
+    THEN RAISE EXCEPTION 'La cuenta ya existe o cambió. Pida una nueva invitación'; END IF;
+    INSERT INTO public.usuarios(auth_user_id, email, nombre, rol, activo)
+      VALUES(p_auth_user_id, invitacion.email, invitacion.nombre, 'admin', true) RETURNING * INTO destino;
+  END IF;
+  UPDATE public.invitaciones_admin SET aceptada_en = clock_timestamp() WHERE id = p_id;
+  INSERT INTO privado.administracion_usuarios_historial(actor_id, actor_nombre, usuario_id, usuario_nombre, accion, antes, despues)
+  VALUES(actor.id, actor.nombre, destino.id, destino.nombre,
+    CASE WHEN invitacion.proposito = 'administracion' THEN 'elevacion_admin' ELSE 'activacion_login' END, anterior,
+    jsonb_build_object('rol', destino.rol, 'activo', destino.activo, 'tiene_login', true, 'invitacion_id', p_id));
+END;
+$$;
+DO $$
+DECLARE funcion regprocedure;
+BEGIN
+  FOREACH funcion IN ARRAY ARRAY[
+    'public.reservar_emision_invitacion_admin(integer,text,uuid)'::regprocedure,
+    'public.liberar_emision_invitacion_admin(uuid)'::regprocedure,
+    'public.cuenta_para_invitacion_admin(integer,text)'::regprocedure,
+    'public.registrar_invitacion_admin(uuid,integer,text,text,uuid,text,text,timestamptz,text,integer,timestamptz)'::regprocedure,
+    'public.cancelar_invitacion_admin(integer,uuid)'::regprocedure,
+    'public.aceptar_invitacion_admin(uuid,uuid,text,uuid)'::regprocedure
+  ] LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', funcion);
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM anon', funcion);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM authenticated', funcion);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', funcion);
+    END IF;
+  END LOOP;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON public.invitaciones_admin, privado.invitaciones_admin_emisiones FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON public.invitaciones_admin, privado.invitaciones_admin_emisiones FROM authenticated;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE ON public.invitaciones_admin TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON privado.invitaciones_admin_emisiones TO service_role;
+  END IF;
+END;
+$$;
+NOTIFY pgrst, 'reload schema';
+COMMIT;
+
+-- Las sesiones revocadas no adquieren acceso al vincular o elevar una cuenta existente.
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.sesion_administracion_vigente(p_auth_user_id uuid, p_session_id uuid)
+RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
+BEGIN
+  IF p_auth_user_id IS NULL OR p_session_id IS NULL OR to_regclass('auth.sessions') IS NULL THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (SELECT 1 FROM auth.sessions s WHERE s.id = p_session_id AND s.user_id = p_auth_user_id);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.sesion_administracion_vigente(uuid, uuid) FROM PUBLIC;
+
+DO $migration$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.sesion_administracion_vigente(uuid, uuid) TO service_role;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON FUNCTION public.sesion_administracion_vigente(uuid, uuid) FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON FUNCTION public.sesion_administracion_vigente(uuid, uuid) FROM authenticated;
+  END IF;
+  IF to_regprocedure('auth.uid()') IS NULL THEN RETURN; END IF;
+  CREATE OR REPLACE FUNCTION privado.sesion_administracion_actual()
+  RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+  DECLARE sesion text;
+  BEGIN
+    sesion := coalesce(
+      nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id',
+      nullif(current_setting('request.jwt.claim.session_id', true), '')
+    );
+    IF sesion IS NULL OR sesion !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN RETURN false; END IF;
+    RETURN public.sesion_administracion_vigente(auth.uid(), sesion::uuid);
+  EXCEPTION WHEN invalid_text_representation THEN RETURN false;
+  END;
+  $fn$;
+
+  CREATE OR REPLACE FUNCTION public.mi_sesion_administracion_vigente()
+  RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog
+  AS $fn$ SELECT privado.sesion_administracion_actual(); $fn$;
+
+  CREATE OR REPLACE FUNCTION privado.sesion_activa()
+  RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+  AS $fn$
+    SELECT EXISTS (SELECT 1 FROM public.usuarios u WHERE u.auth_user_id = auth.uid() AND u.activo)
+      AND privado.sesion_administracion_actual();
+  $fn$;
+
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'usuarios' AND policyname = 'usuarios_lectura') THEN
+    ALTER POLICY usuarios_lectura ON public.usuarios USING (
+      auth_user_id = auth.uid() AND (SELECT privado.sesion_administracion_actual())
+    );
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'denuncias' AND policyname = 'denuncias_lectura') THEN
+    ALTER POLICY denuncias_lectura ON public.denuncias USING (
+      denunciante_id = (SELECT usuario_id FROM privado.mi_acceso_consulta())
+      AND (SELECT privado.sesion_administracion_actual())
+    );
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'resenas' AND policyname = 'resenas_escritura') THEN
+    ALTER POLICY resenas_escritura ON public.resenas WITH CHECK (
+      autor_id = (SELECT usuario_id FROM privado.mi_acceso_consulta() WHERE motivo NOT IN ('inactiva', 'error'))
+      AND (estado = 'borrador' OR (SELECT motivo FROM privado.mi_acceso_consulta()) = 'administracion')
+    );
+  END IF;
+
+  CREATE OR REPLACE FUNCTION privado.mi_acceso_consulta()
+  RETURNS TABLE (usuario_id integer, puede_consultar boolean, aprobadas integer,
+    pendientes integer, rechazadas integer, ultima_aprobacion_en timestamptz, vence_en timestamptz, motivo text)
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+    SELECT a.usuario_id,
+      a.puede_consultar AND privado.sesion_administracion_actual(),
+      a.aprobadas, a.pendientes, a.rechazadas, a.ultima_aprobacion_en, a.vence_en,
+      CASE WHEN a.motivo <> 'inactiva' AND NOT privado.sesion_administracion_actual() THEN 'error' ELSE a.motivo END
+    FROM public.accesos_consulta(ARRAY(SELECT u.id FROM public.usuarios u WHERE u.auth_user_id = auth.uid())) a;
+  $fn$;
+
+  REVOKE ALL ON FUNCTION privado.sesion_administracion_actual(), public.mi_sesion_administracion_vigente() FROM PUBLIC;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON FUNCTION public.sesion_administracion_vigente(uuid, uuid), privado.sesion_administracion_actual(), public.mi_sesion_administracion_vigente() FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON FUNCTION public.sesion_administracion_vigente(uuid, uuid) FROM authenticated;
+    GRANT EXECUTE ON FUNCTION privado.sesion_administracion_actual(), public.mi_sesion_administracion_vigente() TO authenticated;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION privado.sesion_administracion_actual(), public.mi_sesion_administracion_vigente() TO service_role;
+  END IF;
+END;
+$migration$;
+
+NOTIFY pgrst, 'reload schema';
+COMMIT;
