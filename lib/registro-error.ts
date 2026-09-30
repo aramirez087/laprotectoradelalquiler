@@ -3,6 +3,7 @@ type ContextoError = {
   routeType?: string
   method?: string
   durationMs?: number
+  clientFrames?: string[]
 }
 
 /** Deliberately exclude messages, SQL details, headers, URLs and form values. */

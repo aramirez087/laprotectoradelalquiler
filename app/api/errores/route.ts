@@ -1,5 +1,6 @@
 import { registrarError } from '@/lib/registro-error'
 import { esOrigenPropio } from '@/lib/origen'
+import { rutaDiagnostico } from '@/lib/ruta-diagnostico'
 
 let ventana = 0
 let recibidos = 0
@@ -30,11 +31,16 @@ export async function POST(request: Request) {
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
     const datos = JSON.parse(new TextDecoder().decode(bytes))
     if (!['limite', 'navegador', 'accion'].includes(datos?.origen) || !nombres.has(datos?.nombre)
-      || (datos.digest !== undefined && (typeof datos.digest !== 'string' || !/^\d{1,20}(?:@E\d{1,8})?$/.test(datos.digest)))) {
+      || (datos.digest !== undefined && (typeof datos.digest !== 'string' || !/^\d{1,20}(?:@E\d{1,8})?$/.test(datos.digest)))
+      || (datos.ruta !== undefined && !rutaDiagnostico(datos.ruta))
+      || (datos.frames !== undefined && (!Array.isArray(datos.frames) || datos.frames.length > 5
+        || !datos.frames.every((frame: unknown) => typeof frame === 'string' && frame.length <= 160 && /^\/_next\/static\/chunks\/[\w./[\]-]+\.js:\d+:\d+$/.test(frame))))) {
       return new Response(null, { status: 400, headers })
     }
     // All browser reports are untrusted; only allowlisted fields enter logs.
-    registrarError(`client_error_${datos.origen}`, { name: datos.nombre, digest: datos.digest }, { route: '/api/errores', routeType: 'client' })
+    registrarError(`client_error_${datos.origen}`, { name: datos.nombre, digest: datos.digest }, {
+      route: rutaDiagnostico(datos.ruta), routeType: 'client', clientFrames: datos.frames,
+    })
     return new Response(null, { status: 204, headers })
   } catch {
     return new Response(null, { status: 400, headers })

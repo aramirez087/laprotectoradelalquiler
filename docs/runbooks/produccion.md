@@ -3,7 +3,7 @@
 ## Cambios
 
 - Indicador compartido para navegación, carga de páginas, formularios, consultas de cédula y actualización de permisos. Los formularios bloquean envíos repetidos y conservan sus campos si falla la petición.
-- Las búsquedas y filtros usan navegación del cliente con `next/form`. La estructura inicial puede mostrarse mientras se resuelve la sesión.
+- Las búsquedas y filtros usan navegación del cliente con `next/form`. La estructura inicial puede mostrarse mientras se resuelve la sesión. La lectura del perfil y la validación de sesión se ejecutan en paralelo, manteniendo ambos controles de acceso.
 - Administración usa los datos guardados: ni las listas ni las ediciones consultan el TSE. El registro y la creación de fichas al enviar reseñas mantienen la consulta del servidor.
 - El padrón se descarga por fragmento, nunca completo. Su manifiesto se comparte durante 30 segundos por instancia; los fallos no se guardan en caché. La fecha se valida en cada consulta.
 - `app/error.tsx` y `app/global-error.tsx` ofrecen recuperación con el estilo del sitio. Los errores inesperados de operaciones del navegador muestran un aviso y las acciones conservan el formulario.
@@ -11,7 +11,7 @@
 
 ## Diagnóstico
 
-Los registros JSON incluyen `event`, `reference`, fecha, tipo/código de error y ubicaciones de código cuando están disponibles. Los errores del servidor usan el `digest` de Next como referencia, también visible en la página de recuperación.
+Los registros JSON incluyen `event`, `reference`, fecha, tipo/código de error, ruta sin parámetros ni identificadores y ubicaciones de código cuando están disponibles. Los errores del servidor usan el `digest` de Next como referencia, también visible en la página de recuperación.
 
 Los registros propios excluyen mensajes originales, detalles SQL, cookies, tokens, parámetros de búsqueda, nombres, cédulas y valores del formulario. Los informes del navegador son datos no confiables; solo se aceptan categorías y referencias de formato conocido. Next, Supabase y Vercel pueden generar sus propios registros aparte.
 

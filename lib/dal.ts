@@ -59,26 +59,28 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
   if (!user) return null
   const admin = createAdmin()
   if (admin) {
-    const { data, error } = await admin
-      .from('usuarios')
-      .select('*')
-      .eq('auth_user_id', user.id)
-      .maybeSingle()
+    const [perfil, sesionVigente] = await Promise.all([
+      admin.from('usuarios').select('*').eq('auth_user_id', user.id).maybeSingle(),
+      sesionAdministracionVigente(supabase, user.id, admin),
+    ])
+    const { data, error } = perfil
     if (error) registrarError('user_profile_error', error)
     if (error || !data) return null
-    if (!(await sesionAdministracionVigente(supabase, user.id, admin))) return null
+    if (!sesionVigente) return null
     // Accepted administrators do not need ordinary Facebook onboarding.
     if (data.rol !== 'admin' && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
     return data as Usuario
   }
 
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('id, nombre, avatar_url, rol, activo, ultimo_acceso, creado_en, actualizado_en')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
+  const [perfil, sesionVigente] = await Promise.all([
+    supabase.from('usuarios').select('id, nombre, avatar_url, rol, activo, ultimo_acceso, creado_en, actualizado_en')
+      .eq('auth_user_id', user.id).maybeSingle(),
+    sesionAdministracionVigente(supabase, user.id, null),
+  ])
+  const { data, error } = perfil
+  if (error) registrarError('user_profile_error', error)
   if (error || !data) return null
-  if (!(await sesionAdministracionVigente(supabase, user.id, null))) return null
+  if (!sesionVigente) return null
   if (data.rol !== 'admin' && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) return null
   return {
     ...data,

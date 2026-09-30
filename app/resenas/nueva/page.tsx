@@ -119,7 +119,10 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         </div>
       )
     }
-    const privadas = await resenasPrivadasVisibles(p.id, usuario).catch(() => [])
+    const privadas = await resenasPrivadasVisibles(p.id, usuario).catch(error => {
+      registrarError('review_history_error', error, { route: '/resenas/nueva', routeType: 'render' })
+      return []
+    })
     if ((p.resenas ?? []).some((r) => r.propia) || privadas.some((r) => r.propia)) redirect('/perfil#mis-resenas')
     const puedeVer =
       usuario.rol === 'admin' ||

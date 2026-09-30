@@ -6,6 +6,21 @@ import { registrarError } from '../lib/registro-error.ts'
 import { onRequestError } from '../instrumentation.ts'
 import { cargarTS } from './helpers/cedula-mocks.mjs'
 import { esOrigenPropio } from '../lib/origen.ts'
+import { unstable_rethrow } from 'next/navigation.js'
+
+test('admin summary rethrows Next rendering signals without logging an application error', async () => {
+  const signal = Object.assign(new Error('Request-time rendering'), { digest: 'DYNAMIC_SERVER_USAGE' })
+  const logs = []
+  const { default: AdminPage } = cargarTS('app/admin/page.tsx', {
+    'next/navigation': { unstable_rethrow },
+    '@/lib/admin': { resumenAdmin: async () => { throw signal }, SinClaveAdmin: class extends Error {} },
+    '@/lib/registro-error': { registrarError: (...args) => logs.push(args) },
+    '@/lib/util': { formatoNumero: String },
+    '@/components/admin-ui': { CabeceraAdmin: () => null },
+  })
+  await assert.rejects(AdminPage(), error => error === signal)
+  assert.equal(logs.length, 0)
+})
 
 test('same-origin API checks work behind Next internal URLs without trusting forwarded-host', () => {
   const request = (origin, extra = {}) => new Request('http://localhost:3100/api/errores', {
@@ -46,11 +61,14 @@ test('browser error endpoint rejects foreign origins and oversized bodies and lo
   assert.equal((await api.POST(request('{broken'))).status, 400)
   assert.equal((await api.POST(request(JSON.stringify({ origen: 'navegador', nombre: 'Error', digest: 'TenantName' })))).status, 400)
   const ok = await api.POST(request(JSON.stringify({ origen: 'limite', nombre: 'TypeError', digest: '12345@E394',
-    message: 'Private tenant data', cedula: '102340567', cookie: 'secret' })))
+    message: 'Private tenant data', cedula: '102340567', cookie: 'secret', ruta: '/fichas/102340567', frames: ['/_next/static/chunks/page-abcd.js:1:42'] })))
   assert.equal(ok.status, 204)
   assert.equal(ok.headers.get('cache-control'), 'no-store')
   assert.equal(logs.length, 1)
   assert.deepEqual(JSON.parse(JSON.stringify(logs[0][1])), { name: 'TypeError', digest: '12345@E394' })
+  assert.equal(logs[0][2].route, '/fichas/[id]')
+  assert.deepEqual(JSON.parse(JSON.stringify(logs[0][2].clientFrames)), ['/_next/static/chunks/page-abcd.js:1:42'])
+  assert.ok(!JSON.stringify(logs).includes('102340567'))
   for (let i = 0; i < 65; i++) await api.POST(request('{broken'))
   assert.equal((await api.POST(request('{}'))).status, 429)
 })

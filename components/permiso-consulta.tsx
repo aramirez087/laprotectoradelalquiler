@@ -155,7 +155,7 @@ export function PanelPermiso({ acceso, ahoraServidor }: Props) {
           </Link>
         )}
         {esperandoRevision && <p className="w-full text-xs leading-relaxed text-ink-soft">Su experiencia está en revisión. Puede seguir el resultado más abajo; no necesita enviarla otra vez.</p>}
-        <button type="button" disabled={actualizando} onClick={() => startTransition(() => router.refresh())} className="btn-secundario">
+        <button type="button" disabled={actualizando} aria-busy={actualizando} onClick={() => startTransition(() => router.refresh())} className="btn-secundario">
           {actualizando ? 'Actualizando…' : 'Actualizar estado'}
         </button>
       </div>

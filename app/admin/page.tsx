@@ -1,4 +1,5 @@
 import { registrarError } from '@/lib/registro-error'
+import { unstable_rethrow } from 'next/navigation'
 import Link from '@/components/enlace'
 import { resumenAdmin, SinClaveAdmin } from '@/lib/admin'
 import { formatoNumero } from '@/lib/util'
@@ -21,6 +22,7 @@ export default async function AdminPage() {
   try {
     resumen = await resumenAdmin()
   } catch (e) {
+    unstable_rethrow(e)
     registrarError('page_load_error', e, { route: '/admin', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar el resumen.'
   }
