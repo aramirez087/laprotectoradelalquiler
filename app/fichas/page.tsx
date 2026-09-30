@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { registrarError } from '@/lib/registro-error'
+import Link from '@/components/enlace'
 import { redirect } from 'next/navigation'
 import { Paginacion } from '@/components/paginacion'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
@@ -46,7 +47,8 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
     const resultado = await buscarFichas({ q, pagina })
     fichas = resultado.fichas
     total = resultado.total
-  } catch {
+  } catch (error) {
+    registrarError('page_load_error', error, { route: '/fichas', routeType: 'render' })
     aviso = 'No pudimos consultar el registro. Intente de nuevo en un momento.'
   }
 

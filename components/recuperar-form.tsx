@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { useFormAction } from '@/components/use-form-action'
 import { solicitarRecuperacion } from '@/lib/actions/auth'
 import { MensajeForm } from '@/components/mensaje-form'

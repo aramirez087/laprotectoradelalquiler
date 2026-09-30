@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -25,7 +26,7 @@ function cargar(ruta, mocks = {}) {
   vm.runInNewContext(codigo, {
     module: modulo,
     exports: modulo.exports,
-    require: nombre => nombre in mocks ? mocks[nombre] : nombre in mocksCedula ? mocksCedula[nombre] : require(nombre),
+    require: nombre => nombre in mocks ? mocks[nombre] : nombre in mocksCedula ? mocksCedula[nombre] : (runtimeMocks[nombre] ?? require(nombre)),
     process,
     URL,
     URLSearchParams,
@@ -44,7 +45,7 @@ const util = cargar('lib/util.ts')
 const acceso = cargar('lib/acceso-consulta.ts')
 const seo = cargar('lib/seo.ts')
 const comunes = {
-  'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+  '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   'next/navigation': { redirect: redirigir, usePathname: () => '/' },
   '@/lib/supabase/server': { sinSupabase: () => false },
   '@/lib/util': util,

@@ -69,7 +69,7 @@ export async function proxy(request: NextRequest) {
   const continuar = () =>
     conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp, privada)
 
-  if (sinSupabase()) return continuar()
+  if (sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
 
   const protegida =
     path.startsWith('/fichas') ||

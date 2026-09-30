@@ -1,5 +1,5 @@
 import { MarcoAcceso } from '@/components/marco-acceso'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { FormClave } from '@/components/form-clave'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { establecerClave } from '@/lib/actions/auth'

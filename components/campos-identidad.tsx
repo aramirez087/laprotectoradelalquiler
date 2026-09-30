@@ -8,13 +8,14 @@ import { cedulaNacional, type NombrePadron } from '@/lib/cedula'
 type Datos = { identificacion: string; nombre: string; nombre2: string; apellido1: string; apellido2: string }
 const VACIOS: Datos = { identificacion: '', nombre: '', nombre2: '', apellido1: '', apellido2: '' }
 
-export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '', campoCedula = 'identificacion', requerida = true }: {
+export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '', campoCedula = 'identificacion', requerida = true, consultarPadron = true }: {
   tipo?: 'persona' | 'cuenta'
   inicial?: Partial<Datos>
   errores?: Record<string, string>
   idBase?: string
   campoCedula?: 'identificacion' | 'cedula'
   requerida?: boolean
+  consultarPadron?: boolean
 }) {
   const [datos, setDatos] = useState<Datos>({ ...VACIOS, ...inicial })
   const cedulaActual = useRef(cedulaNacional(inicial?.identificacion))
@@ -24,7 +25,7 @@ export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '
     autocompletada.current = persona.identificacion
     setDatos(anterior => ({ ...anterior, ...persona, identificacion: anterior.identificacion, nombre: tipo === 'cuenta' ? persona.nombreCompleto : persona.nombre }))
   }, [tipo])
-  const resultado = useConsultaCedula(datos.identificacion, alEncontrar)
+  const resultado = useConsultaCedula(consultarPadron ? datos.identificacion : '', alEncontrar)
   const encontrada = resultado.estado === 'encontrada'
   const campos = tipo === 'cuenta'
     ? [{ name: 'nombre', label: 'Nombre completo', requerido: true } as const]
@@ -41,7 +42,7 @@ export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '
         <label className="etiqueta-campo" htmlFor={idCedula}>{tipo === 'cuenta' ? 'Número de cédula' : 'Cédula del inquilino *'}</label>
         <input id={idCedula} name={campoCedula} required={requerida} className="campo" placeholder="1-0234-0567"
           autoComplete="off" spellCheck={false} inputMode="numeric" maxLength={30}
-          value={datos.identificacion} aria-invalid={!!errores?.[campoCedula]} aria-describedby={`${idCedula}-ayuda ${idCedula}-estado${errores?.[campoCedula] ? ` ${idCedula}-error` : ''}`}
+          value={datos.identificacion} aria-invalid={!!errores?.[campoCedula]} aria-describedby={`${idCedula}-ayuda${consultarPadron ? ` ${idCedula}-estado` : ''}${errores?.[campoCedula] ? ` ${idCedula}-error` : ''}`}
           onChange={e => {
             const identificacion = e.target.value
             cedulaActual.current = cedulaNacional(identificacion)
@@ -51,7 +52,7 @@ export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '
           }} />
         {errores?.[campoCedula] && <p id={`${idCedula}-error`} className="mt-2 text-sm text-alerta">{errores[campoCedula]}</p>}
         <p id={`${idCedula}-ayuda`} className="mt-2 text-xs text-ink-soft">Puede escribirla con o sin guiones. La cédula completa no se muestra al público.</p>
-        <div id={`${idCedula}-estado`}><EstadoCedula resultado={resultado} /></div>
+        {consultarPadron && <div id={`${idCedula}-estado`}><EstadoCedula resultado={resultado} /></div>}
       </div>
       {campos.map(campo => <div key={campo.name} className={tipo === 'cuenta' ? 'sm:col-span-2' : undefined}>
         <label className="etiqueta-campo" htmlFor={`${idBase}${campo.name}`}>{campo.label}</label>

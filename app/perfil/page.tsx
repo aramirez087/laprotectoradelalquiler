@@ -1,4 +1,7 @@
-import Link from 'next/link'
+import { registrarError } from '@/lib/registro-error'
+
+import { BotonSalir } from '@/components/boton-salir'
+import Link from '@/components/enlace'
 import { FormClave } from '@/components/form-clave'
 import { requireUsuario, listarResenasDe, accesoConsulta, perfilFacebookDe, horaServidor } from '@/lib/dal'
 import { PanelPermiso } from '@/components/permiso-consulta'
@@ -23,9 +26,8 @@ export default async function PerfilPage(props: {
   const params = await props.searchParams
   const enviada = primer(params.enviada) === '1'
   const usuario = await requireUsuario('/perfil')
-  const acceso = await accesoConsulta(usuario)
+  const [acceso, facebook] = await Promise.all([accesoConsulta(usuario), perfilFacebookDe(usuario.id)])
   const consulta = acceso.puede_consultar
-  const facebook = await perfilFacebookDe(usuario.id)
   const sinBackend = sinSupabase()
   const facebookAuth = authFacebookHabilitado()
   const avisoFacebook = mensajeErrorFacebook(primer(params.error), facebookAuth)
@@ -44,7 +46,8 @@ export default async function PerfilPage(props: {
   if (!sinBackend) {
     try {
       misResenas = await listarResenasDe(usuario.id)
-    } catch {
+    } catch (error) {
+      registrarError('page_load_error', error, { route: '/perfil', routeType: 'render' })
       aviso = 'No pudimos cargar sus reseñas.'
     }
   }
@@ -71,7 +74,7 @@ export default async function PerfilPage(props: {
           )}
         </div>
         <form action={cerrarSesion}>
-          <button className="btn-secundario w-full sm:w-auto">Cerrar sesión</button>
+          <BotonSalir className="btn-secundario w-full sm:w-auto">Cerrar sesión</BotonSalir>
         </form>
       </header>
 

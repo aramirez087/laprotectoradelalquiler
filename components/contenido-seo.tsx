@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 
 export const PREGUNTAS_FRECUENTES = [
   {

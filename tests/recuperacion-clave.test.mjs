@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -30,7 +31,7 @@ function recovery(options = {}) {
   }
   vm.runInNewContext(code, {
     module: mod, exports: mod.exports,
-    require: name => name in mocks ? mocks[name] : name.startsWith('@/') ? {} : require(name),
+    require: name => name in mocks ? mocks[name] : name.startsWith('@/') ? {} : (runtimeMocks[name] ?? require(name)),
     console: { error: (...args) => logs.push(JSON.parse(JSON.stringify(args))) },
   })
   const submit = async (email = 'account@example.test') => {

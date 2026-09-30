@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { useFormAction } from '@/components/use-form-action'
 import { registrarse } from '@/lib/actions/auth'
 import { CamposIdentidad } from '@/components/campos-identidad'

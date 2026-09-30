@@ -1,6 +1,7 @@
+import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
 import { crearResenaAction } from '@/lib/actions/resenas'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import {
   requireUsuario,
   obtenerFicha,
@@ -52,7 +53,8 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
     let propias: Awaited<ReturnType<typeof listarResenasDe>> | null = null
     try {
       propias = await listarResenasDe(usuario.id)
-    } catch {
+    } catch (error) {
+      registrarError('page_load_error', error, { route: '/resenas/nueva', routeType: 'render' })
       propias = null
     }
     if (personaId && propias?.some((r) => r.persona_id === personaId)) redirect('/perfil#mis-resenas')

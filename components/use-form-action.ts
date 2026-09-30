@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useRef, type FormEvent } from 'react'
 import type { EstadoForm } from '@/lib/actions/auth'
+import { registrarErrorCliente } from '@/lib/error-cliente'
 
 type Accion = (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
 
@@ -11,11 +12,16 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
   onResultado?: (resultado: EstadoForm) => void
 } = {}) {
   const accionConAviso: Accion = async (prev, datos) => {
-    const resultado = await accion(prev, datos)
-    onResultado?.(resultado)
-    return resultado
+    try {
+      const resultado = await accion(prev, datos)
+      onResultado?.(resultado)
+      return resultado
+    } catch (error) {
+      registrarErrorCliente(error, 'accion')
+      return { error: 'No pudimos confirmar la operación. Sus datos se conservan. Revise el resultado antes de volver a enviar.' }
+    }
   }
-  const [estado, action, pendiente] = useActionState(onResultado ? accionConAviso : accion, undefined)
+  const [estado, action, pendiente] = useActionState(accionConAviso, undefined)
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {

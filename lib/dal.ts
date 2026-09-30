@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { cache } from 'react'
+import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
 import type { AccesoConsulta } from '@/lib/acceso-consulta'
 import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
@@ -37,13 +38,16 @@ async function sesionAdministracionVigente(supabase: Awaited<ReturnType<typeof c
     const { data, error } = await supabase.auth.getClaims()
     const claims = data?.claims
     const sessionId = claims?.session_id
+    if (error) registrarError('session_claims_error', error)
     if (error || claims?.sub !== authUserId || typeof sessionId !== 'string'
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) return false
     const resultado = admin
       ? await admin.rpc('sesion_administracion_vigente', { p_auth_user_id: authUserId, p_session_id: sessionId })
       : await supabase.rpc('mi_sesion_administracion_vigente')
+    if (resultado.error) registrarError('session_validation_error', resultado.error)
     return !resultado.error && resultado.data === true
-  } catch {
+  } catch (error) {
+    registrarError('session_validation_error', error)
     return false
   }
 }
@@ -60,6 +64,7 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
       .select('*')
       .eq('auth_user_id', user.id)
       .maybeSingle()
+    if (error) registrarError('user_profile_error', error)
     if (error || !data) return null
     if (!(await sesionAdministracionVigente(supabase, user.id, admin))) return null
     // Accepted administrators do not need ordinary Facebook onboarding.
@@ -185,9 +190,11 @@ export const accesoConsulta = cache(async (usuario: Usuario): Promise<AccesoCons
       ? await admin.rpc('accesos_consulta', { p_usuario_ids: [usuario.id] })
       : await (await createClient()).rpc('mi_acceso_consulta')
     const acceso = data?.[0] as AccesoConsulta | undefined
+    if (error) registrarError('consultation_access_error', error)
     if (error || acceso?.usuario_id !== usuario.id || typeof acceso.puede_consultar !== 'boolean') return cerrado
     return acceso
-  } catch {
+  } catch (error) {
+    registrarError('consultation_access_error', error)
     return cerrado
   }
 })

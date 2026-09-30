@@ -1,10 +1,11 @@
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
 import { Icono } from '@/components/icono'
 
 export function BuscadorFichas({ q }: { q: string }) {
   return (
-    <form
+    <FormularioBusqueda
       action="/fichas"
-      method="GET"
+
       className="panel-busqueda"
       role="search"
       aria-label="Buscar en el registro"
@@ -31,6 +32,6 @@ export function BuscadorFichas({ q }: { q: string }) {
       <button type="submit" className="btn-primario">
         Buscar reseñas
       </button>
-    </form>
+    </FormularioBusqueda>
   )
 }

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { accesoConsulta } from '@/lib/dal'
 import { mensajeAcceso, REGLAS_CONSULTA, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { Icono } from '@/components/icono'

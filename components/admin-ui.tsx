@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import type { ReactNode } from 'react'
 import { formatoNumero } from '@/lib/util'
 

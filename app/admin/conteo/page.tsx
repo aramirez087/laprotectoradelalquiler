@@ -1,6 +1,8 @@
+import { registrarError } from '@/lib/registro-error'
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { consultarResenas, conteoPorUsuario, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
@@ -45,6 +47,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
       total = resultado.total
     } catch (e) {
       unstable_rethrow(e)
+      registrarError('page_load_error', e, { route: '/admin/conteo', routeType: 'render' })
       aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar las reseñas de esa cuenta.'
     }
     const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA_ADMIN))
@@ -79,6 +82,7 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
     filas = await conteoPorUsuario(q)
   } catch (e) {
     unstable_rethrow(e)
+    registrarError('page_load_error', e, { route: '/admin/conteo', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos calcular el conteo.'
   }
 
@@ -89,11 +93,11 @@ export default async function ConteoPage(props: { searchParams: Promise<Record<s
   return (
     <div className="contenedor space-y-7">
       <CabeceraAdmin titulo="Reseñas por usuario" descripcion="Consulte cuántas experiencias ha aportado cada cuenta y cuántas están publicadas, en revisión o rechazadas." />
-      <form method="GET" className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" role="search" aria-label="Buscar aportes por usuario">
+      <FormularioBusqueda  className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" role="search" aria-label="Buscar aportes por usuario" action="/admin/conteo">
         <div className="min-w-0"><label className="etiqueta-campo" htmlFor="q">Nombre o correo del usuario</label><input id="q" type="search" name="q" defaultValue={q} placeholder="Encuentre una cuenta" className="campo" /></div>
         <button type="submit" className="btn-primario">Buscar</button>
         {q && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:col-span-2"><p className="min-w-0 break-words text-ink-soft">Búsqueda: «{q}»</p><Link href="/admin/conteo" className="enlace-texto">Limpiar búsqueda</Link></div>}
-      </form>
+      </FormularioBusqueda>
       {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
       {!aviso && <ResultadosAdmin pagina={paginaVisible} tamano={TAMANO_PAGINA_ADMIN} total={filas.length} unidad="usuarios" />}
       {!aviso && visibles.length === 0 && <VacioAdmin titulo={q ? 'No encontramos aportes de esa cuenta' : 'Todavía no hay aportes'} descripcion={q ? 'Pruebe otra búsqueda o consulte todas las cuentas con reseñas.' : 'Las cuentas aparecerán aquí después de aportar su primera reseña.'} href={q ? '/admin/conteo' : undefined} accion="Ver todos los aportes" />}

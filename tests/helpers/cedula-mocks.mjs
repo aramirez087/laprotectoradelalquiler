@@ -1,17 +1,18 @@
+import { runtimeMocks } from './runtime-mocks.mjs'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
-export function cargarTS(archivo, mocks = {}) {
+export function cargarTS(archivo, mocks = {}, globals = {}) {
   const mod = { exports: {} }
   const codigo = ts.transpileModule(readFileSync(archivo, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
   vm.runInNewContext(codigo, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name),
-    process, console, Buffer, URL, URLSearchParams, Headers, Response, Request, AbortSignal, Date, TextDecoder,
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)),
+    process, console, Buffer, URL, URLSearchParams, Headers, Response, Request, AbortSignal, Date, TextDecoder, ...globals,
   }, { filename: archivo })
   return mod.exports
 }

@@ -1,5 +1,7 @@
 'use server'
 
+import { registrarError } from '@/lib/registro-error'
+
 import { cookies, headers } from 'next/headers'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
@@ -123,7 +125,9 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
     })
     if (error) return { error: 'No pudimos enviar la confirmación. Intente de nuevo más tarde.' }
     return { mensaje: 'Revise su correo y confirme su cuenta para escribir su primera reseña. Si ya tiene cuenta, inicie sesión.' }
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
+    registrarError('auth_action_error', error, { routeType: 'action' })
     return { error: 'No pudimos crear la cuenta. Intente de nuevo.' }
   }
 
@@ -291,7 +295,9 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
         facebook,
       },
     })
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error)
+    registrarError('auth_action_error', error, { routeType: 'action' })
     return { error: 'No pudimos guardar su perfil. Intente de nuevo.' }
   }
 
@@ -313,6 +319,10 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     password: parsed.data.clave,
   })
   if (error) {
+    if ((error.status ?? 0) >= 500 || error.name === 'AuthRetryableFetchError') {
+      registrarError('login_service_error', error, { routeType: 'action' })
+      return { error: 'El ingreso no está disponible en este momento. Intente de nuevo en unos minutos.' }
+    }
     if (/email not confirmed/i.test(error.message)) {
       return { error: 'Confirme su correo antes de entrar. Revise la bandeja de entrada.' }
     }

@@ -1,5 +1,56 @@
 @import 'tailwindcss';
 
+.rueda-carga {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: girar-carga 0.8s linear infinite;
+}
+
+.actividad-global {
+  display: none;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  min-height: 3px;
+  pointer-events: none;
+  border-top: 3px solid var(--seal);
+  color: var(--seal);
+  font-size: 0.75rem;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--paper);
+}
+
+body:has([data-cargando='true'], [aria-busy='true']) .actividad-global {
+  display: flex;
+}
+
+form[aria-busy='true'] button[type='submit']::before,
+form[aria-busy='true'] button:not([type])::before {
+  content: '';
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: girar-carga 0.8s linear infinite;
+}
+
+@keyframes girar-carga { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rueda-carga,
+  form[aria-busy='true'] button::before { animation: none; }
+}
+
 :root {
   --paper: #faf9f5;
   --card: #ffffff;

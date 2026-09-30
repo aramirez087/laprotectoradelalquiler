@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -11,14 +12,14 @@ const require = createRequire(import.meta.url)
 const ts = require('typescript')
 const mod = { exports: {} }
 const mocks = {
-  'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+  '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   '@/lib/dal': {},
   '@/lib/acceso-consulta': acceso,
   '@/components/icono': { Icono: () => createElement('span') },
 }
 vm.runInNewContext(ts.transpileModule(readFileSync('components/espera-aprobacion.tsx', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
-}).outputText, { module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name) })
+}).outputText, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)) })
 
 const base = { usuario_id: 1, puede_consultar: false, aprobadas: 1, pendientes: 0, rechazadas: 0, ultima_aprobacion_en: '2025-01-01T12:00:00Z', vence_en: '2025-02-01T12:00:00Z', motivo: 'vencida' }
 const render = overrides => renderToStaticMarkup(createElement(mod.exports.EstadoAcceso, { acceso: { ...base, ...overrides } }))
@@ -28,7 +29,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync('components/permiso-consulta.
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText, {
   module: permisoMod, exports: permisoMod.exports,
-  require: name => name === 'next/navigation' ? { useRouter: () => ({ refresh() {} }) } : mocks[name] ?? require(name),
+  require: name => name === 'next/navigation' ? { useRouter: () => ({ refresh() {} }) } : mocks[name] ?? (runtimeMocks[name] ?? require(name)),
 })
 const ahoraServidor = Date.parse('2025-01-15T12:00:00Z')
 const panel = overrides => renderToStaticMarkup(createElement(permisoMod.exports.PanelPermiso, {

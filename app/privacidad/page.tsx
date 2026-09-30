@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { JsonLd } from '@/components/json-ld'
 import { datosPagina, metadataPublica } from '@/lib/seo'
 

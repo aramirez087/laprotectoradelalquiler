@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -24,7 +25,7 @@ function cargar(ruta, mocks = {}) {
   vm.runInNewContext(codigo, {
     module: modulo,
     exports: modulo.exports,
-    require: nombre => nombre in mocks ? mocks[nombre] : require(nombre),
+    require: nombre => nombre in mocks ? mocks[nombre] : (runtimeMocks[nombre] ?? require(nombre)),
     URLSearchParams,
   }, { filename: archivo.pathname })
   return modulo.exports
@@ -59,7 +60,7 @@ function pagina({
 } = {}) {
   const solicitudes = { destinos: [], fichas: [], resenas: [], formulario: null }
   const Page = cargar('app/resenas/nueva/page.tsx', {
-    'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+    '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
     'next/navigation': { redirect: redirigir },
     '@/lib/actions/resenas': { crearResenaAction: () => {} },
     '@/lib/supabase/server': { sinSupabase: () => false },

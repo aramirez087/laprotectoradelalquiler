@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -19,7 +20,7 @@ function cargar(ruta, mocks = {}) {
     ? mocks[nombre]
     : nombre in mocksCedula ? mocksCedula[nombre] : nombre.startsWith('@/')
       ? cargar(`${nombre.slice(2)}.ts`, mocks)
-      : require(nombre)
+      : (runtimeMocks[nombre] ?? require(nombre))
   vm.runInNewContext(codigo, {
     module: modulo,
     exports: modulo.exports,

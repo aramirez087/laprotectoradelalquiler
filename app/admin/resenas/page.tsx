@@ -1,5 +1,7 @@
+import { registrarError } from '@/lib/registro-error'
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
@@ -32,6 +34,7 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
     filas = resultado.filas
     total = resultado.total
   } catch (e) {
+    registrarError('page_load_error', e, { route: '/admin/resenas', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos consultar las reseñas.'
   }
 
@@ -41,7 +44,7 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
   return (
     <div className="contenedor space-y-7">
       <CabeceraAdmin titulo="Reseñas" descripcion="Encuentre una experiencia, consulte su estado o gestione su publicación." accion={<Link href="/resenas/nueva" className="btn-primario">Escribir reseña</Link>} />
-      <form method="GET" className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end" role="search" aria-label="Buscar reseñas">
+      <FormularioBusqueda  className="expediente grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end" role="search" aria-label="Buscar reseñas" action="/admin/resenas">
         <div className="min-w-0">
           <label className="etiqueta-campo" htmlFor="q">Nombre, cédula o comentario</label>
           <input id="q" type="search" name="q" defaultValue={q} placeholder="Escriba lo que quiere encontrar" className="campo" />
@@ -57,7 +60,7 @@ export default async function ConsultarPage(props: { searchParams: Promise<Recor
         </div>
         <button type="submit" className="btn-primario">Buscar</button>
         {(q || estado) && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:col-span-3"><p className="min-w-0 break-words text-ink-soft">{q && <>Búsqueda: «{q}»</>}{q && estado && ' · '}{estado && etiquetaEstado(estado)}</p><Link href="/admin/resenas" className="enlace-texto">Limpiar filtros</Link></div>}
-      </form>
+      </FormularioBusqueda>
       {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
       {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />}
       {!aviso && filas.length === 0 && <VacioAdmin titulo={q || estado ? 'No encontramos reseñas con estos filtros' : 'Todavía no hay reseñas'} descripcion={q || estado ? 'Pruebe otro nombre, una parte del comentario o consulte todos los estados.' : 'Las experiencias de la comunidad aparecerán aquí, con su estado y las opciones de moderación.'} href={q || estado ? '/admin/resenas' : '/resenas/nueva'} accion={q || estado ? 'Ver todas las reseñas' : 'Escribir una reseña'} />}

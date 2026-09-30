@@ -1,5 +1,7 @@
 'use server'
 
+import { registrarError } from '@/lib/registro-error'
+
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import * as z from 'zod'
@@ -38,6 +40,7 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
       if (propias.length > 0) return { error: 'Ya envió su primera reseña. Puede verla en su perfil.' }
     } catch (e) {
       unstable_rethrow(e)
+      registrarError('review_check_error', e, { routeType: 'action' })
       return { error: 'No pudimos revisar sus reseñas. Intente de nuevo.' }
     }
   }
@@ -79,6 +82,7 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
     unstable_rethrow(e)
     const mensaje = e instanceof Error ? e.message : ''
     const propio = /^(No |Su cuenta|Revise )/.test(mensaje) && !/relation|policy|permission|jwt|duplicate key/i.test(mensaje)
+    if (!propio) registrarError('review_save_error', e, { routeType: 'action' })
     return { error: propio ? mensaje : 'No se pudo guardar la reseña.' }
   }
 }

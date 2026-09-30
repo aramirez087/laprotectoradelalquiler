@@ -4,18 +4,41 @@ import { cache } from 'react'
 import { gunzip } from 'node:zlib'
 import { promisify } from 'node:util'
 import { createAdmin } from '@/lib/supabase/admin'
+import { registrarError } from '@/lib/registro-error'
 import { buscarEnFragmento, cedulaNacional, PADRON_BUCKET, padronVigente, type ResultadoCedula } from '@/lib/cedula'
 
 const descomprimir = promisify(gunzip)
-// Versiones inmutables. Caché acotada por instancia; el manifiesto se lee en cada petición.
+// Versiones inmutables. Caché acotada por instancia y manifiesto público por 30 s.
 const fragmentos = new Map<string, Promise<string[]>>()
-const manifiesto = cache(async () => {
+type Manifiesto = { version: string; fecha_padron: string; prefijos: string[] }
+let ultimoManifiesto: { vence: number; tarea: Promise<Manifiesto | null> } | undefined
+
+async function leerManifiesto(): Promise<Manifiesto | null> {
   const db = createAdmin({ requestTimeoutMs: 6000 })
   if (!db) return null
   const { data, error } = await db.from('padron_tse').select('version, fecha_padron, prefijos').eq('id', 1).maybeSingle()
-  if (error || !data || !/^\d{4}-\d{2}-\d{2}-[a-f0-9]{16}$/.test(data.version)
+  if (error) {
+    registrarError('padron_manifest_error', error)
+    return null
+  }
+  if (!data || !/^\d{4}-\d{2}-\d{2}-[a-f0-9]{16}$/.test(data.version)
     || !Array.isArray(data.prefijos) || !data.prefijos.every((p: unknown) => typeof p === 'string' && /^[1-9]\d{2}$/.test(p))) return null
-  return data as { version: string; fecha_padron: string; prefijos: string[] }
+  return data as Manifiesto
+}
+
+const manifiesto = cache(async () => {
+  if (ultimoManifiesto && ultimoManifiesto.vence > Date.now()) return ultimoManifiesto.tarea
+  const tarea = leerManifiesto()
+  ultimoManifiesto = { vence: Date.now() + 30_000, tarea }
+  try {
+    const datos = await tarea
+    // Do not retain outages; the next request can recover immediately.
+    if (!datos && ultimoManifiesto?.tarea === tarea) ultimoManifiesto = undefined
+    return datos
+  } catch (error) {
+    if (ultimoManifiesto?.tarea === tarea) ultimoManifiesto = undefined
+    throw error
+  }
 })
 
 async function cargarFragmento(version: string, prefijo: string) {
@@ -59,7 +82,8 @@ export const consultarCedula = cache(async (valor: string | null | undefined): P
     if (!datos.prefijos.includes(prefijo)) return { estado: 'no_encontrada', fechaPadron }
     const persona = buscarEnFragmento(await cargarFragmento(datos.version, prefijo), cedula)
     return persona ? { estado: 'encontrada', fechaPadron, persona } : { estado: 'no_encontrada', fechaPadron }
-  } catch {
+  } catch (error) {
+    registrarError('padron_lookup_error', error)
     return { estado: 'no_disponible' }
   }
 })

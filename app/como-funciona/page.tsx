@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { PreguntasFrecuentes } from '@/components/contenido-seo'
 import { JsonLd } from '@/components/json-ld'
 import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, type FormEvent } from 'react'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { cancelarInvitacionAdminAction } from '@/lib/actions/invitaciones'
 import type { FilaInvitacionAdmin } from '@/lib/invitaciones-admin'
 import { useFormAction } from '@/components/use-form-action'

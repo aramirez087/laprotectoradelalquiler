@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
+import Link from '@/components/enlace'
 import { redirect } from 'next/navigation'
 import { Icono } from '@/components/icono'
 import { BarrioVivo } from '@/components/barrio-vivo'
@@ -81,7 +82,7 @@ export default async function HomePage() {
   return (
     <div className="inicio">
       <CabeceraInicio />
-      <form action="/fichas" method="GET" className="mt-8 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
+      <FormularioBusqueda action="/fichas"  className="mt-8 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
         <label className="etiqueta-campo mb-2.5 ml-5" htmlFor="q">
           ¿A quién desea consultar?
         </label>
@@ -100,7 +101,7 @@ export default async function HomePage() {
             Buscar <Icono nombre="flecha" className="h-4 w-4" />
           </button>
         </div>
-      </form>
+      </FormularioBusqueda>
       <p id="ayuda-busqueda" className="mt-2 inline-flex items-center gap-1.5 text-center text-xs text-ink-soft">
         <Icono nombre="escudo" className="h-3.5 w-3.5 shrink-0" />
         La cédula completa no se muestra al público.

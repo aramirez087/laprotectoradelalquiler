@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { useFormAction } from '@/components/use-form-action'
 import { iniciarSesion } from '@/lib/actions/auth'
 import { CampoClave } from '@/components/campo-clave'

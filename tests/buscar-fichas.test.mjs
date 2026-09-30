@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -53,7 +54,7 @@ async function buscarConFilas(filas, opts = { pagina: 1 }, total = filas.length)
       '@/lib/util': { palabrasBusqueda: () => [], variantesAcento: (v) => [v] },
       '@/lib/supabase/admin': { createAdmin: () => db },
       '@/lib/supabase/server': { createClient: async () => db, sinSupabase: () => false },
-    })[name] ?? require(name), console, Error, URL, Date,
+    })[name] ?? (runtimeMocks[name] ?? require(name)), console, Error, URL, Date,
   })
 
   return { result: await mod.exports.buscarFichas(opts), requests }

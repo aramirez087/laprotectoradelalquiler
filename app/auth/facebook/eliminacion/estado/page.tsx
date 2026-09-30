@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { estadoEliminacionFacebook } from '@/lib/facebook-eliminacion-servidor'
 import { codigoEliminacionValido } from '@/lib/facebook-eliminacion'
 import { fechaCorta, primer } from '@/lib/util'

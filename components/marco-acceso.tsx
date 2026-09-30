@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { Icono } from '@/components/icono'
 import { PasosRegistro } from '@/components/pasos-registro'
 

@@ -1,3 +1,4 @@
+import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import { consultarResenas, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
@@ -18,6 +19,7 @@ export default async function RechazadasPage(props: { searchParams: Promise<Reco
     filas = resultado.filas
     total = resultado.total
   } catch (e) {
+    registrarError('page_load_error', e, { route: '/admin/rechazadas', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar las reseñas rechazadas.'
   }
 

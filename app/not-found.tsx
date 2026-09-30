@@ -1,5 +1,5 @@
 import { Icono } from '@/components/icono'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 
 export default function NoEncontrada() {
   return (

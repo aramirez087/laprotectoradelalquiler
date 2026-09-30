@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -13,7 +14,7 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
-  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name), console }, { filename: file })
+  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)), console }, { filename: file })
   return mod.exports
 }
 function render({ estado, pendiente = false } = {}) {
@@ -21,7 +22,7 @@ function render({ estado, pendiente = false } = {}) {
     '@/components/use-form-action': { useFormAction: () => ({ estado, pendiente, formProps: { onSubmit() {}, 'aria-busy': pendiente } }) },
     '@/lib/actions/auth': { solicitarRecuperacion: async () => { throw new Error('Tests must not send recovery requests') } },
     '@/components/mensaje-form': load('components/mensaje-form.tsx'),
-    'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+    '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   })
   return renderToStaticMarkup(createElement(RecuperarForm))
 }

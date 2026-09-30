@@ -1,6 +1,8 @@
+import { registrarError } from '@/lib/registro-error'
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
 import { redirect } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { atajosPeriodo, consultarResenas, periodoPorDefecto, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { Paginacion } from '@/components/paginacion'
 import { ResenaAdmin } from '@/components/resena-admin'
@@ -28,6 +30,7 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
     filas = resultado.filas
     total = resultado.total
   } catch (e) {
+    registrarError('page_load_error', e, { route: '/admin/reportes', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar el reporte.'
   }
 
@@ -49,7 +52,7 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
             return <Link key={etiqueta} href={hrefReporte(periodo.desde, periodo.hasta)} className={activo ? 'btn-primario' : 'btn-secundario'} aria-current={activo ? 'true' : undefined}>{activo && <span aria-hidden="true">✓</span>}{etiqueta}</Link>
           })}
         </div>
-      <form method="GET" className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+      <FormularioBusqueda  className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" action="/admin/reportes">
         <div>
           <label className="etiqueta-campo" htmlFor="desde">
             Desde
@@ -63,7 +66,7 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
           <input id="hasta" name="hasta" type="date" defaultValue={hasta} required className="campo" />
         </div>
         <button className="btn-primario">Ver reporte</button>
-      </form>
+      </FormularioBusqueda>
       </section>
       {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
       {!aviso && (

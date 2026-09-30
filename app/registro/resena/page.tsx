@@ -1,5 +1,6 @@
+import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { crearResenaAction } from '@/lib/actions/resenas'
 import {
   completarPerfilRegistro,
@@ -48,7 +49,8 @@ export default async function RegistroResenaPage() {
   let yaEnvio = false
   try {
     yaEnvio = (await listarResenasDe(usuario.id)).length > 0
-  } catch {
+  } catch (error) {
+    registrarError('page_load_error', error, { route: '/registro/resena', routeType: 'render' })
     yaEnvio = false
   }
   if (yaEnvio) redirect('/perfil')

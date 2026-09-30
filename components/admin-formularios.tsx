@@ -112,7 +112,7 @@ export function FormEditarResena({
         </p>
         <fieldset key={JSON.stringify([persona.identificacion, persona.nombre, persona.nombre2, persona.apellido1, persona.apellido2])} className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <CamposIdentidad idBase={`resena-${id}-`} inicial={{ ...persona, nombre2: persona.nombre2 ?? '', apellido2: persona.apellido2 ?? '' }} errores={estado?.campos} />
+            <CamposIdentidad consultarPadron={false} idBase={`resena-${id}-`} inicial={{ ...persona, nombre2: persona.nombre2 ?? '', apellido2: persona.apellido2 ?? '' }} errores={estado?.campos} />
           </div>
         </fieldset>
         <div>

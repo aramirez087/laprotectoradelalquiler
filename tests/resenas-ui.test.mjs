@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -16,7 +17,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
   vm.runInNewContext(code, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? require(name), console, URL, Date, Intl,
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, URL, Date, Intl,
   }, { filename: file })
   return mod.exports
 }
@@ -34,7 +35,7 @@ const mocks = {
   },
   '@/components/admin-formularios': { FormEditarResena: () => null, FormEliminarResena: () => null },
   '@/lib/correo-resenas': { correoResenasConfigurado: () => false },
-  'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+  '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
 }
 const { TarjetaFicha } = load('components/tarjeta-ficha.tsx', mocks)
 const { TarjetaResena } = load('components/tarjeta-resena.tsx', mocks)

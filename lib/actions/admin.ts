@@ -1,5 +1,7 @@
 'use server'
 
+import { registrarError } from '@/lib/registro-error'
+
 import { revalidatePath } from 'next/cache'
 import { unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
@@ -33,6 +35,7 @@ const ESTADO: Record<z.infer<typeof SchemaDecision>['decision'], EstadoResena> =
 
 function aviso(e: unknown) {
   if (e instanceof AvisoAdmin) return e.message
+  registrarError('admin_action_error', e, { routeType: 'action' })
   return 'No se pudo guardar.'
 }
 

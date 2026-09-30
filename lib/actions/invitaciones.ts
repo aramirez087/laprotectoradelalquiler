@@ -1,5 +1,7 @@
 'use server'
 
+import { registrarError } from '@/lib/registro-error'
+
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { AvisoAdmin } from '@/lib/admin'
@@ -17,6 +19,7 @@ export async function invitarAdminAction(_estado: EstadoForm, formData: FormData
       invitacion: { enlace: resultado.enlace, email: resultado.email, venceEn: resultado.venceEn, proposito: resultado.proposito }, advertencia: resultado.advertencia }
   } catch (e) {
     unstable_rethrow(e)
+    if (!(e instanceof AvisoAdmin)) registrarError('invitation_action_error', e, { routeType: 'action' })
     return { error: e instanceof AvisoAdmin ? e.message : 'No se pudo crear la invitación.' }
   }
 }
@@ -29,6 +32,7 @@ export async function cancelarInvitacionAdminAction(id: string, _estado: EstadoF
     return { mensaje: 'Invitación cancelada. El enlace ya no concede acceso.' }
   } catch (e) {
     unstable_rethrow(e)
+    if (!(e instanceof AvisoAdmin)) registrarError('invitation_action_error', e, { routeType: 'action' })
     return { error: e instanceof AvisoAdmin ? e.message : 'No se pudo cancelar la invitación.' }
   }
 }
@@ -39,6 +43,7 @@ export async function aceptarInvitacionAction(id: string, token: string, _estado
     ;({ proposito } = await aceptarInvitacionAdmin({ id, token, clave: String(formData.get('clave') ?? ''), confirmacion: String(formData.get('confirmacion') ?? '') }))
   } catch (e) {
     unstable_rethrow(e)
+    if (!(e instanceof AvisoAdmin)) registrarError('invitation_action_error', e, { routeType: 'action' })
     return { error: e instanceof AvisoAdmin ? e.message : 'No se pudo aceptar la invitación. Pida un nuevo enlace.' }
   }
   revalidatePath('/', 'layout')

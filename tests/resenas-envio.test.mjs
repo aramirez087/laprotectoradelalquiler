@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -23,7 +24,7 @@ function action({ activo = true } = {}) {
   }
   vm.runInNewContext(ts.transpileModule(readFileSync('lib/actions/resenas.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module: mod, exports: mod.exports, require: name => mocks[name] ?? require(name), Error })
+  }).outputText, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)), Error })
   return { submit: mod.exports.crearResenaAction, saved }
 }
 function form(fechaInicio) {

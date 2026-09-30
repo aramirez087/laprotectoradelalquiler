@@ -1,5 +1,6 @@
-import { CedulaAdmin } from '@/components/cedula-admin'
-import Link from 'next/link'
+import { registrarError } from '@/lib/registro-error'
+import { FormularioBusqueda } from '@/components/formulario-busqueda'
+import Link from '@/components/enlace'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
 import { FormInvitacionAdmin } from '@/components/form-invitacion-admin'
@@ -57,11 +58,13 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
     resumen = usuariosResultado.value.resumen
   } else {
     unstable_rethrow(usuariosResultado.reason)
+    registrarError('admin_users_error', usuariosResultado.reason, { route: '/admin/usuarios' })
     aviso = usuariosResultado.reason instanceof SinClaveAdmin ? usuariosResultado.reason.message : 'No pudimos cargar los usuarios. Intente actualizar la página.'
   }
   if (invitacionesResultado.status === 'fulfilled') invitaciones = invitacionesResultado.value
   else {
     unstable_rethrow(invitacionesResultado.reason)
+    registrarError('admin_invitations_error', invitacionesResultado.reason, { route: '/admin/usuarios' })
     avisoInvitaciones = 'No pudimos cargar las invitaciones. Actualice la página para volver a intentarlo.'
   }
 
@@ -105,7 +108,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
           </div>
         </details>
       </section>}
-      <form key={`${tipo}-${estado}-${login}-${rol}-${q}`} method="GET" className="expediente grid grid-cols-2 items-end gap-4 lg:grid-cols-4" role="search" aria-label="Buscar usuarios">
+      <FormularioBusqueda key={`${tipo}-${estado}-${login}-${rol}-${q}`}  className="expediente grid grid-cols-2 items-end gap-4 lg:grid-cols-4" role="search" aria-label="Buscar usuarios" action="/admin/usuarios">
         <input type="hidden" name="tipo" value={tipo} />
         <div className="col-span-2 min-w-0 lg:col-span-4">
           <label className="etiqueta-campo" htmlFor="q">Buscar por nombre, correo, cédula o teléfono</label>
@@ -119,7 +122,7 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
           {q && <><p className="min-w-0 break-words text-ink-soft">Búsqueda: «{q}»</p><Link href={hrefLista({ tipo, estado, login, rol })} className="enlace-texto">Limpiar búsqueda</Link></>}
           <Link href={hrefLista({ tipo })} className="enlace-texto">Restablecer filtros</Link>
         </div>}
-      </form>
+      </FormularioBusqueda>
       <div className="flex flex-wrap items-center justify-between gap-2" id="usuarios-resultados" tabIndex={-1}>
         {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} unidad="usuarios" />}
         <p className="text-xs leading-6 text-ink-soft">{tipo === 'legacy' ? 'Perfiles históricos que conservan la autoría de reseñas.' : tipo === 'todos' ? 'Cuentas reales y autores del sistema anterior.' : 'Los autores históricos están en la pestaña Autores legacy.'}</p>
@@ -134,7 +137,6 @@ export default async function UsuariosPage(props: { searchParams: Promise<Record
               <div className="min-w-0 flex-1 basis-64">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h2 className="min-w-0 break-words text-lg">{usuario.nombre}</h2><span className="text-xs text-ink-soft">{etiquetaRol(usuario.rol)}{usuario.rol === 'inquilino' ? ' · histórico' : ''}</span>{usuario.esLegacy && <span className="chip">Autor legacy</span>}</div>
                 <p className="mt-1 break-all text-sm text-ink-soft">{usuario.email}</p>
-                <CedulaAdmin identificacion={usuario.identificacion} nombre={usuario.nombre} />
                 {(usuario.identificacion || usuario.telefono) && <p className="mt-1 break-words text-xs leading-6 text-ink-soft">{[usuario.identificacion ? `Cédula: ${usuario.identificacion}` : null, usuario.telefono ? `Teléfono: ${usuario.telefono}` : null].filter(Boolean).join(' · ')}</p>}
               </div>
               <div className="flex flex-wrap gap-x-5"><Link href={hrefCuenta} className="enlace-texto" aria-label={`Ver cuenta de ${usuario.nombre}`}>Ver cuenta</Link><Link href={`/admin/conteo?${new URLSearchParams({ autor: String(usuario.id), regresar: hrefActual })}`} className="enlace-texto" aria-label={`Ver reseñas de ${usuario.nombre}`}>Ver reseñas</Link></div>

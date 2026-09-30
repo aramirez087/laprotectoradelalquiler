@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -17,7 +18,7 @@ function load(file, mocks = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
   vm.runInNewContext(code, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? require(name),
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)),
     console, Error, URL, URLSearchParams, Date, process,
   }, { filename: file })
   return mod.exports
@@ -186,7 +187,7 @@ test('empty pages avoid user enrichment and authorization or count failures cann
 function page({ total = 45, filas = [] } = {}) {
   const calls = []
   const common = {
-    'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+    '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
     '@/lib/util': util,
   }
   const api = load('app/admin/usuarios/page.tsx', {

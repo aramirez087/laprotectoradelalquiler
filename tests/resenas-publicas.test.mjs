@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -19,7 +20,7 @@ function cargarConteo(createAdmin) {
     require: nombre => {
       if (nombre === '@/lib/supabase/admin') return { createAdmin }
       if (nombre === 'server-only' || nombre.startsWith('@/')) return {}
-      return require(nombre)
+      return (runtimeMocks[nombre] ?? require(nombre))
     },
   })
   return modulo.exports.contarResenasPublicadas

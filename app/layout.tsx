@@ -1,12 +1,18 @@
 import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans } from 'next/font/google'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { cookies } from 'next/headers'
+import { Suspense } from 'react'
 import './globals.css'
 import { Nav } from '@/components/nav'
 import { AvisosAdmin } from '@/components/avisos-admin'
 import { obtenerUsuario, accesoConsulta, horaServidor } from '@/lib/dal'
 import { FranjaPermiso } from '@/components/permiso-consulta'
+import { ActividadGlobal } from '@/components/indicador-carga'
+import { AvisoErrorCliente } from '@/components/aviso-error-cliente'
+import { Marca } from '@/components/marca'
+import type { Tema } from '@/components/selector-tema'
+import Cargando from './loading'
 import { DESCRIPCION_SITIO, NOMBRE_SITIO, ORIGEN_SITIO, ROBOTS_PRIVADOS } from '@/lib/seo'
 
 const instrumentSans = Instrument_Sans({
@@ -41,9 +47,27 @@ export const viewport: Viewport = {
   colorScheme: 'light dark',
 }
 
-export default async function RootLayout(props: LayoutProps<'/'>) {
+async function ContenidoConSesion({ children, tema }: { children: React.ReactNode; tema: Tema }) {
   const usuario = await obtenerUsuario()
   const acceso = usuario ? await accesoConsulta(usuario) : null
+  return <>
+    <Nav usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, administra: usuario.rol === 'admin' && usuario.activo } : null} tema={tema}>
+      {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
+    </Nav>
+    <AvisosAdmin key={usuario?.id ?? 'publico'}>
+      <main id="contenido" tabIndex={-1} className="flex-1">{children}</main>
+    </AvisosAdmin>
+  </>
+}
+
+function CargandoSesion() {
+  return <>
+    <header className="border-b border-line bg-paper"><div className="cabecera-nav"><Marca /></div></header>
+    <main id="contenido" className="flex-1"><Cargando /></main>
+  </>
+}
+
+export default async function RootLayout(props: LayoutProps<'/'>) {
   const guardado = (await cookies()).get('protectora-tema')?.value
   const tema = guardado === 'light' || guardado === 'dark' ? guardado : 'system'
 
@@ -53,17 +77,11 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         <a href="#contenido" className="skip">
           Saltar al contenido
         </a>
-        <Nav
-          usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, administra: usuario.rol === 'admin' && usuario.activo } : null}
-          tema={tema}
-        >
-          {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
-        </Nav>
-        <AvisosAdmin key={usuario?.id ?? 'publico'}>
-          <main id="contenido" tabIndex={-1} className="flex-1">
-            {props.children}
-          </main>
-        </AvisosAdmin>
+        <ActividadGlobal />
+        <AvisoErrorCliente />
+        <Suspense fallback={<CargandoSesion />}>
+          <ContenidoConSesion tema={tema}>{props.children}</ContenidoConSesion>
+        </Suspense>
         <footer className="pie-pagina">
           <div className="mx-auto flex max-w-6xl flex-col justify-between gap-x-6 gap-y-3 px-4 py-6 sm:flex-row sm:items-center sm:px-6">
             <div>

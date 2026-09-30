@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { accesoEnPantalla, mensajeAcceso, tiempoRestante, tituloAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'

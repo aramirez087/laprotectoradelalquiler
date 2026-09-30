@@ -1,5 +1,5 @@
-import { CedulaAdmin } from '@/components/cedula-admin'
-import Link from 'next/link'
+import { registrarError } from '@/lib/registro-error'
+import Link from '@/components/enlace'
 import { notFound, unstable_rethrow } from 'next/navigation'
 import { CabeceraAdmin } from '@/components/admin-ui'
 import { FormUsuario } from '@/components/admin-formularios'
@@ -44,6 +44,7 @@ export default async function CuentaAdminPage({ params, searchParams }: {
   try { cuenta = await obtenerCuentaAdmin(id) }
   catch (error) {
     unstable_rethrow(error)
+    registrarError('page_load_error', error, { route: '/admin/usuarios/[id]', routeType: 'render' })
     aviso = error instanceof SinClaveAdmin ? error.message : 'No pudimos cargar esta cuenta. Vuelva a intentar.'
   }
   if (!aviso && !cuenta) notFound()
@@ -66,7 +67,6 @@ export default async function CuentaAdminPage({ params, searchParams }: {
       <section className="expediente space-y-5" aria-labelledby="datos-cuenta">
         <h2 id="datos-cuenta" className="text-xl">Datos de la cuenta</h2>
         <p className="text-sm leading-6 text-ink-soft">Las invitaciones de acceso se envían al correo que identifica esta cuenta.</p>
-        <CedulaAdmin identificacion={cuenta.identificacion} nombre={cuenta.nombre} />
         <FormDatosUsuarioAdmin id={id} nombre={cuenta.nombre} identificacion={cuenta.identificacion} telefono={cuenta.telefono} version={cuenta.actualizado_en} />
       </section>
       <section className="expediente space-y-4" aria-labelledby="permisos-cuenta">

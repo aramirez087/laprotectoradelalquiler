@@ -1,6 +1,7 @@
+import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
 import { CabeceraAdmin, ResultadosAdmin, VacioAdmin } from '@/components/admin-ui'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { consultarResenas, listarDenunciasPendientes, SinClaveAdmin, TAMANO_PAGINA_ADMIN } from '@/lib/admin'
 import { FormDenunciaAdmin } from '@/components/admin-formularios'
 import { Paginacion } from '@/components/paginacion'
@@ -25,6 +26,7 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
     total = reseñas.total
     denuncias = cola
   } catch (e) {
+    registrarError('page_load_error', e, { route: '/admin/revision', routeType: 'render' })
     aviso = e instanceof SinClaveAdmin ? e.message : 'No pudimos cargar la revisión.'
   }
 

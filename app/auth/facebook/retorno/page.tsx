@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { redirect } from 'next/navigation'
 import { RetornoFacebook } from '@/components/retorno-facebook'
 import { authFacebookHabilitado, rutaTrasFalloFacebook } from '@/lib/facebook-auth'

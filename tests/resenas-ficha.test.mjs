@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -24,7 +25,7 @@ function cargar(ruta, mocks = {}) {
   vm.runInNewContext(codigo, {
     module: modulo,
     exports: modulo.exports,
-    require: nombre => nombre in mocks ? mocks[nombre] : require(nombre),
+    require: nombre => nombre in mocks ? mocks[nombre] : (runtimeMocks[nombre] ?? require(nombre)),
     URL,
     URLSearchParams,
   }, { filename: archivo.pathname })
@@ -55,7 +56,7 @@ const resena = {
 }
 
 const comunes = {
-  'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+  '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   '@/lib/util': util,
   '@/lib/correo-resenas': { correoResenasConfigurado: () => false },
   '@/components/admin-formularios': { FormEditarResena: () => null, FormEliminarResena: () => null },

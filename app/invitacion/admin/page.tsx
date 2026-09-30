@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { MarcoAcceso } from '@/components/marco-acceso'
 import { FormClave } from '@/components/form-clave'
 import { aceptarInvitacionAction } from '@/lib/actions/invitaciones'

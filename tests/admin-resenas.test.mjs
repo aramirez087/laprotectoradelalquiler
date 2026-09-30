@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -12,7 +13,7 @@ function load(file, mocks) {
   const code = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? mocksCedula[name] ?? require(name), console, Error })
+  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, Error })
   return mod.exports
 }
 

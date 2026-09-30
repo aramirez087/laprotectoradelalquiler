@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 
 function ventana(actual: number, total: number) {
   const nums = new Set<number>([1, total])

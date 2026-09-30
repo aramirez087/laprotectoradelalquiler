@@ -354,6 +354,6 @@ proyecto y sigue pendiente.
 
 ## Verificación automática de cédulas
 
-El registro, las reseñas y las ediciones administrativas consultan el padrón mensual oficial del TSE para completar los nombres. Administración ve una marca verde con la fecha de la fuente y un aviso si un nombre histórico difiere. Documentos extranjeros, ausencias y fallos permiten revisión manual.
+El registro y las nuevas reseñas consultan el padrón mensual oficial del TSE para completar los nombres. El servidor resuelve los nombres al crear una ficha nueva. Las páginas y ediciones administrativas usan los datos guardados y no consultan el TSE. Documentos extranjeros, ausencias y fallos permiten revisión manual.
 
 Para preparar una instalación existente use `npm run db:padron-tse` y `npm run padron:actualizar`. La [guía de verificación de cédulas](docs/runbooks/verificacion-cedulas-tse.md) explica el almacenamiento privado, la actualización mensual, los límites y la validación.

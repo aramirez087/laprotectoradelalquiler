@@ -1,3 +1,5 @@
+
+import { BotonSalir } from '@/components/boton-salir'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { cerrarSesion } from '@/lib/actions/auth'
@@ -37,7 +39,7 @@ export default async function RegistroFacebookPage(props: {
           Confirme un correo en Facebook y vuelva a intentar el ingreso. También puede crear una cuenta con correo y clave.
         </p>
         <form action={cerrarSesion}>
-          <button type="submit" className="btn-secundario mt-4 w-full">Cerrar sesión para volver a empezar</button>
+          <BotonSalir className="btn-secundario mt-4 w-full">Cerrar sesión para volver a empezar</BotonSalir>
         </form>
       </MarcoAcceso>
     )

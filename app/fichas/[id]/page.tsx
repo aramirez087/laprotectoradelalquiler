@@ -1,6 +1,7 @@
+import { registrarError } from '@/lib/registro-error'
 import { correoResenasConfigurado } from '@/lib/correo-resenas'
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { notFound } from 'next/navigation'
 import { FormEditarResena, FormEliminarResena } from '@/components/admin-formularios'
 import { EsperaAprobacion } from '@/components/espera-aprobacion'
@@ -60,7 +61,8 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   let persona = null
   try {
     persona = await obtenerFicha(personaId)
-  } catch {
+  } catch (error) {
+    registrarError('page_load_error', error, { route: '/fichas/[id]', routeType: 'render' })
     return (
       <div className="contenedor max-w-xl space-y-4">
         <Link href={volver} className="enlace-atras">
@@ -81,7 +83,8 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   let avisoPrivadas = false
   try {
     privadas = await resenasPrivadasVisibles(persona.id, usuario)
-  } catch {
+  } catch (error) {
+    registrarError('page_load_error', error, { route: '/fichas/[id]', routeType: 'render' })
     privadas = []
     avisoPrivadas = true
   }

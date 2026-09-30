@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/enlace'
 import { Avatar } from '@/components/avatar'
 import { Icono } from '@/components/icono'
 import { fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'

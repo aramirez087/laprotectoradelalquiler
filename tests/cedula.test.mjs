@@ -36,10 +36,10 @@ test('official CSV preserves compound given names, accents and an empty second s
   assert.equal(cedula.buscarEnFragmento([linea], '102340568'), null)
 })
 
-function padron({ fecha = new Date().toISOString().slice(0, 10), prefijos = ['102'], downloadError = false, contenido = '102340567\tMARÍA DEL CARMEN\tSOLÍS\tMUÑOZ\n' } = {}) {
-  let descargas = 0
+function padron({ fecha = new Date().toISOString().slice(0, 10), prefijos = ['102'], downloadError = false, fallosManifiesto = 0, reloj = Date, contenido = '102340567\tMARÍA DEL CARMEN\tSOLÍS\tMUÑOZ\n' } = {}) {
+  let descargas = 0, manifiestos = 0
   const db = {
-    from: () => ({ select() { return this }, eq() { return this }, maybeSingle: async () => ({ data: { version: `${fecha}-abcdef0123456789`, fecha_padron: fecha, prefijos }, error: null }) }),
+    from: () => ({ select() { return this }, eq() { return this }, maybeSingle: async () => { manifiestos++; return fallosManifiesto-- > 0 ? { error: { code: '503' }, data: null } : ({ data: { version: `${fecha}-abcdef0123456789`, fecha_padron: fecha, prefijos }, error: null }) } }),
     storage: { from: bucket => {
       assert.equal(bucket, 'padron-tse')
       return { download: async path => {
@@ -52,9 +52,26 @@ function padron({ fecha = new Date().toISOString().slice(0, 10), prefijos = ['10
   const api = cargarTS('lib/padron.ts', {
     'server-only': {}, react: { cache: f => f }, '@/lib/cedula': cedula,
     '@/lib/supabase/admin': { createAdmin: () => db },
-  })
-  return { ...api, get descargas() { return descargas } }
+  }, { Date: reloj })
+  return { ...api, get descargas() { return descargas }, get manifiestos() { return manifiestos } }
 }
+
+test('shared manifests refresh after 30 seconds and failed reads recover on the next request', async () => {
+  let ahora = Date.now()
+  class Reloj extends Date { static now() { return ahora } }
+  const api = padron({ reloj: Reloj })
+  await Promise.all([api.consultarCedula('102340567'), api.consultarCedula('102340568')])
+  assert.equal(api.manifiestos, 1)
+  assert.equal(api.descargas, 1)
+  ahora += 30_001
+  await api.consultarCedula('102340567')
+  assert.equal(api.manifiestos, 2)
+  assert.equal(api.descargas, 1)
+  const recuperable = padron({ fallosManifiesto: 1 })
+  assert.equal((await recuperable.consultarCedula('102340567')).estado, 'no_disponible')
+  assert.equal((await recuperable.consultarCedula('102340567')).estado, 'encontrada')
+  assert.equal(recuperable.manifiestos, 2)
+})
 
 test('server checks official names and reuses immutable fragments without returning the whole index', async () => {
   const api = padron()
@@ -64,6 +81,7 @@ test('server checks official names and reuses immutable fragments without return
   assert.equal((await api.consultarCedula('102340568')).estado, 'no_encontrada')
   assert.equal((await api.consultarCedula('999999999')).estado, 'no_encontrada')
   assert.equal(api.descargas, 1)
+  assert.equal(api.manifiestos, 1)
 })
 
 test('unavailable, malformed and stale data never produce a verified status', async () => {
@@ -78,20 +96,6 @@ test('a blank second surname at the end of a shard is still found', async () => 
   const resultado = await api.consultarCedula('102340567')
   assert.equal(resultado.estado, 'encontrada')
   assert.equal(resultado.persona.apellido2, '')
-})
-
-test('admin verification flags a conflicting historical name and distinguishes padrón lookup from identity proof', async () => {
-  const api = cargarTS('components/cedula-admin.tsx', {
-    '@/lib/padron': { consultarCedula: async () => ({ estado: 'encontrada', fechaPadron: '2026-08-31', persona }) },
-    '@/lib/cedula': cedula, '@/lib/util': cargarTS('lib/util.ts'),
-  })
-  const html = renderToStaticMarkup(await api.CedulaAdmin({ identificacion: '102340567', nombre: 'Nombre distinto' }))
-  assert.match(html, /Cédula encontrada en el TSE/)
-  assert.match(html, /nombre guardado difiere/)
-  assert.match(html, /identidad de quien lo presenta requiere revisión/)
-  assert.match(html, /MARÍA DEL CARMEN SOLÍS MUÑOZ/)
-  const igual = renderToStaticMarkup(await api.CedulaAdmin({ identificacion: '102340567', nombre: 'María del Carmen Solís Muñoz' }))
-  assert.doesNotMatch(igual, /nombre guardado difiere/)
 })
 
 test('lookup endpoint enforces origin, body limits and a server-side quota before reading names', async () => {
@@ -131,11 +135,11 @@ test('identity form renders cédula before name and keeps manual fields availabl
   assert.doesNotMatch(html, /readOnly/)
 })
 
-test('admin saves replace forged names with TSE names while keeping the original version and actor', async () => {
+test('admin saves preserve administrator names and never consult the TSE', async () => {
   const llamadas = []
   const api = cargarTS('lib/admin.ts', {
     'server-only': {}, '@/lib/dal': { requerirRol: async () => ({ id: 7 }) },
-    '@/lib/padron': { consultarCedula: async () => ({ estado: 'encontrada', persona, fechaPadron: '2026-08-31' }) },
+    '@/lib/padron': { consultarCedula: async () => { throw new Error('Admin must not consult TSE') } },
     '@/lib/util': cargarTS('lib/util.ts'), '@/lib/periodo': {}, '@/lib/acceso-consulta': {},
     '@/lib/supabase/admin': { createAdmin: () => ({ rpc: (nombre, args) => {
       llamadas.push({ nombre, args })
@@ -144,11 +148,11 @@ test('admin saves replace forged names with TSE names while keeping the original
   })
   await api.editarResena({ id: 1, identificacion: '1-0234-0567', nombre: 'Falso', nombre2: '', apellido1: 'Falso', apellido2: '', comentario: 'Test', anonima: false })
   assert.equal(llamadas[0].args.p_admin_id, 7)
-  assert.equal(llamadas[0].args.p_nombre, 'MARÍA')
-  assert.equal(llamadas[0].args.p_nombre2, 'DEL CARMEN')
-  assert.equal(llamadas[0].args.p_apellido1, 'SOLÍS')
+  assert.equal(llamadas[0].args.p_nombre, 'Falso')
+  assert.equal(llamadas[0].args.p_nombre2, '')
+  assert.equal(llamadas[0].args.p_apellido1, 'Falso')
   await api.actualizarDatosUsuario({ id: 1, identificacion: '102340567', nombre: 'Falso', telefono: '', versionEsperada: 'original' })
-  assert.equal(llamadas[1].args.p_nombre, persona.nombreCompleto)
+  assert.equal(llamadas[1].args.p_nombre, 'Falso')
   assert.equal(llamadas[1].args.p_version_esperada, 'original')
 })
 

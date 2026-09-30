@@ -1,3 +1,4 @@
+import { runtimeMocks } from './helpers/runtime-mocks.mjs'
 import { mocksCedula } from './helpers/cedula-mocks.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -14,7 +15,7 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
-  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? require(name), console, URL, URLSearchParams, Date, Intl }, { filename: file })
+  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, URL, URLSearchParams, Date, Intl }, { filename: file })
   return mod.exports
 }
 const noop = async () => undefined
@@ -29,7 +30,7 @@ function mocks({ estado, pendiente = false } = {}) {
     '@/lib/util': util,
     '@/lib/actions/admin': { decidirResenaAction: noop, editarResenaAction: noop, eliminarResenaAction: noop, guardarUsuarioAction: noop, guardarDatosUsuarioAction: noop, resolverDenunciaAction: noop },
     '@/lib/actions/invitaciones': { invitarAdminAction: noop, cancelarInvitacionAdminAction: noop },
-    'next/link': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
+    '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   }
 }
 const usuario = { id: 12, nombre: 'Ana Pérez', rol: 'propietario', activo: true, version: '2026-09-30T00:00:00.000Z' }

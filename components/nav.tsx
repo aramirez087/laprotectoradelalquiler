@@ -1,6 +1,8 @@
 'use client'
 
-import Link from 'next/link'
+import { BotonSalir } from '@/components/boton-salir'
+
+import Link from '@/components/enlace'
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { cerrarSesion } from '@/lib/actions/auth'
@@ -71,9 +73,9 @@ export function Nav({
             Mi perfil
           </Link>
           <form action={cerrarSesion}>
-            <button type="submit" className="enlace-nav">
+            <BotonSalir className="enlace-nav">
               Salir
-            </button>
+            </BotonSalir>
           </form>
         </>
       ) : (
