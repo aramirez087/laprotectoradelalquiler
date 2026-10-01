@@ -7,11 +7,14 @@ import { obtenerUsuario, puedeConsultar } from '@/lib/dal'
 import { altaFacebookPendiente } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
 import { sinSupabase } from '@/lib/supabase/server'
+import Link from '@/components/enlace'
 
 export const metadata = { title: 'Registrarse' }
 
 export default async function RegistroPage(props: PageProps<'/registro'>) {
-  const siguiente = destinoInterno(primer((await props.searchParams).siguiente), '/')
+  const parametros = await props.searchParams
+  const siguiente = destinoInterno(primer(parametros.siguiente), '/')
+  const desdeEjemplo = primer(parametros.origen) === 'ejemplo'
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
     if (usuario) {
@@ -31,6 +34,11 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
         <AvisoConfiguracion />
       ) : (
         <>
+          {desdeEjemplo && (
+            <p className="mb-4 text-sm" data-visita-publica="registro_desde_ejemplo">
+              <Link href="/ejemplo" className="enlace-atras">← Volver a la consulta de ejemplo</Link>
+            </p>
+          )}
           <p className="mb-6 rounded-xl border border-seal/20 bg-seal-soft px-4 py-3 text-sm leading-relaxed text-seal">
             Su primera experiencia aprobada le da <strong className="font-semibold">3 meses para consultar reseñas</strong>. El acceso empieza cuando administración la aprueba.
           </p>

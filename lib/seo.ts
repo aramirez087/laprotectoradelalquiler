@@ -44,19 +44,25 @@ export function metadataPublica({
 }: {
   titulo: string
   descripcion: string
-  ruta: RutaPublica
+  ruta: RutaPublica | '/ejemplo'
 }): Metadata {
   return {
     title: { absolute: titulo },
     description: descripcion,
     alternates: { canonical: urlPublica(ruta) },
-    robots: esEntornoIndexable()
-      ? {
+    robots: !esEntornoIndexable()
+      ? ROBOTS_PRIVADOS
+      : ruta === '/ejemplo'
+        ? {
+            index: false,
+            follow: true,
+            googleBot: { index: false, follow: true, noimageindex: true, nosnippet: true },
+          }
+        : {
           index: true,
           follow: true,
           googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
-        }
-      : ROBOTS_PRIVADOS,
+        },
     openGraph: {
       type: 'website',
       locale: 'es_CR',

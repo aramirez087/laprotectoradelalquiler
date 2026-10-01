@@ -1,5 +1,5 @@
 const rutas = new Set([
-  '/', '/login', '/registro', '/registro/facebook', '/registro/resena', '/fichas', '/fichas/[id]',
+  '/', '/ejemplo', '/login', '/registro', '/registro/facebook', '/registro/resena', '/fichas', '/fichas/[id]',
   '/resenas/nueva', '/perfil', '/recuperar', '/restablecer', '/invitacion/admin', '/como-funciona', '/privacidad',
   '/admin', '/admin/revision', '/admin/rechazadas', '/admin/resenas', '/admin/conteo', '/admin/usuarios',
   '/admin/usuarios/[id]', '/admin/configuracion', '/admin/reportes', '/auth/facebook/datos',

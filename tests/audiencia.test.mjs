@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import {
-  paginaAudiencia, fuenteAudiencia, dispositivoAudiencia, eventosAudiencia,
+  paginaAudiencia, fuenteAudiencia, dispositivoAudiencia, eventosAudiencia, eventoPublicoAudiencia,
   fechasAudiencia, periodoAudiencia, resumirAudiencia,
 } from '../lib/audiencia.ts'
 
 test('audience categorizes allowed pages without exporting document IDs, queries or access tokens', () => {
   assert.equal(paginaAudiencia('/fichas/123456789'), 'ficha')
+  assert.equal(paginaAudiencia('/ejemplo'), 'ejemplo')
   for (const path of ['/admin', '/admin/estadisticas', '/auth/confirmar', '/recuperar', '/restablecer', '/invitacion/admin', '/fichas/123?cedula=123456789', '/unknown']) {
     assert.equal(paginaAudiencia(path), null)
   }
@@ -17,6 +18,20 @@ test('audience categorizes allowed pages without exporting document IDs, queries
     'site_page_view', 'site_page_ficha', 'site_device_movil', 'site_session_start', 'site_source_facebook',
   ])
   assert.equal(eventosAudiencia('inicio', 'computadora', null).length, 3)
+})
+
+test('public events admit only fixed names on their matching route and trigger', () => {
+  assert.equal(eventoPublicoAudiencia('inicio_ejemplo', '/', 'clic'), 'site_public_inicio_ejemplo')
+  for (const evento of ['ejemplo_con_resenas', 'ejemplo_sin_resultados', 'ejemplo_registro']) {
+    assert.equal(eventoPublicoAudiencia(evento, '/ejemplo', 'clic'), `site_public_${evento}`)
+    assert.equal(eventoPublicoAudiencia(evento, '/', 'clic'), null)
+    assert.equal(eventoPublicoAudiencia(evento, '/ejemplo', 'visita'), null)
+  }
+  assert.equal(eventoPublicoAudiencia('registro_desde_ejemplo', '/registro', 'visita'), 'site_public_registro_desde_ejemplo')
+  assert.equal(eventoPublicoAudiencia('registro_desde_ejemplo', '/registro', 'clic'), null)
+  for (const valor of [null, '', '__proto__', 'constructor', 'private@example.test', '/fichas/123', 'ejemplo_registro?cedula=123']) {
+    assert.equal(eventoPublicoAudiencia(valor, '/ejemplo', 'clic'), null)
+  }
 })
 
 test('referrers collapse to fixed categories, including misleading hostnames and private query strings', () => {
@@ -75,6 +90,20 @@ test('empty and unavailable reports remain pending instead of inventing zero vis
   const zero = resumirAudiencia([{fecha: '2026-09-30', valores: [value('site_page_view', 0)]}], 7)
   assert.equal(zero.disponible, true)
   assert.equal(zero.vistas, 0)
+})
+
+test('new example metrics retain missing days and explicit zeros separately from existing traffic', () => {
+  const summary = resumirAudiencia([
+    {fecha: '2026-09-28', valores: [value('site_page_view', 20)]},
+    {fecha: '2026-09-29', valores: [value('site_page_view', 10), value('site_page_ejemplo', 3, 'overall'), value('site_page_ejemplo', 3)]},
+    {fecha: '2026-09-30', valores: [value('site_page_view', 10), value('site_page_ejemplo', 0), value('site_public_ejemplo_registro', 0)]},
+  ], 7)
+  assert.deepEqual(summary.ejemplo[0], {etiqueta: 'Visitas a la consulta de ejemplo', cantidad: 3, diasDisponibles: 2})
+  assert.equal(summary.ejemplo[1].cantidad, null)
+  assert.equal(summary.ejemplo[1].diasDisponibles, 0)
+  assert.equal(summary.ejemplo[4].cantidad, 0)
+  assert.equal(summary.ejemplo[4].diasDisponibles, 1)
+  assert.equal(summary.ejemplo[5].cantidad, null)
 })
 
 const require = createRequire(import.meta.url)

@@ -105,14 +105,15 @@ function inicio({ sesion = usuario, resenas = 0, puedeConsultar = false, estadoA
   }).default
 }
 
-test('public home offers sign-in and registration before any search or review form', async () => {
+test('public home offers registration and a fictional example before any real search or review form', async () => {
   const html = renderToStaticMarkup(await inicio({ sesion: null })())
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
-  assert.deepEqual(destinos.slice(0, 2), ['/registro', '/login'])
+  assert.deepEqual(destinos.slice(0, 2), ['/registro', '/ejemplo'])
   assert.deepEqual([...new Set(destinos)].sort(), [
-    '/como-funciona', '/como-funciona#preguntas-frecuentes', '/login', '/privacidad', '/registro',
+    '/como-funciona', '/como-funciona#preguntas-frecuentes', '/ejemplo', '/privacidad', '/registro',
   ])
-  assert.match(html, /Iniciar sesión/)
+  assert.match(html, /Ver una consulta de ejemplo/)
+  assert.match(html, /ejemplo ficticio sin registrarse/)
   assert.match(html, /Unirme a La Protectora/)
   assert.match(html, /<h1[^>]*>Reseñas de inquilinos\./)
   assert.match(html, /propietarios y agencias/i)
@@ -249,6 +250,19 @@ test('registration preserves public, first-review, inactive and administrator en
   ]) {
     await assert.rejects(registro({ sesion, puedeConsultar })({ searchParams: Promise.resolve({}) }),
       error => error.ruta === esperado)
+  }
+})
+
+test('example registration context admits only the fixed source and never changes access decisions', async () => {
+  for (const origen of [undefined, 'ejemplo', 'https://external.test/private', '<script>private</script>']) {
+    const searchParams = Promise.resolve({ origen })
+    const html = renderToStaticMarkup(await registro({ sesion: null })({ searchParams }))
+    assert.equal(html.includes('data-visita-publica="registro_desde_ejemplo"'), origen === 'ejemplo')
+    assert.equal(html.includes('Volver a la consulta de ejemplo'), origen === 'ejemplo')
+    assert.doesNotMatch(html, /external\.test|<script>/)
+    assert.match(html, /<form aria-label="Crear cuenta"/)
+    await assert.rejects(registro({ puedeConsultar: true })({ searchParams }), error => error.ruta === '/')
+    await assert.rejects(registro()({ searchParams }), error => error.ruta === '/registro/resena')
   }
 })
 

@@ -33,6 +33,24 @@ test('each public page gets its own canonical and sharing metadata', () => {
   assert.equal(metadata.openGraph.images[0].url, `${ORIGEN_SITIO}/opengraph-image`)
 })
 
+test('fictional consultation is shareable but never indexable or listed in the sitemap', () => {
+  const anterior = process.env.VERCEL_ENV
+  try {
+    for (const entorno of ['production', 'preview', 'development']) {
+      process.env.VERCEL_ENV = entorno
+      const metadata = metadataPublica({ titulo: 'Consulta de ejemplo', descripcion: 'Ejemplo ficticio', ruta: '/ejemplo' })
+      assert.equal(metadata.robots.index, false)
+      assert.equal(metadata.robots.googleBot.index, false)
+      assert.equal(metadata.alternates.canonical, `${ORIGEN_SITIO}/ejemplo`)
+      assert.equal(metadata.openGraph.url, `${ORIGEN_SITIO}/ejemplo`)
+      assert.ok(sitemap().every(({ url }) => !url.endsWith('/ejemplo')))
+    }
+  } finally {
+    if (anterior === undefined) delete process.env.VERCEL_ENV
+    else process.env.VERCEL_ENV = anterior
+  }
+})
+
 test('preview and development deployments cannot opt into public indexing', () => {
   const anterior = process.env.VERCEL_ENV
   try {

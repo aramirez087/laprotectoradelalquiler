@@ -1,6 +1,6 @@
 /** Only fixed categories leave the site. Never send URLs, queries or record IDs. */
 export const PAGINAS_AUDIENCIA = {
-  inicio: 'Inicio', como_funciona: 'Cómo funciona', privacidad: 'Privacidad',
+  inicio: 'Inicio', ejemplo: 'Consulta de ejemplo', como_funciona: 'Cómo funciona', privacidad: 'Privacidad',
   login: 'Iniciar sesión', registro: 'Registro', primera_resena: 'Primera reseña',
   fichas: 'Consulta de fichas', ficha: 'Detalle de ficha',
   nueva_resena: 'Escribir reseña', perfil: 'Mi perfil',
@@ -17,13 +17,38 @@ export const DISPOSITIVOS_AUDIENCIA = {
 
 export function paginaAudiencia(path: string): keyof typeof PAGINAS_AUDIENCIA | null {
   const rutas: Record<string, keyof typeof PAGINAS_AUDIENCIA> = {
-    '/': 'inicio', '/como-funciona': 'como_funciona', '/privacidad': 'privacidad',
+    '/': 'inicio', '/ejemplo': 'ejemplo', '/como-funciona': 'como_funciona', '/privacidad': 'privacidad',
     '/login': 'login', '/registro': 'registro', '/registro/resena': 'primera_resena',
     '/fichas': 'fichas', '/resenas/nueva': 'nueva_resena', '/perfil': 'perfil',
   }
   if (Object.hasOwn(rutas, path)) return rutas[path]
   return /^\/fichas\/\d+$/.test(path) ? 'ficha' : null
 }
+
+/** Explicit event, route and trigger allowlists; DOM values never become telemetry. */
+const EVENTOS_PUBLICOS_AUDIENCIA = {
+  inicio_ejemplo: { ruta: '/', tipo: 'clic' },
+  ejemplo_con_resenas: { ruta: '/ejemplo', tipo: 'clic' },
+  ejemplo_sin_resultados: { ruta: '/ejemplo', tipo: 'clic' },
+  ejemplo_registro: { ruta: '/ejemplo', tipo: 'clic' },
+  registro_desde_ejemplo: { ruta: '/registro', tipo: 'visita' },
+} as const
+
+export function eventoPublicoAudiencia(valor: string | null, path: string, tipo: 'clic' | 'visita') {
+  if (!valor || !Object.hasOwn(EVENTOS_PUBLICOS_AUDIENCIA, valor)) return null
+  const nombre = valor as keyof typeof EVENTOS_PUBLICOS_AUDIENCIA
+  const evento = EVENTOS_PUBLICOS_AUDIENCIA[nombre]
+  return evento.ruta === path && evento.tipo === tipo ? `site_public_${nombre}` : null
+}
+
+const METRICAS_EJEMPLO_AUDIENCIA = {
+  site_page_ejemplo: 'Visitas a la consulta de ejemplo',
+  site_public_inicio_ejemplo: 'Clics para ver el ejemplo desde el inicio',
+  site_public_ejemplo_con_resenas: 'Interacciones con el caso con reseñas',
+  site_public_ejemplo_sin_resultados: 'Interacciones con el caso sin resultados',
+  site_public_ejemplo_registro: 'Clics para compartir una experiencia',
+  site_public_registro_desde_ejemplo: 'Visitas al registro con origen «ejemplo»',
+} as const
 
 export function fuenteAudiencia(referrer: string, origin: string): keyof typeof FUENTES_AUDIENCIA {
   try {
@@ -95,6 +120,12 @@ export function resumirAudiencia(dias: DiaAudiencia[], periodo: PeriodoAudiencia
     paginas: lista(PAGINAS_AUDIENCIA, 'site_page_'),
     fuentes: lista(FUENTES_AUDIENCIA, 'site_source_'),
     dispositivos: lista(DISPOSITIVOS_AUDIENCIA, 'site_device_'),
+    ejemplo: Object.entries(METRICAS_EJEMPLO_AUDIENCIA).map(([nombre, etiqueta]) => {
+      const valores = dias.map(dia => dia.valores ? valorMetricas(dia.valores, nombre, 'event_count') : null)
+        .filter((valor): valor is number => valor !== null)
+      return { etiqueta, cantidad: valores.length ? valores.reduce((s, v) => s + v, 0) : null,
+        diasDisponibles: valores.length }
+    }),
     serie: dias.map(d => ({ fecha: d.fecha,
       vistas: d.valores ? valorMetricas(d.valores, 'site_page_view', 'event_count') : null,
       visitantes: d.valores ? valorMetricas(d.valores, 'daily_active_user') : null,

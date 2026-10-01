@@ -34,6 +34,7 @@ export default function ComoFuncionaPage() {
           La comunidad se construye con aportes: su primera reseña aprobada le da 3 meses de consultas gratis.
           Conozca los pasos, las reglas del acceso y cómo se cuida la información.
         </p>
+        <Link href="/ejemplo" className="btn-secundario">Ver una consulta de ejemplo</Link>
       </header>
 
       <nav aria-label="En esta página" className="rounded-2xl border border-line bg-card p-5">

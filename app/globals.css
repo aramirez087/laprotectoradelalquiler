@@ -690,7 +690,7 @@ code {
 }
 
 .acciones-inicio {
-  max-width: 30rem;
+  max-width: 36rem;
 }
 
 .acciones-inicio > a {
@@ -1080,23 +1080,17 @@ details[open] > summary .indicador-detalle {
   gap: 1.25rem;
   padding-block: 0.5rem;
 }
-/* Constrain the root scrollport as well as the admin content. Keep this on html
-   so the body does not become a scroll container for the sticky site header. */
-html:has(.marco-admin) {
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
-}
 .marco-admin {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
 }
 .nav-admin {
+  /* Keep the links' absolute screen-reader status text inside this scroller. */
+  position: relative;
   display: flex;
   width: 100%;
   max-width: 100%;
-  contain: inline-size;
   gap: 0.5rem 1.5rem;
   overflow-x: auto;
   overscroll-behavior-x: none;

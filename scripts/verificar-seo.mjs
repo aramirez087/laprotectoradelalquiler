@@ -85,6 +85,16 @@ assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => 
 ])
 console.log('✓ robots.txt y sitemap.xml: solo páginas públicas canónicas')
 
+const ejemplo = await solicitar('/ejemplo')
+assert.equal(ejemplo.status, 200, 'El ejemplo debe estar disponible sin iniciar sesión')
+assert.match(ejemplo.headers.get('x-robots-tag') || '', /noindex/)
+const htmlEjemplo = await ejemplo.text()
+assert.ok(meta(htmlEjemplo, 'robots')?.includes('noindex'))
+assert.equal(meta(htmlEjemplo, 'og:url'), `${origenCanonico}/ejemplo`)
+assert.match(htmlEjemplo, /Ejemplo ficticio/)
+assert.equal([...htmlEjemplo.matchAll(/<h1\b/g)].length, 1)
+console.log('✓ Consulta de ejemplo: pública, ficticia y excluida de indexación')
+
 for (const ruta of ['/login', '/registro', '/recuperar', '/restablecer', '/perfil', '/fichas', '/fichas/1', '/resenas/nueva', '/registro/resena', '/admin', '/admin/reportes/csv', '/invitacion/admin', '/auth/facebook/datos']) {
   const respuesta = await solicitar(ruta)
   assert.ok(respuesta.status < 500, `${ruta}: error del servidor`)

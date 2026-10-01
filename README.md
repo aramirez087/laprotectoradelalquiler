@@ -11,6 +11,10 @@ Plataforma comunitaria de confianza para el alquiler en Costa Rica:
 
 La dirección visual y las reglas de interacción están en [design.md](design.md). El alcance, los cambios y las verificaciones de la revisión de UX están en [docs/ux-review.md](docs/ux-review.md).
 
+La [consulta de ejemplo](docs/runbooks/consulta-ejemplo.md) permite explorar una ficha
+ficticia antes del registro. Incluye los casos con reseñas y sin resultados, el
+recorrido hacia el primer aporte y métricas de interés separadas de la activación.
+
 ## Stack
 
 - [Next.js 16](https://nextjs.org) (App Router, TypeScript, Tailwind v4)

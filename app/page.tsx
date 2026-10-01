@@ -51,8 +51,11 @@ export default async function HomePage() {
             <Link href="/registro" className="btn-primario">
               Unirme a La Protectora <Icono nombre="flecha" className="h-4 w-4 shrink-0" />
             </Link>
-            <Link href="/login" className="btn-secundario">Iniciar sesión</Link>
+            <Link href="/ejemplo" className="btn-secundario" data-evento-publico="inicio_ejemplo">
+              Ver una consulta de ejemplo
+            </Link>
           </div>
+          <p className="mt-3 text-xs text-ink-soft">Explore el ejemplo ficticio sin registrarse.</p>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
             Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas gratis.</strong>
           </p>

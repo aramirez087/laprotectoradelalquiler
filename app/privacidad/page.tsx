@@ -100,6 +100,8 @@ export default function PrivacidadPage() {
         <h2 className="text-xl">Estadísticas de audiencia</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           Statsig recibe eventos de visita con categorías de páginas, origen de entrada y tipo de dispositivo.
+          También cuenta interacciones predefinidas con la consulta de ejemplo: abrirla desde el inicio,
+          explorar sus casos y continuar al registro, incluida la visita al registro con ese origen.
           Usamos un identificador aleatorio guardado en su navegador para estimar visitantes distintos; no lo
           vinculamos con su cuenta. La medición no crea cookies de audiencia. Statsig también procesa datos
           técnicos de la conexión, como la dirección IP. Puede consultar su{' '}

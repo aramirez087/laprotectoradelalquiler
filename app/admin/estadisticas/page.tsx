@@ -54,6 +54,17 @@ export default async function EstadisticasPage(props: { searchParams: Promise<Re
           <div key={etiqueta} className="metrico"><p className="text-sm text-ink-soft">{etiqueta}</p><p className="mt-4 text-4xl font-medium leading-none tracking-tight tabular-nums">{cantidad === null ? '—' : formatoNumero(cantidad)}</p><p className="mt-3 text-xs leading-5 text-ink-soft">{cantidad === null ? 'Pendiente de procesamiento. ' : ''}{detalle}</p></div>)}</div>
         <GraficoAudiencia key={periodo} serie={datos.serie} />
         <div className="grid gap-5 lg:grid-cols-3"><Distribucion titulo="Páginas más visitadas" filas={datos.paginas} unidad="Páginas vistas por sección" /><Distribucion titulo="De dónde llegan" filas={datos.fuentes} unidad="Visitas por origen de entrada" /><Distribucion titulo="Dispositivos" filas={datos.dispositivos} unidad="Páginas vistas por tipo de dispositivo" /></div>
+        <section className="expediente space-y-4" aria-labelledby="audiencia-ejemplo">
+          <div>
+            <h2 id="audiencia-ejemplo" className="text-lg font-medium">Uso de la consulta de ejemplo</h2>
+            <p className="mt-1 text-sm leading-6 text-ink-soft">Visitas a páginas visibles e interacciones, contadas una vez por tipo en cada visita a la página. Los clics para compartir una experiencia indican intención; no son cuentas creadas ni reseñas aprobadas.</p>
+          </div>
+          <dl className="divide-y divide-line">{datos.ejemplo.map(fila => <div key={fila.etiqueta} className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1 py-3 text-sm">
+            <dt>{fila.etiqueta}</dt>
+            <dd className="text-right"><span className="font-medium tabular-nums">{fila.cantidad === null ? '—' : formatoNumero(fila.cantidad)}</span><span className="ml-3 text-xs text-ink-soft">{fila.cantidad === null ? 'Sin informe disponible' : `${fila.diasDisponibles} de ${periodo} días con informe`}</span></dd>
+          </div>)}</dl>
+          <p className="text-xs leading-5 text-ink-soft">Un enlace de registro con origen «ejemplo» también puede compartirse. Estas cifras no identifican personas ni atribuyen su registro, aprobación o primera búsqueda al ejemplo. El panel de activación muestra el recorrido general de las cuentas por separado. Los totales con días pendientes son parciales.</p>
+        </section>
       </>}
     <ResultadosBusquedaAdmin resumen={busqueda} />
     <ActivacionAdmin resumen={activacion} />
@@ -61,7 +72,7 @@ export default async function EstadisticasPage(props: { searchParams: Promise<Re
       <p>Se mide únicamente el sitio de producción. Las visitas de administración, las pantallas de recuperación de acceso y las solicitudes automáticas al servidor quedan fuera. Un bloqueador o una preferencia de no seguimiento puede impedir la medición.</p>
       <p>Un visitante es un navegador con un identificador aleatorio; no se vincula con su cuenta. Las cifras por día no se suman para calcular visitantes únicos del período.</p>
       <p>Statsig procesa los informes diariamente. Sus días estadísticos cierran a las 2 a. m. de Costa Rica; el período excluye el día todavía abierto. Un guion o «Pendiente» significa que no hay un informe disponible, no que hubo cero visitas.</p>
-      <p>Solo se envían categorías de páginas, orígenes y dispositivos. No se envían nombres, correos, cédulas, búsquedas, identificadores de fichas ni contenido de formularios o reseñas.</p>
+      <p>Solo se envían categorías de páginas, orígenes, dispositivos e interacciones predefinidas con la consulta de ejemplo. No se envían nombres, correos, cédulas, búsquedas, identificadores de fichas ni contenido de formularios o reseñas.</p>
     </div></details>
   </div>
 }
