@@ -47,7 +47,8 @@ export function FormDecision({
         <p id={`ayuda-nota-${id}`} className="mt-2 text-xs text-ink-soft">Obligatorio al solicitar correcciones. Autoriza cambios en el relato o el anonimato y un nuevo envío. Corregir la identidad del inquilino corresponde a administración. «Rechazar reseña» impide el reenvío.</p>
         <ErrorCampo nombre={`nota-${id}`} mensaje={estado?.campos?.nota} />
       </div>
-      {decisiones.includes('publicar') && <OpcionNotificar id={`notificar-aprobacion-${id}`} habilitada={notificacionesHabilitadas} soloAprobacion />}
+      <p className="text-xs text-ink-soft">Las aprobaciones, solicitudes de corrección y rechazos generan un aviso automático al autor.
+        {!notificacionesHabilitadas && ' El correo aún no está configurado; los avisos quedarán pendientes.'}</p>
       <MensajeForm error={estado?.error} />
       <div className="flex flex-wrap gap-2">
         {decisiones.map((decision) => (

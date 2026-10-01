@@ -1,5 +1,10 @@
 # Estadísticas de audiencia
 
+La misma página incluye un panel independiente de activación basado en Postgres:
+cuenta → reseña → aprobación → primera búsqueda. No requiere Statsig ni comparte
+identidad o texto con él. Consulte [el runbook de activación](activacion.md) para
+la migración, cohortes, límites de observación y operación de avisos.
+
 Administración → Estadísticas (`/admin/estadisticas`) consulta informes reales de la integración
 Statsig `laprotectoradelalquiler-analytics`, en su plan gratuito. No muestra datos de ejemplo.
 

@@ -89,6 +89,12 @@ export default function PrivacidadPage() {
         </p>
       </section>
 
+      <section id="borradores" className="space-y-3">
+        <h2 className="text-xl">Borradores y avisos de revisión</h2>
+        <p className="text-sm leading-relaxed text-ink-soft">Mientras escribe una nueva reseña, guardamos un borrador privado en su cuenta para que pueda retomarlo en otro dispositivo. El formulario confirma cada guardado. No se guarda el relato ni la cédula en el almacenamiento del navegador. El borrador vence a los 30 días del último guardado y se elimina su contenido al enviar la reseña.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">Las aprobaciones, solicitudes de corrección y rechazos generan un aviso por correo mediante Resend. El aviso incluye el número de reseña y un enlace a su perfil; no incluye la identidad del inquilino, el relato ni la nota de moderación. Conservamos los datos necesarios para confirmar o reintentar el envío. Las copias de los avisos completados se eliminan a los 30 días.</p>
+      </section>
+
       <section id="audiencia" className="space-y-3">
         <h2 className="text-xl">Estadísticas de audiencia</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
@@ -104,6 +110,12 @@ export default function PrivacidadPage() {
           respetamos las señales de «No rastrear» y Global Privacy Control del navegador. Los informes
           agregados solo están disponibles para administración.
         </p>
+      </section>
+
+      <section id="activacion" className="space-y-3">
+        <h2 className="text-xl">Estadísticas de activación</h2>
+        <p className="text-sm leading-relaxed text-ink-soft">Dentro de nuestra base de datos registramos cuándo se crea una cuenta nueva, cuándo envía su primera reseña, cuándo obtiene su primera aprobación y cuándo completa su primera búsqueda. Estos hitos se vinculan con su cuenta para contarlos una sola vez y se eliminan al borrar la cuenta. No guardamos el texto de la búsqueda ni los resultados en estos hitos y no los enviamos a Statsig. El registro de la primera búsqueda respeta «No rastrear» y Global Privacy Control.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">Administración ve únicamente los conteos por cohorte y los tiempos de revisión agregados. Estas cifras ayudan a mejorar el registro y la moderación; no se usan para publicidad.</p>
       </section>
 
       <section id="eliminacion" className="space-y-2">

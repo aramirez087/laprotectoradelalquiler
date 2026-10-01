@@ -1,17 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useFormAction } from '@/components/use-form-action'
 import type { EstadoForm } from '@/lib/actions/auth'
 import { MensajeForm } from '@/components/mensaje-form'
 import { CamposIdentidad } from '@/components/campos-identidad'
 import { nombreCompleto } from '@/lib/util'
+import { useBorradorResena } from '@/components/use-borrador-resena'
+import type { EstadoBorrador } from '@/lib/borrador-resena'
+import { ProtectorEdicionAdmin } from '@/components/protector-edicion-admin'
 
 export interface PropsFormResena {
   accion: (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
   enRevision?: boolean
   /** La primera reseña del alta solo se envía una vez. */
   primera?: boolean
+  borrador?: EstadoBorrador
   personaInicial: {
     personaId: number
     identificacion: string
@@ -57,9 +61,11 @@ function ErrorCampo({ nombre, mensaje }: { nombre: string; mensaje?: string }) {
   ) : null
 }
 
-export function FormResena({ personaInicial, accion, enRevision = true, primera = false }: PropsFormResena) {
-  const { estado, pendiente, formProps } = useFormAction(accion)
-  const [comentario, setComentario] = useState('')
+export function FormResena({ personaInicial, accion, enRevision = true, primera = false, borrador }: PropsFormResena) {
+  const formulario = useRef<HTMLFormElement>(null)
+  const draft = useBorradorResena(borrador, personaInicial?.personaId ?? null, formulario)
+  const { estado, pendiente, formProps } = useFormAction(accion, { formulario, onResultado: () => draft.continuar() })
+  const [comentario, setComentario] = useState(borrador?.datos?.comentario ?? '')
   const bloqueada = personaInicial != null
 
   function errorCampo(nombre: string) {
@@ -73,8 +79,19 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
   }
 
   return (
-    <form {...formProps} className="space-y-5">
+    <form {...formProps} onChange={draft.cambio} onSubmit={event => { draft.pausar(); formProps.onSubmit(event) }} className="space-y-5">
+      <ProtectorEdicionAdmin pendiente={!pendiente && ['cambios','guardando','error','conflicto'].includes(draft.estado)} nombre="la reseña" />
       <p className="text-xs text-ink-soft">Los campos con * son obligatorios. Los demás son opcionales.</p>
+      {borrador && <div className="rounded-xl border border-line p-4 text-sm">
+        <p role="status">{!draft.disponible ? 'El guardado de borradores no está disponible. Guarde su texto antes de salir.'
+          : draft.estado === 'guardando' ? 'Guardando borrador…'
+            : draft.estado === 'guardado' ? 'Borrador guardado en su cuenta.'
+              : draft.estado === 'cambios' ? 'Hay cambios por guardar.'
+                : draft.estado === 'error' || draft.estado === 'conflicto' ? draft.error
+                  : 'Su borrador se guarda automáticamente en su cuenta mientras escribe.'}</p>
+        <p className="mt-2 text-xs text-ink-soft">Solo usted puede retomarlo. Se conserva durante 30 días desde el último guardado. Guardar no envía la reseña a revisión.</p>
+        {draft.disponible && draft.estado !== 'conflicto' && <button type="button" className="enlace-texto mt-3 min-h-11" disabled={pendiente || draft.estado === 'guardando'} onClick={() => void draft.guardar()}>Guardar borrador ahora</button>}
+      </div>}
       {primera && <input type="hidden" name="modo" value="registro" />}
       {personaInicial && <input type="hidden" name="personaId" value={personaInicial.personaId} />}
       <div>
@@ -96,7 +113,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
             <input type="hidden" name="apellido1" value={personaInicial.apellido1} />
             <input type="hidden" name="apellido2" value={personaInicial.apellido2 ?? ''} />
           </div>
-        ) : <CamposIdentidad errores={estado?.campos} />}
+        ) : <CamposIdentidad inicial={borrador?.datos ?? undefined} errores={estado?.campos} onCambio={draft.cambio} />}
       </Paso>
 
       <Paso
@@ -129,7 +146,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
           </div>
         </div>
       <label htmlFor="anonima" className="opcion-rol flex items-start gap-3">
-        <input id="anonima" name="anonima" type="checkbox" value="1" className="mt-0.5 h-5 w-5 shrink-0" />
+        <input id="anonima" name="anonima" type="checkbox" value="1" defaultChecked={borrador?.datos?.anonima ?? false} className="mt-0.5 h-5 w-5 shrink-0" />
         <span>
           <span className="block text-sm font-medium">Ocultar mi nombre</span>
           <span className="mt-0.5 block text-xs text-ink-soft">

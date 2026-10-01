@@ -14,6 +14,7 @@ import { sinSupabase } from '@/lib/supabase/server'
 import { REGLAS_CONSULTA } from '@/lib/acceso-consulta'
 import { PasosRegistro } from '@/components/pasos-registro'
 import { Icono } from '@/components/icono'
+import { obtenerBorradorResena } from '@/lib/borrador-resena-servidor'
 
 export const metadata = { title: 'Mi primera reseña' }
 
@@ -72,6 +73,7 @@ export default async function RegistroResenaPage() {
         accion={crearResenaAction}
         personaInicial={null}
         enRevision
+        borrador={await obtenerBorradorResena(usuario.id, null)}
       />
       <Link href="/perfil" className="enlace-atras">
         ← Volver a mi perfil

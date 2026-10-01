@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConsultaCedula } from '@/components/use-consulta-cedula'
 import { EstadoCedula } from '@/components/estado-cedula'
 import { cedulaNacional, type NombrePadron } from '@/lib/cedula'
@@ -8,7 +8,7 @@ import { cedulaNacional, type NombrePadron } from '@/lib/cedula'
 type Datos = { identificacion: string; nombre: string; nombre2: string; apellido1: string; apellido2: string }
 const VACIOS: Datos = { identificacion: '', nombre: '', nombre2: '', apellido1: '', apellido2: '' }
 
-export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '', campoCedula = 'identificacion', requerida = true, consultarPadron = true }: {
+export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '', campoCedula = 'identificacion', requerida = true, consultarPadron = true, onCambio }: {
   tipo?: 'persona' | 'cuenta'
   inicial?: Partial<Datos>
   errores?: Record<string, string>
@@ -16,10 +16,15 @@ export function CamposIdentidad({ tipo = 'persona', inicial, errores, idBase = '
   campoCedula?: 'identificacion' | 'cedula'
   requerida?: boolean
   consultarPadron?: boolean
+  onCambio?: () => void
 }) {
   const [datos, setDatos] = useState<Datos>({ ...VACIOS, ...inicial })
   const cedulaActual = useRef(cedulaNacional(inicial?.identificacion))
   const autocompletada = useRef<string | null>(null)
+  const anteriores = useRef(datos)
+  useEffect(() => {
+    if (anteriores.current !== datos) { anteriores.current = datos; onCambio?.() }
+  }, [datos, onCambio])
   const alEncontrar = useCallback((persona: NombrePadron) => {
     if (cedulaActual.current !== persona.identificacion) return
     autocompletada.current = persona.identificacion

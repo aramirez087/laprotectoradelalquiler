@@ -13,6 +13,7 @@ import { FormResena } from '@/components/form-resena'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { sinSupabase } from '@/lib/supabase/server'
 import { mascararCedula, paginaSegura, primer } from '@/lib/util'
+import { obtenerBorradorResena } from '@/lib/borrador-resena-servidor'
 
 export const metadata = { title: 'Escribir reseña' }
 
@@ -157,6 +158,7 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         accion={crearResenaAction}
         personaInicial={personaInicial}
         enRevision={usuario.rol !== 'admin'}
+        borrador={await obtenerBorradorResena(usuario.id, personaInicial?.personaId ?? null)}
       />
     </div>
   )

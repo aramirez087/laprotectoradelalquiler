@@ -74,7 +74,8 @@ test('missing authors are skipped and author names cannot inject HTML into moder
   assert.equal(payload.from, 'La Protectora del Alquiler <no-reply@auth.protectoradelalquiler.com>')
 })
 test('transient and network errors retry once with the identical idempotency key and payload', async () => {
-  for (const first of [{ status: 503, body: {} }, { status: 429, body: {} }, new Error('response lost')]) {
+  for (const first of [{ status: 503, body: {} }, { status: 429, body: {} },
+    { status: 409, body: { name: 'concurrent_idempotent_requests' } }, new Error('response lost')]) {
     const c = correo({ RESEND_API_KEY: 'fake-key' }, [first])
     assert.ok((await c.notificarCambioResena(input)).mensaje)
     assert.equal(c.calls.length, 2)
@@ -84,7 +85,8 @@ test('transient and network errors retry once with the identical idempotency key
   }
 })
 test('provider rejection or malformed success produces a warning, never false success', async () => {
-  for (const response of [{ status: 403, body: { message: 'unverified domain' } }, { status: 200, body: {} }]) {
+  for (const response of [{ status: 403, body: { message: 'unverified domain' } },
+    { status: 409, body: { name: 'invalid_idempotent_request' } }, { status: 200, body: {} }]) {
     const c = correo({ RESEND_API_KEY: 'fake-key' }, [response])
     const result = await c.notificarCambioResena(input)
     assert.equal(result.mensaje, undefined)

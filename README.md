@@ -132,11 +132,20 @@ de inquilino y reseña en una sola transacción. Las cédulas legacy sin modific
 se admiten al corregir otros datos. Puede verificarlo con
 `npm run test:admin-resenas` (requiere Docker; crea una base desechable).
 
-### Correos opcionales de administración
+### Borradores, avisos y activación
+
+`npm run db:activacion` instala una migración aditiva para borradores privados,
+avisos durables de moderación y el embudo de cuentas nuevas en administración.
+Las aprobaciones, solicitudes de corrección y rechazos generan avisos automáticos.
+No se envían notificaciones históricas. El scheduler de recuperación usa Supabase
+Cron y Vault cada cinco minutos. Siga el [orden de despliegue y verificación](docs/runbooks/activacion.md)
+antes de activarlo; no use el esquema inicial sobre una base existente.
+
+### Correos opcionales de edición y eliminación
 
 No es necesario contratar un plan ni configurar Resend para editar o eliminar
 reseñas. Mientras `RESEND_API_KEY` esté vacío, la casilla «Notificar por correo»
-aparece deshabilitada con un aviso. Cada acción requiere que el administrador
+aparece deshabilitada con un aviso. Cada edición o eliminación requiere que el administrador
 marque esa casilla; está desmarcada de forma predeterminada.
 
 Para habilitarla más adelante:
@@ -144,7 +153,7 @@ Para habilitarla más adelante:
 1. Verifique `protectoradelalquiler.com` en Resend y cree una API key con permiso
    de envío. Si utiliza otro dominio, configure también `RESEND_FROM_EMAIL` con
    un remitente de ese dominio verificado. El valor predeterminado es
-   `La Protectora del Alquiler <notificaciones@protectoradelalquiler.com>`.
+   `La Protectora del Alquiler <no-reply@auth.protectoradelalquiler.com>`.
 2. Configure `RESEND_API_KEY` en el entorno del servidor (`.env.local` en local;
    `vercel env add RESEND_API_KEY production` en Vercel). No use `NEXT_PUBLIC_`
    para esta clave. Reinicie el servidor local o vuelva a desplegar en Vercel.

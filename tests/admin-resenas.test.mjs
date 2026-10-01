@@ -103,7 +103,7 @@ test('moving a review cannot give its author a second review of the target tenan
 
 function actions(config = {}, correo = {}) {
   const backend = admin(config)
-  const notifications = [], revalidations = []
+  const notifications = [], revalidations = [], scheduled = []
   const api = load('lib/actions/admin.ts', {
     '@/lib/admin': backend,
     '@/lib/correo-resenas': { notificarCambioResena: async (input) => {
@@ -112,8 +112,9 @@ function actions(config = {}, correo = {}) {
     } },
     'next/cache': { revalidatePath: (path) => revalidations.push(path) },
     'next/navigation': { unstable_rethrow() {} },
+    'next/server': { after: work => scheduled.push(work) },
   })
-  return { ...api, backend, notifications, revalidations }
+  return { ...api, backend, notifications, revalidations, scheduled }
 }
 function form(notify = false) {
   const f = new FormData()
@@ -162,21 +163,19 @@ test('edit/delete notification follows a successful mutation and uses its stored
   assert.ok(a.revalidations.includes('/fichas/2'))
   assert.ok(a.revalidations.includes('/fichas/4'))
 })
-test('approval sends after commit to the stored author and repeated approval cannot send twice', async () => {
+test('approval schedules the durable worker after commit and a repeated decision cannot schedule twice', async () => {
   const a = actions({}, { mensaje: 'Notificación enviada al servicio de correo.' })
   const f = form(true)
   f.set('decision', 'publicar')
   f.set('nota', 'A private moderation note')
   const result = await a.decidirResenaAction(undefined, f)
-  assert.match(result.mensaje, /aprobada y publicada.*Notificación enviada/)
-  assert.equal(a.notifications.length, 1)
-  assert.equal(a.notifications[0].accion, 'aprobada')
-  assert.equal(a.notifications[0].autor.email, 'author@example.test')
-  assert.equal(a.notifications[0].nota, undefined)
+  assert.match(result.mensaje, /aprobada y publicada/)
+  assert.equal(a.notifications.length, 0)
+  assert.equal(a.scheduled.length, 1)
   assert.ok(a.revalidations.includes('/perfil'))
   const duplicate = await a.decidirResenaAction(undefined, f)
   assert.match(duplicate.error, /Actualice la página/)
-  assert.equal(a.notifications.length, 1)
+  assert.equal(a.scheduled.length, 1)
 })
 test('rejection and review decisions do not send an approval notice even with a forged checkbox', async () => {
   for (const decision of ['rechazar', 'revisar']) {
@@ -199,23 +198,26 @@ test('requesting corrections requires instructions and explicit permission; fina
   assert.ok((await a.decidirResenaAction(undefined, f)).mensaje)
   assert.equal(a.backend.calls[1].changes.permite_correccion, false)
 })
-test('failed approvals never email; an unchecked approval stays silent; delivery failure preserves publication', async () => {
+test('failed approvals never schedule; valid decisions schedule regardless of the obsolete checkbox', async () => {
   for (const config of [{ rol: 'propietario' }, { activo: false }, { error: { code: '23514', message: 'database failure' } }]) {
     const a = actions(config)
     const f = form(true); f.set('decision', 'publicar')
     assert.ok((await a.decidirResenaAction(undefined, f)).error)
     assert.equal(a.notifications.length, 0)
+    assert.equal(a.scheduled.length, 0)
   }
   const silent = actions()
   const f = form(); f.set('decision', 'publicar')
   assert.ok((await silent.decidirResenaAction(undefined, f)).mensaje)
-  assert.equal(silent.notifications[0].solicitada, false)
+  assert.equal(silent.scheduled.length, 1)
+  assert.equal(silent.notifications.length, 0)
   const failedEmail = actions({}, { advertencia: 'No se pudo enviar el correo.' })
   f.set('notificar', '1')
   const result = await failedEmail.decidirResenaAction(undefined, f)
   assert.equal(result.mensaje, 'Reseña aprobada y publicada.')
   assert.equal(result.error, undefined)
-  assert.match(result.advertencia, /correo/)
+  assert.equal(result.advertencia, undefined)
+  assert.equal(failedEmail.scheduled.length, 1)
   assert.ok(failedEmail.revalidations.includes('/admin/revision'))
 })
 test('notification is opt-in and legacy document validation reaches the atomic database operation', async () => {

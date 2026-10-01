@@ -67,10 +67,26 @@ export async function notificarCambioResena(input: {
 export async function enviarCorreo(input: { to: string; subject: string; text: string; contenido?: ContenidoCorreo }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY?.trim()
   if (!key) return false
-  const idempotencia = randomUUID()
-  const body = JSON.stringify({ subject: input.subject, text: input.text,
+  const body = { subject: input.subject, text: input.text,
     ...(input.contenido ? { html: plantillaCorreo(input.contenido) } : {}),
-    from: process.env.RESEND_FROM_EMAIL?.trim() || REMITENTE, to: [input.to] })
+    from: process.env.RESEND_FROM_EMAIL?.trim() || REMITENTE, to: [input.to] }
+  return (await enviarCuerpoCorreo(body, randomUUID())).estado === 'enviada'
+}
+
+export function cuerpoCorreo(input: { to: string; contenido: ContenidoCorreo }) {
+  return { from: process.env.RESEND_FROM_EMAIL?.trim() || REMITENTE, to: [input.to],
+    subject: `${input.contenido.titulo} · La Protectora del Alquiler`,
+    text: [...input.contenido.parrafos, input.contenido.accion?.url ?? '', 'La Protectora del Alquiler'].join('\n\n'),
+    html: plantillaCorreo(input.contenido) }
+}
+
+/** Durable callers supply both a frozen payload and a persisted key. */
+export async function enviarCuerpoCorreo(cuerpo: Record<string, unknown>, idempotencia: string): Promise<{
+  estado: 'enviada' | 'pendiente' | 'revision'; proveedorId?: string
+}> {
+  const key = process.env.RESEND_API_KEY?.trim()
+  if (!key) return { estado: 'pendiente' }
+  const body = JSON.stringify(cuerpo)
 
   // Retry transient failures using the same idempotency key so an accepted
   // request whose response was lost cannot send the same notice twice.
@@ -84,13 +100,15 @@ export async function enviarCorreo(input: { to: string; subject: string; text: s
       })
       const result: unknown = await response.json()
       if (response.ok && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string' && result.id) {
-        return true
+        return { estado: 'enviada', proveedorId: result.id }
       }
-      if (response.status !== 429 && response.status < 500) break
+      const concurrente = response.status === 409 && result && typeof result === 'object'
+        && 'name' in result && result.name === 'concurrent_idempotent_requests'
+      if (!concurrente && response.status !== 429 && response.status < 500) return { estado: 'revision' }
     } catch {
       // Do not expose provider errors, credentials or personal information.
     }
     if (intento === 0) await esperar(500)
   }
-  return false
+  return { estado: 'pendiente' }
 }

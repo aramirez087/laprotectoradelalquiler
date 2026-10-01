@@ -10,6 +10,8 @@ import { BuscadorFichas } from '@/components/buscador-fichas'
 import { TarjetaFicha } from '@/components/tarjeta-ficha'
 import { EstadoVacio } from '@/components/estado-vacio'
 import type { VistaFicha } from '@/lib/tipos'
+import { PrimeraConsulta } from '@/components/primera-consulta'
+import { confirmarConsulta } from '@/lib/consulta-confirmada'
 
 export const metadata = { title: 'Reseñas' }
 
@@ -58,9 +60,11 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   const desde = fichas.length === 0 ? 0 : (pagina - 1) * porPagina + 1
   const hasta = (pagina - 1) * porPagina + fichas.length
   const filtros = { q }
+  const confirmacion = q && !aviso && usuario.rol !== 'admin' ? confirmarConsulta(usuario.id) : null
 
   return (
     <div className="contenedor space-y-5">
+      {confirmacion && <PrimeraConsulta confirmacion={confirmacion} />}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-3">Registro de propietarios y agencias</p>

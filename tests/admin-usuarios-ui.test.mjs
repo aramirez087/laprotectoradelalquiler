@@ -65,14 +65,14 @@ test('pending permission updates disable the entire editable fieldset', () => {
   assert.match(html, /Guardando los permisos…/)
 })
 
-test('moderation notices default on only with delivery configured and approval copy describes its trigger', () => {
+test('moderation is automatic while optional edit/delete notices require configured delivery', () => {
   const { FormDecision, FormEditarResena, FormEliminarResena } = load('components/admin-formularios.tsx', mocks())
   const samples = [
     [FormDecision, { id: 42, version: 1, decisiones: ['publicar', 'corregir', 'rechazar'] }],
     [FormEditarResena, { id: 42, version: 1, persona: { identificacion: '123456789', nombre: 'Ana', apellido1: 'Pérez', nombre2: null, apellido2: null }, comentario: 'An experience', anonima: true }],
     [FormEliminarResena, { id: 42 }],
   ]
-  for (const [Component, props] of samples) {
+  for (const [Component, props] of samples.slice(1)) {
     const configured = renderToStaticMarkup(createElement(Component, { ...props, notificacionesHabilitadas: true }))
     assert.match(configured, /<input(?=[^>]*name="notificar")(?=[^>]*checked="")(?=[^>]*aria-describedby=)[^>]*>/)
     assert.ok(!configured.match(/<input[^>]*name="notificar"[^>]*disabled/))
@@ -82,7 +82,10 @@ test('moderation notices default on only with delivery configured and approval c
     assert.match(unavailable, /Puede guardar la acción sin enviar/)
   }
   const approval = renderToStaticMarkup(createElement(FormDecision, { ...samples[0][1], notificacionesHabilitadas: true }))
-  assert.match(approval, /El aviso se envía al aprobar y publicar/)
+  assert.match(approval, /aprobaciones, solicitudes de corrección y rechazos generan un aviso automático/)
+  assert.ok(!approval.includes('name="notificar"'))
+  const unavailableApproval = renderToStaticMarkup(createElement(FormDecision, samples[0][1]))
+  assert.match(unavailableApproval, /avisos quedarán pendientes/)
   const published = renderToStaticMarkup(createElement(FormDecision, { id: 42, decisiones: ['rechazar'], notificacionesHabilitadas: true }))
   assert.ok(!published.includes('name="notificar"'))
 })

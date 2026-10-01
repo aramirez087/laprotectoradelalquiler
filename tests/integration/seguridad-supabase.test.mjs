@@ -41,7 +41,8 @@ test('Supabase hardening: confirmed signup, field permissions, RLS, and future g
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;`)
   const migration = await readFile('db/seguridad-supabase.sql', 'utf8')
   const schema = await readFile('schema.sql', 'utf8')
-  assert.ok(schema.endsWith(migration))
+  assert.ok(schema.includes(migration), 'fresh installs include the security migration unchanged')
+  assert.ok(schema.endsWith(await readFile('db/activacion.sql', 'utf8')), 'activation follows security hardening')
   assert.equal(await readFile('supabase/migrations/20260930033313_seguridad_supabase.sql', 'utf8'), migration)
   await db.query(schema)
   await db.query(migration) // repeat application preserves the same permissions

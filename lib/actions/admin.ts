@@ -7,6 +7,8 @@ import { unstable_rethrow } from 'next/navigation'
 import * as z from 'zod'
 import { actualizarDatosUsuario, actualizarUsuario, AvisoAdmin, decidirResena, editarResena, eliminarResena, resolverDenuncia } from '@/lib/admin'
 import { notificarCambioResena } from '@/lib/correo-resenas'
+import { after } from 'next/server'
+import { procesarAvisosSinInterrumpir } from '@/lib/avisos-moderacion'
 import type { EstadoForm } from './auth'
 import type { EstadoResena } from '@/lib/tipos'
 
@@ -97,12 +99,7 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
       nota: parsed.data.nota ?? '',
       permiteCorreccion: parsed.data.decision === 'corregir',
     })
-    const correo = parsed.data.decision === 'publicar' ? await notificarCambioResena({
-      solicitada: formData.get('notificar') === '1',
-      accion: 'aprobada',
-      resenaId: parsed.data.id,
-      autor: resultado.autor,
-    }) : {}
+    after(procesarAvisosSinInterrumpir)
     revalidarResena(resultado.personaId)
     const mensaje = {
       publicar: 'Reseña aprobada y publicada.',
@@ -110,7 +107,7 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
       corregir: 'Correcciones solicitadas. El autor puede corregir y reenviar desde su perfil.',
       revisar: 'Reseña devuelta a revisión.',
     }[parsed.data.decision]
-    return { mensaje: [mensaje, correo.mensaje].filter(Boolean).join(' '), advertencia: correo.advertencia }
+    return { mensaje }
   } catch (e) {
     unstable_rethrow(e)
     return { error: aviso(e) }

@@ -63,7 +63,7 @@ Keep the anonymity option next to the comment so users understand what is hidden
 
 `useFormAction` keeps uncontrolled values through recoverable responses and includes the clicked submit button in `FormData`. Forms retain their action attribute for pre-hydration submission. Announce feedback and focus the first invalid field, falling back to the message. Password-change forms explicitly clear their fields on success. Do not reset a review on failure.
 
-No draft is saved across a page reload or navigation. Only the current mounted form retains it; do not describe this as autosave.
+Review drafts are private to the account and form context, save after a short pause, and survive reloads and navigation. Show the actual save state, manual save action, and 30-day retention. Saving never submits a review. Keep edits visible when saving fails and guard navigation until saved. Conflicting versions require copying current changes and reloading; never overwrite another device silently. Submission invalidates the draft transactionally. Do not store review identity or text in browser storage.
 
 ### Waiting for access
 

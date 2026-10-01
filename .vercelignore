@@ -1,0 +1,15 @@
+# Keep local tools, browser captures and operational files out of deployments.
+.env*
+!.env.example
+.agents/
+.codex/
+.claude/
+.playwright-cli/
+output/
+coverage/
+tests/
+legacy/
+docs/
+**/*.dump
+*.tsbuildinfo
+*.log

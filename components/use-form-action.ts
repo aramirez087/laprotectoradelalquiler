@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useActionState, useEffect, useRef, type FormEvent } from 'react'
+import { startTransition, useActionState, useEffect, useRef, type FormEvent, type RefObject } from 'react'
 import { unstable_rethrow } from 'next/navigation'
 import type { EstadoForm } from '@/lib/actions/auth'
 import { registrarErrorCliente } from '@/lib/error-cliente'
@@ -8,9 +8,10 @@ import { registrarErrorCliente } from '@/lib/error-cliente'
 type Accion = (estado: EstadoForm, datos: FormData) => Promise<EstadoForm>
 
 /** Keep entered values on recoverable errors; React otherwise resets uncontrolled fields. */
-export function useFormAction(accion: Accion, { resetOnSuccess = false, onResultado }: {
+export function useFormAction(accion: Accion, { resetOnSuccess = false, onResultado, formulario }: {
   resetOnSuccess?: boolean
   onResultado?: (resultado: EstadoForm) => void
+  formulario?: RefObject<HTMLFormElement | null>
 } = {}) {
   const accionConAviso: Accion = async (prev, datos) => {
     try {
@@ -24,7 +25,8 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
     }
   }
   const [estado, action, pendiente] = useActionState(accionConAviso, undefined)
-  const formRef = useRef<HTMLFormElement>(null)
+  const interno = useRef<HTMLFormElement>(null)
+  const formRef = formulario ?? interno
 
   useEffect(() => {
     if (!estado?.error && !estado?.mensaje) return
@@ -36,7 +38,7 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
     const detalles = destino?.closest('details')
     if (detalles) detalles.open = true
     destino?.focus()
-  }, [estado, resetOnSuccess])
+  }, [estado, resetOnSuccess, formRef])
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
