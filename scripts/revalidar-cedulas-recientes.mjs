@@ -3,7 +3,7 @@
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import { gunzipSync } from 'node:zlib'
-import { buscarEnFragmento, cedulaNacional, nombresCoinciden, padronVigente, PADRON_BUCKET } from '../lib/cedula.ts'
+import { buscarEnFragmento, cedulaNacional, padronVigente, PADRON_BUCKET } from '../lib/cedula.ts'
 import { configuracionPostgres } from './postgres-config.mjs'
 
 const args = process.argv.slice(2)
@@ -63,7 +63,7 @@ try {
   const porCedula = new Map(resultados.map(r => [r.cedula, r.persona]))
   const correcciones = rows.flatMap(row => {
     const persona = porCedula.get(cedulaNacional(row.identificacion))
-    if (!persona || !nombresCoinciden(row.nombre_completo, persona.nombreCompleto)) return []
+    if (!persona) return []
     const cambiado = row.tabla === 'usuarios' ? row.nombre !== persona.nombreCompleto
       : row.nombre !== persona.nombre || (row.nombre2 ?? '') !== persona.nombre2
         || row.apellido1 !== persona.apellido1 || (row.apellido2 ?? '') !== persona.apellido2
@@ -107,6 +107,5 @@ try {
     fechaPadron: padron.fecha_padron, documentos: rows.length, cedulas: cedulas.length,
     encontradas: resultados.filter(r => r.persona !== null).length, noEncontradas: resultados.filter(r => r.persona === null).length,
     nombresPorCorregir: correcciones.length, nombresActualizados,
-    nombresParaRevision: rows.filter(row => { const p = porCedula.get(cedulaNacional(row.identificacion)); return p && !nombresCoinciden(row.nombre_completo, p.nombreCompleto) }).length,
     descargas }, null, 2))
 } finally { await db.end() }

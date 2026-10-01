@@ -96,7 +96,7 @@ test('padrón metadata and quotas are service-only, atomic and protected from st
     ALTER TABLE usuarios ADD identificacion text, ADD creado_en timestamptz DEFAULT now(), ADD actualizado_en timestamptz;
     ALTER TABLE resenas ADD creado_en timestamptz DEFAULT now();
     UPDATE personas SET nombre = 'Maria', apellido1 = 'Solis' WHERE id = 1;
-    UPDATE usuarios SET nombre = 'maria solis', identificacion = '1-0234-0567', creado_en = now() - interval '10 days' WHERE id = 2;
+    UPDATE usuarios SET nombre = 'Nombre diferente', identificacion = '1-0234-0567', creado_en = now() - interval '10 days' WHERE id = 2;
     INSERT INTO personas (identificacion,nombre,apellido1) VALUES ('102340568','Ausente','Prueba'),('102340569','Otro','Nombre');
     INSERT INTO personas (identificacion,nombre,apellido1,creado_en) VALUES ('102340570','Historico','Intacto',now() - interval '10 days');
     UPDATE padron_tse SET fecha_padron = current_date, version = current_date::text || '-aaaaaaaaaaaaaaaa';`)
@@ -111,13 +111,15 @@ test('padrón metadata and quotas are service-only, atomic and protected from st
   const preview = await run()
   assert.equal(preview.encontradas, 2)
   assert.equal(preview.noEncontradas, 1)
-  assert.equal(preview.nombresPorCorregir, 2)
+  assert.equal(preview.nombresPorCorregir, 3)
   assert.equal((await db.query('SELECT count(*)::int AS n FROM verificaciones_cedula')).rows[0].n, 0)
   const aplicado = await run('--aplicar')
-  assert.equal(aplicado.nombresActualizados, 2)
+  assert.equal(aplicado.nombresActualizados, 3)
   assert.deepEqual((await db.query('SELECT nombre, apellido1 FROM personas WHERE id = 1')).rows[0], { nombre: 'MARÍA', apellido1: 'SOLÍS' })
   assert.equal((await db.query('SELECT nombre FROM usuarios WHERE id = 2')).rows[0].nombre, 'MARÍA SOLÍS')
-  assert.equal((await db.query("SELECT nombre FROM personas WHERE identificacion = '102340569'")).rows[0].nombre, 'Otro')
+  assert.deepEqual((await db.query("SELECT nombre, apellido1 FROM personas WHERE identificacion = '102340569'")).rows[0], { nombre: 'JUAN', apellido1: 'PÉREZ' })
+  assert.deepEqual((await db.query("SELECT nombre, apellido1 FROM personas WHERE identificacion = '102340568'")).rows[0], { nombre: 'Ausente', apellido1: 'Prueba' })
+  assert.deepEqual((await db.query("SELECT nombre, apellido1 FROM personas WHERE identificacion = '102340570'")).rows[0], { nombre: 'Historico', apellido1: 'Intacto' })
   assert.equal((await db.query("SELECT count(*)::int AS n FROM verificaciones_cedula WHERE identificacion = '102340570'")).rows[0].n, 0)
   assert.equal((await run('--aplicar')).nombresActualizados, 0)
 })

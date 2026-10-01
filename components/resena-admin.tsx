@@ -20,7 +20,7 @@ export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; 
 
   return (
     <article className="expediente space-y-5" aria-labelledby={`resena-${fila.id}`}>
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-2">Reseña #{fila.id} · {fechaCorta(fila.creado_en)}</p>
           <Titulo id={`resena-${fila.id}`} className="text-xl"><Link href={`/fichas/${fila.persona.id}`} className="break-words text-seal underline-offset-4 hover:underline">{nombre}</Link></Titulo>
