@@ -12,8 +12,11 @@ import type { EstadoResena } from '@/lib/tipos'
 
 const SchemaDecision = z.object({
   id: z.coerce.number().int().positive(),
-  decision: z.enum(['publicar', 'rechazar', 'revisar']),
+  version: z.coerce.number().int().positive(),
+  decision: z.enum(['publicar', 'corregir', 'rechazar', 'revisar']),
   nota: z.string().trim().max(2000).optional().or(z.literal('')),
+}).refine(input => input.decision !== 'corregir' || !!input.nota, {
+  path: ['nota'], message: 'Explique qué debe corregir el autor antes de permitir el reenvío.',
 })
 
 const SchemaUsuario = z.object({
@@ -30,6 +33,7 @@ const SchemaDenuncia = z.object({
 const ESTADO: Record<z.infer<typeof SchemaDecision>['decision'], EstadoResena> = {
   publicar: 'publicada',
   rechazar: 'oculta',
+  corregir: 'oculta',
   revisar: 'borrador',
 }
 
@@ -58,6 +62,7 @@ function revalidarResena(personaId?: number | Array<number | null | undefined>) 
 
 const SchemaEditarResena = z.object({
   id: z.coerce.number().int().positive(),
+  version: z.coerce.number().int().positive(),
   identificacion: z.string().trim().max(30),
   nombre: z.string().trim().min(1, 'Escriba el nombre'),
   nombre2: z.string().trim().max(100).optional().or(z.literal('')),
@@ -78,16 +83,19 @@ function camposDe(error: z.ZodError) {
 export async function decidirResenaAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
   const parsed = SchemaDecision.safeParse({
     id: formData.get('id'),
+    version: formData.get('version'),
     decision: formData.get('decision'),
     nota: formData.get('nota') ?? '',
   })
-  if (!parsed.success) return { error: 'Revise la decisión.' }
+  if (!parsed.success) return { error: 'Revise la decisión y actualice la página si la reseña cambió.', campos: camposDe(parsed.error) }
 
   try {
     const resultado = await decidirResena({
       id: parsed.data.id,
+      version: parsed.data.version,
       estado: ESTADO[parsed.data.decision],
       nota: parsed.data.nota ?? '',
+      permiteCorreccion: parsed.data.decision === 'corregir',
     })
     const correo = parsed.data.decision === 'publicar' ? await notificarCambioResena({
       solicitada: formData.get('notificar') === '1',
@@ -99,6 +107,7 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
     const mensaje = {
       publicar: 'Reseña aprobada y publicada.',
       rechazar: 'Reseña rechazada.',
+      corregir: 'Correcciones solicitadas. El autor puede corregir y reenviar desde su perfil.',
       revisar: 'Reseña devuelta a revisión.',
     }[parsed.data.decision]
     return { mensaje: [mensaje, correo.mensaje].filter(Boolean).join(' '), advertencia: correo.advertencia }
@@ -111,6 +120,7 @@ export async function decidirResenaAction(_prev: EstadoForm, formData: FormData)
 export async function editarResenaAction(_prev: EstadoForm, formData: FormData): Promise<EstadoForm> {
   const parsed = SchemaEditarResena.safeParse({
     id: formData.get('id'),
+    version: formData.get('version'),
     identificacion: formData.get('identificacion'),
     nombre: formData.get('nombre'),
     nombre2: formData.get('nombre2') ?? '',

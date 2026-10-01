@@ -171,8 +171,9 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
               {usuario.rol === 'admin' && usuario.activo && (
                 <div className="space-y-2 border-t border-line pt-3">
                   <FormEditarResena
-                    key={`${r.id}-${persona.id}-${r.comentario ?? ''}-${r.anonima ? 1 : 0}`}
+                    key={`${r.id}-${r.version}`}
                     id={r.id}
+                    version={r.version}
                     persona={persona}
                     comentario={r.comentario}
                     anonima={r.anonima}

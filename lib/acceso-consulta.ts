@@ -61,7 +61,7 @@ export function mensajeAcceso(acceso: AccesoConsulta): string {
     case 'vigente': return `Puede consultar hasta el ${fechaVencimiento(acceso.vence_en!)} (hora de Costa Rica).`
     case 'vencida': return `Su permiso de consulta venció${acceso.vence_en ? ` el ${fechaVencimiento(acceso.vence_en)} (hora de Costa Rica)` : ''}. ${acceso.pendientes > 0 ? 'Tiene una reseña en revisión. La primera aprobación sobre un inquilino que usted aún no ha reseñado renueva el acceso.' : 'Comparta una experiencia con un inquilino que usted aún no ha reseñado y espere su aprobación para renovar el acceso.'}`
     case 'revision': return 'Su reseña está en revisión. El permiso de consulta comienza cuando administración la apruebe.'
-    case 'rechazada': return 'Revise el motivo del rechazo en su perfil. Necesita una reseña aprobada para consultar.'
+    case 'rechazada': return 'Revise el motivo en su perfil. Si administración solicitó correcciones, puede corregir y reenviar la misma reseña. Necesita una reseña aprobada para consultar.'
     case 'error': return 'No pudimos verificar su permiso de consulta. Intente de nuevo en un momento.'
     default: return 'Comparta su primera experiencia. Cuando administración la apruebe, tendrá 3 meses para consultar.'
   }

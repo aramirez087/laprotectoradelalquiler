@@ -27,6 +27,7 @@ import type {
   Rol,
   Usuario,
   VistaFicha,
+  VersionResena,
 } from '@/lib/tipos'
 
 // ============================================================================
@@ -313,12 +314,13 @@ export const obtenerFicha = cache(async (id: number): Promise<FichaCompleta | nu
   // autor_id no es legible por la sesión. Con clave de servicio se resuelve
   // después y se omite si la reseña es anónima para quien no administra.
   const autorIncrustado = admin ? '' : ', autor:usuarios(id, nombre, rol)'
+  const versionAdmin = admin ? ', version' : ''
   const { data, error } = await supabase
     .from('personas')
     .select(
       `id, identificacion, nombre, nombre2, apellido1, apellido2, foto_url,
        resenas(
-         id, estado, comentario, verificada, anonima, creado_en${autorIncrustado}
+         id, estado, comentario, verificada, anonima, creado_en${versionAdmin}${autorIncrustado}
        )`,
     )
     .eq('id', id)
@@ -475,7 +477,7 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
   if (!admin) return []
   let consulta = admin
     .from('resenas')
-    .select('id, autor_id, estado, comentario, detalle_verificacion, creado_en, anonima, autor:usuarios(nombre)')
+    .select('id, autor_id, estado, comentario, detalle_verificacion, creado_en, anonima, version, autor:usuarios(nombre)')
     .eq('persona_id', personaId)
     .neq('estado', 'publicada')
     .order('creado_en', { ascending: false })
@@ -487,6 +489,7 @@ export async function resenasPrivadasVisibles(personaId: number, usuario: Usuari
     const autor = uno(fila.autor as { nombre: string } | Array<{ nombre: string }> | null)
     return {
       id: fila.id as number,
+      version: fila.version as number,
       estado: fila.estado as EstadoResena,
       comentario: (fila.comentario as string | null) ?? null,
       detalle_verificacion: (fila.detalle_verificacion as string | null) ?? null,
@@ -505,7 +508,7 @@ export async function listarResenasDe(autorId: number) {
   const { data, error } = await db
     .from('resenas')
     .select(
-      `id, persona_id, estado, comentario, anonima, detalle_verificacion, creado_en,
+      `id, persona_id, estado, comentario, anonima, detalle_verificacion, permite_correccion, version, creado_en,
        persona:personas(id, nombre, nombre2, apellido1, apellido2)`,
     )
     .eq('autor_id', autorId)
@@ -516,10 +519,52 @@ export async function listarResenasDe(autorId: number) {
     if (!persona) throw new Error('No se pudo leer el inquilino de la reseña.')
     return { ...fila, persona }
   }) as Array<
-    Pick<Resena, 'id' | 'persona_id' | 'estado' | 'comentario' | 'anonima' | 'detalle_verificacion' | 'creado_en'> & {
+    Pick<Resena, 'id' | 'persona_id' | 'estado' | 'comentario' | 'anonima' | 'detalle_verificacion' | 'permite_correccion' | 'version' | 'creado_en'> & {
       persona: Pick<Persona, 'id' | 'nombre' | 'nombre2' | 'apellido1' | 'apellido2'>
     }
   >
+}
+
+export class AvisoCorreccion extends Error {}
+
+export async function corregirResena(input: { id: number; version: number; comentario: string; anonima: boolean }) {
+  const usuario = await requireUsuario()
+  if (!usuario.activo) throw new AvisoCorreccion('Su cuenta está inactiva y no puede reenviar reseñas.')
+  const admin = createAdmin()
+  if (!admin) throw new Error('Falta la configuración para reenviar reseñas.')
+  const { data, error } = await admin.rpc('corregir_resena', {
+    p_autor_id: usuario.id, p_id: input.id, p_version: input.version,
+    p_comentario: input.comentario, p_anonima: input.anonima,
+  }).single<{ persona_id: number }>()
+  const mensajes = [
+    'Su cuenta está inactiva y no puede reenviar reseñas.',
+    'No encontramos esa reseña en su cuenta.',
+    'La reseña cambió desde que la abrió. Vuelva a su perfil y revise su estado.',
+    'Esta reseña no admite correcciones. Revise su estado en el perfil.',
+    'Revise el relato: debe tener entre 30 y 5000 caracteres.',
+    'Corrija el relato o la opción de anonimato antes de reenviar.',
+  ]
+  if (error?.code === 'P0001' && mensajes.includes(error.message)) throw new AvisoCorreccion(error.message)
+  if (error) throw error
+  if (!data) throw new Error('No se pudo confirmar la corrección.')
+  return data.persona_id
+}
+
+export async function historialResenas(ids: number[]): Promise<VersionResena[]> {
+  if (!ids.length) return []
+  const usuario = await requireUsuario()
+  if (!usuario.activo) return []
+  const admin = createAdmin()
+  if (!admin) throw new Error('Falta la configuración para consultar el historial.')
+  const historial: VersionResena[] = []
+  for (let i = 0; i < ids.length; i += 20) {
+    const { data, error } = await admin.rpc('historial_resenas', {
+      p_usuario_id: usuario.id, p_resena_ids: ids.slice(i, i + 20),
+    })
+    if (error) throw error
+    historial.push(...(data ?? []) as VersionResena[])
+  }
+  return historial
 }
 export async function denunciarResena(input: {
   resenaId: number

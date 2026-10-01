@@ -15,7 +15,7 @@ const preload = `
   import { readFileSync } from 'node:fs';
   process.loadEnvFile = () => { process.stdout.write('ENV_LOAD\\n'); };
   const files = ['schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
-    'db/invitaciones-admin.sql', 'db/sesiones-admin.sql', 'db/administrar-resenas.sql',
+    'db/invitaciones-admin.sql', 'db/sesiones-admin.sql', 'db/administrar-resenas.sql', 'db/correcciones-resenas.sql',
     'db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/seguridad-supabase.sql', 'db/verificacion-cedulas-tse.sql', 'db/resultados-cedulas-tse.sql'];
   pg.Pool = class {
     constructor() { process.stdout.write('POOL_CREATED\\n'); }
@@ -69,6 +69,7 @@ test('valid additive flags dispatch only their migrations and restore session gu
     ['--solo-admin-usuarios', ['db/administrar-usuarios.sql', 'db/invitaciones-admin.sql', 'db/sesiones-admin.sql']],
     ['--solo-invitaciones-admin', ['db/administrar-usuarios.sql', 'db/invitaciones-admin.sql', 'db/sesiones-admin.sql']],
     ['--solo-admin-resenas', ['db/administrar-resenas.sql']],
+    ['--solo-correcciones-resenas', ['db/administrar-resenas.sql', 'db/correcciones-resenas.sql']],
     ['--solo-acceso-consultas', ['db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/sesiones-admin.sql']],
   ]) {
     const result = run([flag], true)

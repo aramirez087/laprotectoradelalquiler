@@ -19,6 +19,7 @@ export function cargarTS(archivo, mocks = {}, globals = {}) {
 
 const cedula = cargarTS('lib/cedula.ts')
 const util = cargarTS('lib/util.ts')
+const historial = cargarTS('components/historial-resena.tsx', { '@/lib/util': util })
 const estado = cargarTS('components/estado-cedula.tsx', { '@/lib/util': util })
 const hook = cargarTS('components/use-consulta-cedula.ts', { '@/lib/cedula': cedula })
 const campos = cargarTS('components/campos-identidad.tsx', {
@@ -27,6 +28,7 @@ const campos = cargarTS('components/campos-identidad.tsx', {
 
 // Existing suites isolate padrón I/O. The dedicated padrón suite exercises the real lookup.
 export const mocksCedula = {
+  '@/components/historial-resena': historial,
   '@/lib/cedula': cedula,
   '@/lib/padron': { consultarCedula: async () => ({ estado: 'no_disponible' }) },
   '@/components/campos-identidad': campos,

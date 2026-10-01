@@ -69,11 +69,12 @@ export function TarjetaResena({
         </details>
       )}
 
-      {esAdmin && persona && (
+      {esAdmin && persona && resena.version != null && (
         <div className="space-y-2 border-t border-line pt-3">
           <FormEditarResena
-            key={`${resena.id}-${persona.id}-${resena.comentario ?? ''}-${resena.anonima ? 1 : 0}`}
+            key={`${resena.id}-${resena.version}`}
             id={resena.id}
+            version={resena.version}
             persona={persona}
             comentario={resena.comentario}
             anonima={resena.anonima}

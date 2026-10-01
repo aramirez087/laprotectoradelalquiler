@@ -71,10 +71,23 @@ export interface Resena {
   anonima: boolean
   verificada: boolean
   detalle_verificacion: string | null
+  permite_correccion: boolean
+  version: number
   estado: EstadoResena
   fuente: string | null
   id_fuente: number | null
   creado_en: string
+}
+
+export interface VersionResena {
+  resena_id: number
+  version: number
+  comentario: string | null
+  anonima: boolean
+  estado: EstadoResena
+  detalle_verificacion: string | null
+  permite_correccion: boolean
+  guardado_en: string
 }
 
 export interface FotoResena {
@@ -119,6 +132,8 @@ export interface Lookups {
 
 export interface FilaResenaCompleta {
   id: number
+  /** Solo se solicita con el cliente de servicio para formularios de administración. */
+  version?: number
   estado: EstadoResena
   comentario: string | null
   verificada: boolean

@@ -2,11 +2,11 @@ import 'server-only'
 
 import { cedulaNacional, type VerificacionCedula } from '@/lib/cedula'
 import { createAdmin } from '@/lib/supabase/admin'
-import { requerirRol } from '@/lib/dal'
+import { requerirRol, historialResenas } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
 import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, palabrasBusqueda, variantesAcento } from '@/lib/util'
-import type { EstadoResena, Rol } from '@/lib/tipos'
+import type { EstadoResena, Rol, VersionResena } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export class AvisoAdmin extends Error {
@@ -27,7 +27,7 @@ const POR_PAGINA = 20
 const PATRON_CORREO_LEGACY = '%@legacy.laprotec'
 
 const SELECT_RESENA = `
-  id, anonima, estado, comentario, detalle_verificacion, creado_en,
+  id, anonima, estado, comentario, detalle_verificacion, permite_correccion, version, creado_en,
   persona:personas(id, nombre, nombre2, apellido1, apellido2, identificacion),
   autor:usuarios(id, nombre, email, identificacion)
 `
@@ -38,6 +38,9 @@ export interface FilaAdminResena {
   estado: EstadoResena
   comentario: string | null
   detalle_verificacion: string | null
+  permite_correccion: boolean
+  version: number
+  historial?: VersionResena[]
   creado_en: string
   persona: {
     id: number
@@ -162,6 +165,8 @@ type CrudoResena = {
   estado: EstadoResena
   comentario: string | null
   detalle_verificacion: string | null
+  permite_correccion: boolean
+  version: number
   creado_en: string
   persona: FilaAdminResena['persona'] | FilaAdminResena['persona'][] | null
   autor: FilaAdminResena['autor'] | NonNullable<FilaAdminResena['autor']>[] | null
@@ -176,6 +181,8 @@ function aFila(row: CrudoResena): FilaAdminResena | null {
     estado: row.estado,
     comentario: row.comentario,
     detalle_verificacion: row.detalle_verificacion,
+    permite_correccion: row.permite_correccion === true,
+    version: row.version,
     creado_en: row.creado_en,
     persona,
     autor: (() => {
@@ -251,10 +258,11 @@ export async function consultarResenas(opts: {
   })
   const cedulas = [...new Set(filas.flatMap(fila => [fila.persona.identificacion, fila.autor?.identificacion])
     .map(cedulaNacional).filter((cedula): cedula is string => cedula !== null))]
-  const [perfiles, verificaciones] = await Promise.all([
+  const [perfiles, verificaciones, versiones] = await Promise.all([
     facebookPorUsuario(db, filas.flatMap(fila => fila.autor ? [fila.autor.id] : [])),
     cedulas.length ? db.from('verificaciones_cedula').select('identificacion, estado, fecha_padron, nombre_tse, consultado_en').in('identificacion', cedulas)
       : Promise.resolve({ data: [], error: null }),
+    historialResenas(filas.map(fila => fila.id)),
   ])
   if (verificaciones.error) throw verificaciones.error
   const porCedula = new Map((verificaciones.data as VerificacionCedula[]).map(resultado => [resultado.identificacion, resultado]))
@@ -262,6 +270,7 @@ export async function consultarResenas(opts: {
   return {
     filas: filas.map(fila => ({
       ...fila,
+      historial: versiones.filter(v => v.resena_id === fila.id),
       persona: { ...fila.persona, verificacionCedula: verificacionDe(fila.persona.identificacion) },
       autor: fila.autor ? { ...fila.autor, facebook: perfiles.get(fila.autor.id) ?? null, verificacionCedula: verificacionDe(fila.autor.identificacion) } : null,
     })),
@@ -295,19 +304,24 @@ export async function resumenAdmin(): Promise<ResumenAdmin> {
   return { hoy: hoyN, revision, rechazadas, publicadas, usuarios, autoresLegacy, denuncias }
 }
 
-export async function decidirResena(input: { id: number; estado: EstadoResena; nota: string }) {
+export async function decidirResena(input: { id: number; version: number; estado: EstadoResena; nota: string; permiteCorreccion?: boolean }) {
   const { usuario, db } = await exigirAdmin()
   if (!usuario.activo) throw new AvisoAdmin('No puede moderar con la cuenta inactiva.')
   const nota = input.nota.trim()
-  const cambios: { estado: EstadoResena; detalle_verificacion?: string } = { estado: input.estado }
+  const cambios: { estado: EstadoResena; permite_correccion: boolean; detalle_verificacion?: string } = {
+    estado: input.estado, permite_correccion: input.estado === 'oculta' && input.permiteCorreccion === true,
+  }
+  if (cambios.permite_correccion && !nota) throw new AvisoAdmin('Explique qué debe corregir el autor antes de permitir el reenvío.')
   if (nota) cambios.detalle_verificacion = nota
 
-  const { data, error } = await db
+  let consulta = db
     .from('resenas')
     .update(cambios)
     .eq('id', input.id)
-    // Only one concurrent approval can change the state and notify its author.
-    .neq('estado', input.estado)
+    .eq('version', input.version)
+  // A rejected review may switch between correction allowed and final rejection.
+  if (input.estado !== 'oculta') consulta = consulta.neq('estado', input.estado)
+  const { data, error } = await consulta
     .select('id, persona_id, autor:usuarios(email, nombre)')
     .maybeSingle()
   if (error) throw error
@@ -336,6 +350,7 @@ function errorCambioResena(error: { code?: string; message: string }) {
     'No encontramos esa reseña.',
     'Escriba un documento de 6 a 12 dígitos; puede incluir guiones.',
     'Revise los campos indicados.',
+    'La reseña cambió desde que la abrió. Actualice la página y revise los cambios.',
   ]
   if (error.code === 'P0001' && mensajes.includes(error.message)) return new AvisoAdmin(error.message)
   return error
@@ -343,6 +358,7 @@ function errorCambioResena(error: { code?: string; message: string }) {
 
 export async function editarResena(input: {
   id: number
+  version: number
   identificacion: string
   nombre: string
   nombre2: string
@@ -352,8 +368,9 @@ export async function editarResena(input: {
   anonima: boolean
 }) {
   const { usuario, db } = await exigirAdmin()
-  const { data, error } = await db.rpc('admin_editar_resena', {
+  const { data, error } = await db.rpc('admin_editar_resena_versionada', {
     p_admin_id: usuario.id,
+    p_version: input.version,
     p_id: input.id,
     p_identificacion: normalizarCedula(input.identificacion),
     p_nombre: input.nombre,

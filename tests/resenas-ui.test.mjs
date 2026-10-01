@@ -248,7 +248,7 @@ test('own profile reviews remain available before consultation access and reques
     const query = requests.find((request) => request.pathname.endsWith('/resenas'))
     assert.equal(query.searchParams.get('autor_id'), `eq.${usuario.id}`)
     assert.equal(query.searchParams.get('order'), 'creado_en.desc')
-    assert.match(query.searchParams.get('select'), /persona_id,estado,comentario,anonima,detalle_verificacion,creado_en/)
+    assert.match(query.searchParams.get('select'), /persona_id,estado,comentario,anonima,detalle_verificacion,permite_correccion,version,creado_en/)
     assert.doesNotMatch(query.searchParams.get('select'), /\*|calificacion|fecha_inicio_alquiler|fecha_fin_alquiler|recomienda|drogas|dano|proceso|contrato|alquiler|etiquetas|conductas|fotos/)
   }
 })

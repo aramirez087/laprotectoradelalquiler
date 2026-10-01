@@ -37,6 +37,7 @@ test('review cards show the saved result for both the tenant and author', () => 
     '@/lib/correo-resenas': { correoResenasConfigurado: () => false },
     '@/components/admin-formularios': { FormDecision: () => null, FormEditarResena: () => null, FormEliminarResena: () => null },
     '@/components/perfil-facebook': { PerfilFacebook: () => null },
+    '@/components/historial-resena': cargarTS('components/historial-resena.tsx', { '@/lib/util': util }),
   })
   const html = renderToStaticMarkup(createElement(ResenaAdmin, { fila: {
     id: 1, creado_en: '2026-09-30', estado: 'borrador', anonima: false, comentario: 'Experiencia', detalle_verificacion: null,
@@ -63,7 +64,7 @@ test('admin loads saved results in one deduplicated batch and never queries the 
   } }
   const { consultarResenas } = cargarTS('lib/admin.ts', {
     'server-only': {}, '@/lib/cedula': cedula, '@/lib/util': util,
-    '@/lib/dal': { requerirRol: async () => ({ id: 1 }) }, '@/lib/acceso-consulta': {}, '@/lib/periodo': {},
+    '@/lib/dal': { requerirRol: async () => ({ id: 1 }), historialResenas: async () => [] }, '@/lib/acceso-consulta': {}, '@/lib/periodo': {},
     '@/lib/supabase/admin': { createAdmin: () => db },
     '@/lib/padron': { consultarCedula: () => { throw new Error('No page-load lookup allowed') } },
   })

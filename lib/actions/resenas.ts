@@ -5,7 +5,7 @@ import { registrarError } from '@/lib/registro-error'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import * as z from 'zod'
-import { crearResena, listarResenasDe, requireUsuario } from '@/lib/dal'
+import { AvisoCorreccion, corregirResena, crearResena, listarResenasDe, requireUsuario } from '@/lib/dal'
 import { esCedulaValida } from '@/lib/util'
 import type { EstadoForm } from './auth'
 
@@ -25,6 +25,38 @@ const SchemaResena = z.object({
     .min(30, 'Cuéntenos un poco más. Unas pocas frases bastan.')
     .max(5000, 'El relato es muy largo'),
 })
+
+const SchemaCorreccion = SchemaResena.pick({ comentario: true }).extend({
+  id: z.coerce.number().int().positive(),
+  version: z.coerce.number().int().positive(),
+})
+
+export async function corregirResenaAction(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  const usuario = await requireUsuario('/perfil')
+  if (!usuario.activo) return { error: 'Su cuenta está inactiva y no puede reenviar reseñas.' }
+  const parsed = SchemaCorreccion.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return {
+    error: 'Revise los campos indicados. Sus cambios se conservan.',
+    campos: Object.fromEntries(parsed.error.issues.map(issue => [String(issue.path[0]), issue.message])),
+  }
+  try {
+    const personaId = await corregirResena({ ...parsed.data, anonima: formData.get('anonima') === '1' })
+    revalidatePath('/', 'layout')
+    revalidatePath('/perfil')
+    revalidatePath('/fichas')
+    revalidatePath(`/fichas/${personaId}`)
+    revalidatePath('/admin')
+    revalidatePath('/admin/revision')
+    revalidatePath('/admin/rechazadas')
+    revalidatePath('/admin/resenas')
+    redirect('/perfil?corregida=1#mis-resenas')
+  } catch (error) {
+    unstable_rethrow(error)
+    if (error instanceof AvisoCorreccion) return { error: error.message }
+    registrarError('review_correction_error', error, { routeType: 'action' })
+    return { error: 'No pudimos confirmar la corrección. Sus cambios se conservan. Revise el estado en su perfil antes de reenviar.' }
+  }
+}
 
 export async function crearResenaAction(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   const usuario = await requireUsuario()

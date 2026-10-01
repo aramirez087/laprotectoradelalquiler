@@ -3,7 +3,10 @@ import { registrarError } from '@/lib/registro-error'
 import { BotonSalir } from '@/components/boton-salir'
 import Link from '@/components/enlace'
 import { FormClave } from '@/components/form-clave'
-import { requireUsuario, listarResenasDe, accesoConsulta, perfilFacebookDe, horaServidor } from '@/lib/dal'
+import { requireUsuario, listarResenasDe, accesoConsulta, perfilFacebookDe, horaServidor, historialResenas } from '@/lib/dal'
+import { FormCorregirResena } from '@/components/form-corregir-resena'
+import { HistorialResena } from '@/components/historial-resena'
+import type { VersionResena } from '@/lib/tipos'
 import { PanelPermiso } from '@/components/permiso-consulta'
 import { cerrarSesion } from '@/lib/actions/auth'
 import {
@@ -25,6 +28,7 @@ export default async function PerfilPage(props: {
 }) {
   const params = await props.searchParams
   const enviada = primer(params.enviada) === '1'
+  const corregida = primer(params.corregida) === '1'
   const usuario = await requireUsuario('/perfil')
   const [acceso, facebook] = await Promise.all([accesoConsulta(usuario), perfilFacebookDe(usuario.id)])
   const consulta = acceso.puede_consultar
@@ -42,10 +46,18 @@ export default async function PerfilPage(props: {
   }
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
   let aviso: string | null = null
+  let versiones: VersionResena[] = []
+  let avisoHistorial = false
 
   if (!sinBackend) {
     try {
       misResenas = await listarResenasDe(usuario.id)
+      try {
+        versiones = await historialResenas(misResenas.map(r => r.id))
+      } catch (error) {
+        registrarError('review_history_error', error, { route: '/perfil', routeType: 'render' })
+        avisoHistorial = true
+      }
     } catch (error) {
       registrarError('page_load_error', error, { route: '/perfil', routeType: 'render' })
       aviso = 'No pudimos cargar sus reseñas.'
@@ -101,6 +113,7 @@ export default async function PerfilPage(props: {
           {' '}El tiempo de consulta se suma cuando se aprueba su reseña sobre otro inquilino; el envío todavía no cambia su permiso.
         </p>
       )}
+      {corregida && <p role="status" className="aviso aviso-ok">Recibimos su corrección. La misma reseña volvió a revisión. El envío todavía no cambia su permiso de consulta.</p>}
       <PanelPermiso acceso={acceso} ahoraServidor={horaServidor()} />
 
       <section id="mis-resenas" aria-labelledby="titulo-mis-resenas" className="scroll-mt-36 space-y-4">
@@ -113,6 +126,7 @@ export default async function PerfilPage(props: {
           )}
         </div>
         <p className="text-sm leading-relaxed text-ink-soft">Aquí puede ver todas sus reseñas, incluso si su permiso venció. Puede tener una sola reseña por inquilino. Otros propietarios y agencias también pueden reseñar a esa persona.</p>
+        {avisoHistorial && <p role="alert" className="aviso">No pudimos cargar las versiones anteriores. Sus reseñas y correcciones siguen guardadas. Vuelva a cargar esta página para consultar el historial.</p>}
         {aviso ? (
           <div className="expediente space-y-4">
             <p role="alert" className="aviso aviso-error">{aviso} Sus aportes siguen guardados. Intente cargar esta página de nuevo.</p>
@@ -149,17 +163,20 @@ export default async function PerfilPage(props: {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`chip ${r.estado === 'publicada' ? 'chip-ok' : 'chip-alerta'}`}>{r.estado === 'publicada' ? 'Aprobada' : etiquetaEstado(r.estado)}</span>
+                  <span className={`chip ${r.estado === 'publicada' ? 'chip-ok' : 'chip-alerta'}`}>{r.estado === 'publicada' ? 'Aprobada' : r.estado === 'oculta' && r.permite_correccion ? 'Corrección solicitada' : etiquetaEstado(r.estado)}</span>
                   {r.anonima && <span className="chip">Anónima</span>}
                 </div>
                 <p className="text-xs leading-relaxed text-ink-soft">
                   {r.estado === 'borrador' ? 'En revisión. Todavía no suma tiempo de consulta.' : r.estado === 'oculta' ? 'No aporta tiempo de consulta.' : 'Publicada. Su reseña sobre este inquilino cuenta una sola vez para su permiso.'}
                 </p>
                 {r.estado === 'oculta' && r.detalle_verificacion && <p className="rounded-lg bg-alerta-soft p-3 text-sm leading-relaxed text-alerta"><strong className="font-semibold">Motivo de la revisión:</strong> {r.detalle_verificacion}</p>}
+                {r.estado === 'oculta' && !r.permite_correccion && <p className="text-xs leading-relaxed text-ink-soft">Este rechazo no admite reenvío. Solo administración puede autorizar una corrección.</p>}
+                {usuario.activo && r.estado === 'oculta' && r.permite_correccion && <FormCorregirResena key={`${r.id}-${r.version}`} id={r.id} version={r.version} comentario={r.comentario} anonima={r.anonima} />}
                 <details className="border-t border-line pt-3">
                   <summary className="min-h-11 content-center cursor-pointer text-sm font-medium text-seal">Leer mi reseña</summary>
                   <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed">{r.comentario?.trim() || 'Sin comentario.'}</p>
                 </details>
+                <HistorialResena versiones={versiones.filter(v => v.resena_id === r.id)} />
               </li>
             ))}
           </ul>

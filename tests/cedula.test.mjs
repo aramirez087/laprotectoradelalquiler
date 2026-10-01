@@ -165,7 +165,7 @@ test('admin saves preserve administrator names and never consult the TSE', async
       return { single: async () => ({ data: { id: 1, persona_id: 2, persona_anterior_id: 2, movida: false }, error: null }) }
     } }) },
   })
-  await api.editarResena({ id: 1, identificacion: '1-0234-0567', nombre: 'Falso', nombre2: '', apellido1: 'Falso', apellido2: '', comentario: 'Test', anonima: false })
+  await api.editarResena({ id: 1, version: 1, identificacion: '1-0234-0567', nombre: 'Falso', nombre2: '', apellido1: 'Falso', apellido2: '', comentario: 'Test', anonima: false })
   assert.equal(llamadas[0].args.p_admin_id, 7)
   assert.equal(llamadas[0].args.p_nombre, 'Falso')
   assert.equal(llamadas[0].args.p_nombre2, '')

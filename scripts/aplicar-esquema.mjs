@@ -15,7 +15,7 @@ import { configuracionPostgres } from './postgres-config.mjs';
 const argumentos = process.argv.slice(2);
 const opciones = new Set([
   '--solo-resultados-cedulas', '--solo-padron-tse', '--solo-schema', '--solo-invitaciones-admin', '--solo-admin-resenas',
-  '--solo-admin-usuarios', '--solo-acceso-consultas', '--solo-seguridad-supabase',
+  '--solo-admin-usuarios', '--solo-acceso-consultas', '--solo-seguridad-supabase', '--solo-correcciones-resenas',
 ]);
 const desconocidos = argumentos.filter((arg) => !opciones.has(arg));
 if (desconocidos.length) {
@@ -47,7 +47,11 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
-  if (argumentos.includes('--solo-resultados-cedulas')) {
+  if (argumentos.includes('--solo-correcciones-resenas')) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'administrar-resenas.sql'), 'utf8'));
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'correcciones-resenas.sql'), 'utf8'));
+    console.log('✓ Correcciones e historial de reseñas preparados; los datos se conservan.');
+  } else if (argumentos.includes('--solo-resultados-cedulas')) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'resultados-cedulas-tse.sql'), 'utf8'));
     console.log('✓ Resultados de cédulas preparados; los datos se conservan.');
   } else if (argumentos.includes('--solo-padron-tse')) {

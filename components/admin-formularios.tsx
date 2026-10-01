@@ -13,17 +13,22 @@ import { ProtectorEdicionAdmin } from '@/components/protector-edicion-admin'
 
 const DECISIONES = {
   publicar: 'Aprobar y publicar',
+  corregir: 'Solicitar correcciones',
   rechazar: 'Rechazar reseña',
   revisar: 'Devolver a revisión',
 } as const
 
 export function FormDecision({
   id,
+  version,
   decisiones,
+  nota,
   notificacionesHabilitadas = false,
 }: {
   id: number
+  version: number
   decisiones: Array<keyof typeof DECISIONES>
+  nota?: string | null
   notificacionesHabilitadas?: boolean
 }) {
   const onResultado = useAvisoAdmin()
@@ -32,11 +37,15 @@ export function FormDecision({
   return (
     <form {...formProps} className="space-y-3">
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="version" value={version} />
       <div>
         <label className="etiqueta-campo" htmlFor={`nota-${id}`}>
-          Motivo o nota para el autor · opcional
+          Motivo o nota para el autor
         </label>
-        <textarea id={`nota-${id}`} name="nota" rows={2} maxLength={2000} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer." />
+        <textarea id={`nota-${id}`} name="nota" rows={2} maxLength={2000} defaultValue={nota ?? ''} className="campo" placeholder="Explique la decisión para que el autor sepa qué hacer."
+          aria-invalid={!!estado?.campos?.nota} aria-describedby={`ayuda-nota-${id}${estado?.campos?.nota ? ` error-nota-${id}` : ''}`} />
+        <p id={`ayuda-nota-${id}`} className="mt-2 text-xs text-ink-soft">Obligatorio al solicitar correcciones. Autoriza cambios en el relato o el anonimato y un nuevo envío. Corregir la identidad del inquilino corresponde a administración. «Rechazar reseña» impide el reenvío.</p>
+        <ErrorCampo nombre={`nota-${id}`} mensaje={estado?.campos?.nota} />
       </div>
       {decisiones.includes('publicar') && <OpcionNotificar id={`notificar-aprobacion-${id}`} habilitada={notificacionesHabilitadas} soloAprobacion />}
       <MensajeForm error={estado?.error} />
@@ -79,12 +88,14 @@ function OpcionNotificar({ id, habilitada, soloAprobacion = false }: { id: strin
 
 export function FormEditarResena({
   id,
+  version,
   persona,
   comentario,
   anonima,
   notificacionesHabilitadas = false,
 }: {
   id: number
+  version: number
   persona: {
     identificacion: string
     nombre: string
@@ -107,6 +118,7 @@ export function FormEditarResena({
       <summary>Modificar reseña</summary>
       <form {...formProps} className="space-y-4">
         <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="version" value={version} />
         <p className="text-sm text-ink-soft">
           Corregir el nombre actualiza al inquilino en todas sus reseñas. Una cédula distinta mueve solo esta reseña.
         </p>

@@ -72,6 +72,12 @@ export default function ComoFuncionaPage() {
               si no se aprueba, el motivo indicado por administración. Crear la cuenta o enviar una reseña
               todavía no activa la consulta de experiencias de otros usuarios.
             </p>
+            <p className="text-sm leading-relaxed text-ink-soft">
+              Si administración solicita correcciones, verá las indicaciones y «Corregir y reenviar» en su perfil.
+              Su relato y la opción de anonimato se conservan para que pueda modificarlos. La misma reseña vuelve
+              a revisión. Los rechazos definitivos no admiten reenvío; volver a aprobar una reseña ya aprobada
+              no concede meses adicionales de consulta.
+            </p>
           </li>
         </ol>
         <Link href="/registro" className="btn-primario">Crear mi cuenta y compartir una experiencia</Link>

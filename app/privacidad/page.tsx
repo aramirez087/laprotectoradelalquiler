@@ -74,6 +74,11 @@ export default function PrivacidadPage() {
           y un permiso de consulta vigente. Su primera reseña aprobada activa 3 meses de consultas.
           Las fichas y las reseñas no son páginas públicas para buscadores.
         </p>
+        <p className="text-sm leading-relaxed text-ink-soft">
+          Al modificar una reseña conservamos las versiones anteriores del relato, su opción de anonimato,
+          estado y notas de moderación. Este historial solo puede consultarlo el autor activo y administración;
+          no aparece en las fichas que leen otros miembros. Se elimina al borrar la reseña.
+        </p>
       </section>
 
       <section id="visibilidad" className="space-y-3">

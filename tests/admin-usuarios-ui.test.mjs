@@ -68,8 +68,8 @@ test('pending permission updates disable the entire editable fieldset', () => {
 test('moderation notices default on only with delivery configured and approval copy describes its trigger', () => {
   const { FormDecision, FormEditarResena, FormEliminarResena } = load('components/admin-formularios.tsx', mocks())
   const samples = [
-    [FormDecision, { id: 42, decisiones: ['publicar', 'rechazar'] }],
-    [FormEditarResena, { id: 42, persona: { identificacion: '123456789', nombre: 'Ana', apellido1: 'Pérez', nombre2: null, apellido2: null }, comentario: 'An experience', anonima: true }],
+    [FormDecision, { id: 42, version: 1, decisiones: ['publicar', 'corregir', 'rechazar'] }],
+    [FormEditarResena, { id: 42, version: 1, persona: { identificacion: '123456789', nombre: 'Ana', apellido1: 'Pérez', nombre2: null, apellido2: null }, comentario: 'An experience', anonima: true }],
     [FormEliminarResena, { id: 42 }],
   ]
   for (const [Component, props] of samples) {

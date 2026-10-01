@@ -17,7 +17,7 @@ function load(file, mocks) {
   return mod.exports
 }
 
-function admin({ rol = 'admin', activo = true, error = null, estado = 'borrador' } = {}) {
+function admin({ rol = 'admin', activo = true, error = null, estado = 'borrador', version = 1 } = {}) {
   const calls = []
   const api = load('lib/admin.ts', {
     'server-only': {},
@@ -37,8 +37,10 @@ function admin({ rol = 'admin', activo = true, error = null, estado = 'borrador'
         select: columns => { call.columns = columns; return query },
         maybeSingle: async () => {
           if (error) return { error, data: null }
+          if (call.filters.some(([op, column, value]) => op === 'eq' && column === 'version' && version !== value)) return { error: null, data: null }
           if (call.filters.some(([op, column, value]) => op === 'neq' && column === 'estado' && estado === value)) return { error: null, data: null }
           estado = call.changes.estado
+          version++
           return { error: null, data: { id: 1, persona_id: 4, autor: { email: 'author@example.test', nombre: 'Author' } } }
         },
       }
@@ -53,30 +55,35 @@ function admin({ rol = 'admin', activo = true, error = null, estado = 'borrador'
   })
   return { ...api, calls }
 }
-const input = { id: 1, identificacion: 'LEGACY-42', nombre: 'Ana', nombre2: '', apellido1: 'Solís', apellido2: '', comentario: 'Updated', anonima: true }
+const input = { id: 1, version: 1, identificacion: 'LEGACY-42', nombre: 'Ana', nombre2: '', apellido1: 'Solís', apellido2: '', comentario: 'Updated', anonima: true }
 
 test('approval, edit and delete require an active admin before database access', async () => {
   for (const config of [{ rol: 'propietario' }, { rol: 'inquilino' }, { activo: false }]) {
     const a = admin(config)
     await assert.rejects(a.editarResena(input), /Unauthorized/)
     await assert.rejects(a.eliminarResena(1), /Unauthorized/)
-    await assert.rejects(a.decidirResena({ id: 1, estado: 'publicada', nota: '' }), /Unauthorized/)
+    await assert.rejects(a.decidirResena({ id: 1, version: 1, estado: 'publicada', nota: '' }), /Unauthorized/)
     assert.equal(a.calls.length, 0)
   }
 })
 test('approval targets a different stored state and gets the actual author in the mutation response', async () => {
   const a = admin()
-  const result = await a.decidirResena({ id: 1, estado: 'publicada', nota: 'Internal note', email: 'forged@example.test' })
-  assert.deepEqual(a.calls[0].filters, [['eq', 'id', 1], ['neq', 'estado', 'publicada']])
+  const result = await a.decidirResena({ id: 1, version: 1, estado: 'publicada', nota: 'Internal note', email: 'forged@example.test' })
+  assert.deepEqual(a.calls[0].filters, [['eq', 'id', 1], ['eq', 'version', 1], ['neq', 'estado', 'publicada']])
   assert.match(a.calls[0].columns, /autor:usuarios\(email, nombre\)/)
   assert.equal(result.autor.email, 'author@example.test')
-  await assert.rejects(a.decidirResena({ id: 1, estado: 'publicada', nota: '' }), /Actualice la página/)
+  await assert.rejects(a.decidirResena({ id: 1, version: 1, estado: 'publicada', nota: '' }), /Actualice la página/)
+})
+test('moderation must match the displayed version before approving changed text', async () => {
+  const a = admin({ version: 2 })
+  await assert.rejects(a.decidirResena({ id: 1, version: 1, estado: 'publicada', nota: '' }), /Actualice la página/)
 })
 test('each mutation makes one atomic RPC with the session admin and returns the stored author', async () => {
   const a = admin()
   const edited = await a.editarResena({ ...input, adminId: 99, email: 'forged@example.test' })
   assert.equal(a.calls.length, 1)
-  assert.equal(a.calls[0].name, 'admin_editar_resena')
+  assert.equal(a.calls[0].name, 'admin_editar_resena_versionada')
+  assert.equal(a.calls[0].params.p_version, 1)
   assert.equal(a.calls[0].params.p_admin_id, 7)
   assert.equal(a.calls[0].params.p_identificacion, 'LEGACY-42')
   assert.equal(edited.autor.email, 'author@example.test')
@@ -178,6 +185,19 @@ test('rejection and review decisions do not send an approval notice even with a 
     assert.ok((await a.decidirResenaAction(undefined, f)).mensaje)
     assert.equal(a.notifications.length, 0)
   }
+})
+test('requesting corrections requires instructions and explicit permission; final rejection revokes it', async () => {
+  const a = actions()
+  const f = form(true); f.set('decision', 'corregir'); f.set('nota', '  ')
+  assert.ok((await a.decidirResenaAction(undefined, f)).campos.nota)
+  assert.equal(a.backend.calls.length, 0)
+  f.set('nota', 'Precise los hechos y retire datos personales.')
+  assert.match((await a.decidirResenaAction(undefined, f)).mensaje, /Correcciones solicitadas/)
+  assert.equal(a.backend.calls[0].changes.permite_correccion, true)
+  assert.equal(a.notifications.length, 0)
+  f.set('version', '2'); f.set('decision', 'rechazar')
+  assert.ok((await a.decidirResenaAction(undefined, f)).mensaje)
+  assert.equal(a.backend.calls[1].changes.permite_correccion, false)
 })
 test('failed approvals never email; an unchecked approval stays silent; delivery failure preserves publication', async () => {
   for (const config of [{ rol: 'propietario' }, { activo: false }, { error: { code: '23514', message: 'database failure' } }]) {

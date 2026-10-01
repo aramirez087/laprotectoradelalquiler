@@ -87,6 +87,37 @@ para probar migración, acumulación, límite de 12 meses, fin de mes, años
 bisiestos, duplicados, aprobaciones simultáneas, moderación, renovación,
 cuentas inactivas y acceso directo con RLS.
 
+### Corrección y reenvío de reseñas
+
+Antes de desplegar esta versión sobre una base existente, ejecute
+`npm run db:correcciones-resenas`. Instala las funciones administrativas necesarias
+y aplica `db/correcciones-resenas.sql` en una transacción, sin borrar datos.
+En instalaciones nuevas, `schema.sql` incluye la misma migración.
+
+Administración puede **Solicitar correcciones** con instrucciones obligatorias,
+o **Rechazar reseña** sin permitir reenvío. Los rechazos existentes permanecen
+definitivos hasta que un moderador autorice la corrección. En el perfil, un autor
+activo puede corregir el relato y el anonimato y reenviar la misma reseña, incluso
+sin permiso de consulta. La identidad del inquilino la corrige administración.
+El reenvío exige un cambio y vuelve a revisión, sin publicar ni otorgar acceso.
+
+La función del servidor valida autor, actividad, autorización y versión dentro
+de una transacción. Dos envíos simultáneos no crean otra reseña. La primera
+aprobación y su recibo se conservan: una primera aprobación concede el beneficio
+normal; una nueva aprobación del mismo aporte no lo reinicia ni suma meses.
+Los formularios de moderación y edición también comprueban la versión para
+evitar decidir sobre un relato antiguo.
+
+Desde esta migración, cada actualización archiva la versión anterior en un
+historial privado. El autor activo y administración pueden consultar las últimas
+10 versiones por reseña. No se reconstruye contenido anterior a la migración.
+El historial se elimina al borrar la reseña y no está disponible para otros
+miembros ni mediante las credenciales del navegador.
+
+Validación: `npm run test:correcciones-resenas` crea Postgres desechable en Docker
+y verifica migración, propiedad, rechazos definitivos, permisos, concurrencia,
+historial, formularios antiguos y conservación de los meses de consulta.
+
 ### Edición administrativa de reseñas
 
 Para actualizar una base existente con la edición y eliminación administrativa
