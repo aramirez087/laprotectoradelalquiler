@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const usuario = await requerirRol('admin')
 
   return (
-    <div>
+    <div className="marco-admin">
       <div className="border-b border-line">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <NavAdmin />
