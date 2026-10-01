@@ -1,4 +1,5 @@
 // Tipos de la base de datos v2 (espejo de schema.sql)
+import type { CoincidenciaFicha } from './busqueda-fichas'
 
 // Conserva el rol histórico para leer cuentas existentes; ya no se puede asignar.
 export type Rol = 'admin' | 'propietario' | 'agencia' | 'inquilino'
@@ -109,6 +110,7 @@ export interface Denuncia {
 }
 
 export interface VistaFicha {
+  coincidencia?: CoincidenciaFicha | null
   persona: Pick<Persona, 'id' | 'identificacion' | 'nombre' | 'nombre2' | 'apellido1' | 'apellido2' | 'foto_url'>
   resenas: number
   ultima: string | null

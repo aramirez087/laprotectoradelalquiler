@@ -26,8 +26,10 @@ export function BuscadorFichas({ q }: { q: string }) {
             maxLength={150}
             className="campo pl-11"
             autoComplete="off"
+            aria-describedby="ayuda-buscador-fichas"
           />
         </div>
+        <p id="ayuda-buscador-fichas" className="mt-2 text-xs leading-5 text-ink-soft">Use el documento completo para una coincidencia exacta, o un nombre y apellido. Los nombres admiten tildes y palabras incompletas.</p>
       </div>
       <button type="submit" className="btn-primario">
         Buscar reseñas

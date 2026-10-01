@@ -92,7 +92,7 @@ export default async function HomePage() {
             id="q"
             name="q"
             type="search"
-            placeholder="Nombre o cédula"
+            placeholder="Nombre y apellido, o cédula completa"
             maxLength={150}
             autoComplete="off"
             aria-describedby="ayuda-busqueda"
@@ -104,7 +104,7 @@ export default async function HomePage() {
       </FormularioBusqueda>
       <p id="ayuda-busqueda" className="mt-2 inline-flex items-center gap-1.5 text-center text-xs text-ink-soft">
         <Icono nombre="escudo" className="h-3.5 w-3.5 shrink-0" />
-        La cédula completa no se muestra al público.
+        Use la cédula completa para distinguir personas con nombres similares.
       </p>
       <Link href="/resenas/nueva" className="enlace-inicio mt-5">
         Comparta su experiencia <Icono nombre="flecha" className="h-4 w-4" />

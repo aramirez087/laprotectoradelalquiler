@@ -6,6 +6,8 @@ import { periodoAudiencia } from '@/lib/audiencia'
 import { formatoNumero, primer } from '@/lib/util'
 import { activacionAdmin } from '@/lib/activacion'
 import { ActivacionAdmin } from '@/components/activation-admin'
+import { resultadosBusquedaAdmin } from '@/lib/resultados-busqueda'
+import { ResultadosBusquedaAdmin } from '@/components/resultados-busqueda-admin'
 
 export const metadata = { title: 'Estadísticas' }
 
@@ -29,7 +31,7 @@ function Distribucion({ titulo, filas, unidad }: { titulo: string; filas: { etiq
 export default async function EstadisticasPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await props.searchParams
   const periodo = periodoAudiencia(primer(params.periodo))
-  const [datos, activacion] = await Promise.all([estadisticasAdmin(periodo), activacionAdmin(periodo)])
+  const [datos, activacion, busqueda] = await Promise.all([estadisticasAdmin(periodo), activacionAdmin(periodo), resultadosBusquedaAdmin(periodo)])
   const tarjetas = [
     ['Visitantes únicos', datos.visitantes, 'Navegadores distintos en el período; una persona puede usar varios dispositivos.'],
     ['Páginas vistas', datos.vistas, 'Cada página abierta cuenta como una vista.'],
@@ -53,6 +55,7 @@ export default async function EstadisticasPage(props: { searchParams: Promise<Re
         <GraficoAudiencia key={periodo} serie={datos.serie} />
         <div className="grid gap-5 lg:grid-cols-3"><Distribucion titulo="Páginas más visitadas" filas={datos.paginas} unidad="Páginas vistas por sección" /><Distribucion titulo="De dónde llegan" filas={datos.fuentes} unidad="Visitas por origen de entrada" /><Distribucion titulo="Dispositivos" filas={datos.dispositivos} unidad="Páginas vistas por tipo de dispositivo" /></div>
       </>}
+    <ResultadosBusquedaAdmin resumen={busqueda} />
     <ActivacionAdmin resumen={activacion} />
     <details className="expediente text-sm leading-6 text-ink-soft"><summary className="cursor-pointer font-medium text-ink">Cómo se cuentan las visitas</summary><div className="mt-4 space-y-3">
       <p>Se mide únicamente el sitio de producción. Las visitas de administración, las pantallas de recuperación de acceso y las solicitudes automáticas al servidor quedan fuera. Un bloqueador o una preferencia de no seguimiento puede impedir la medición.</p>

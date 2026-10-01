@@ -11,19 +11,22 @@ import { Avatar } from '@/components/avatar'
 import { TarjetaResena } from '@/components/tarjeta-resena'
 import { EstadoVacio } from '@/components/estado-vacio'
 import { sinSupabase } from '@/lib/supabase/server'
-import { destinoInterno, etiquetaEstado, fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
+import { etiquetaEstado, fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
 import type { FilaResenaCompleta } from '@/lib/tipos'
+import { contextoBusquedaConfirmado } from '@/lib/resultado-busqueda-confirmado'
+import { ResultadoBusqueda } from '@/components/resultado-busqueda'
 
 function primer(v: string | string[] | undefined) {
   return (Array.isArray(v) ? v[0] : v) ?? ''
 }
 
-function hrefVolver(q: string, pagina: string) {
+function hrefVolver(q: string, pagina: string, confirmacion?: string | null) {
   const p = new URLSearchParams()
   if (q) p.set('q', q)
   if (pagina && pagina !== '1') p.set('pagina', pagina)
+  if (confirmacion) p.set('consulta', confirmacion)
   const s = p.toString()
-  return destinoInterno(s ? `/fichas?${s}` : '/fichas')
+  return s ? `/fichas?${s}` : '/fichas'
 }
 
 export const metadata: Metadata = {
@@ -40,7 +43,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   if (!Number.isInteger(personaId) || personaId <= 0) notFound()
 
   const searchParams = await props.searchParams
-  const volver = hrefVolver(primer(searchParams.q), primer(searchParams.pagina))
+  let volver = hrefVolver(primer(searchParams.q), primer(searchParams.pagina))
   const consulta = volver.includes('?') ? volver.slice(volver.indexOf('?')) : ''
   const usuario = await requireUsuario(`/fichas/${personaId}${consulta}`)
   if (!(await puedeConsultar(usuario))) {
@@ -78,6 +81,10 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
   }
   if (!persona) notFound()
 
+  const prueba = primer(searchParams.consulta)
+  const contexto = usuario.rol !== 'admin' ? contextoBusquedaConfirmado(prueba, usuario.id, primer(searchParams.q), personaId) : null
+  if (contexto) volver = hrefVolver(primer(searchParams.q), primer(searchParams.pagina), contexto)
+
   const resenas = ((persona.resenas ?? []) as FilaResenaCompleta[]).filter((r) => r.estado === 'publicada')
   let privadas: Awaited<ReturnType<typeof resenasPrivadasVisibles>> = []
   let avisoPrivadas = false
@@ -102,6 +109,7 @@ export default async function FichaPage(props: PageProps<'/fichas/[id]'>) {
 
   return (
     <div className="contenedor max-w-4xl space-y-6">
+      {contexto && resenas.length > 0 && <ResultadoBusqueda confirmacion={prueba} />}
       <Link href={volver} className="enlace-atras">
         ← Volver a los resultados
       </Link>

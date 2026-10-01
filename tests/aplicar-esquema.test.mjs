@@ -14,7 +14,7 @@ const preload = `
   import pg from ${JSON.stringify(pgUrl)};
   import { readFileSync } from 'node:fs';
   process.loadEnvFile = () => { process.stdout.write('ENV_LOAD\\n'); };
-  const files = ['db/activacion.sql', 'schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
+  const files = ['db/busqueda-relevante.sql', 'db/activacion.sql', 'schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
     'db/invitaciones-admin.sql', 'db/sesiones-admin.sql', 'db/administrar-resenas.sql', 'db/correcciones-resenas.sql',
     'db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/seguridad-supabase.sql', 'db/verificacion-cedulas-tse.sql', 'db/resultados-cedulas-tse.sql'];
   pg.Pool = class {
@@ -63,6 +63,7 @@ test('conflicting or repeated migration flags fail before environment loading or
 
 test('valid additive flags dispatch only their migrations and restore session guards last', () => {
   for (const [flag, expected] of [
+    ['--solo-busqueda', ['db/busqueda-relevante.sql']],
     ['--solo-activacion', ['db/activacion.sql']],
     ['--solo-resultados-cedulas', ['db/resultados-cedulas-tse.sql']],
     ['--solo-padron-tse', ['db/verificacion-cedulas-tse.sql']],

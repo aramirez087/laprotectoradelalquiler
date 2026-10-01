@@ -3,14 +3,17 @@ import { Avatar } from '@/components/avatar'
 import { Icono } from '@/components/icono'
 import { fechaCorta, mascararCedula, nombreCompleto } from '@/lib/util'
 import type { VistaFicha } from '@/lib/tipos'
+import { etiquetaCoincidencia } from '@/lib/busqueda-fichas'
 
 export function TarjetaFicha({ ficha, href }: { ficha: VistaFicha; href: string }) {
   const nombre = nombreCompleto(ficha.persona)
+  const coincidencia = etiquetaCoincidencia(ficha.coincidencia ?? undefined)
   return (
     <Link href={href} className="expediente fila-ficha group">
       <Avatar nombre={nombre} fotoUrl={ficha.persona.foto_url} />
       <div className="min-w-0">
         <h3 className="break-words text-lg font-medium leading-snug tracking-tight group-hover:text-seal">{nombre}</h3>
+        {coincidencia && <p className="mt-1 text-xs font-medium text-seal">{coincidencia}</p>}
         <p className="mt-1 break-words text-sm text-ink-soft">
           Documento {mascararCedula(ficha.persona.identificacion)}
         </p>

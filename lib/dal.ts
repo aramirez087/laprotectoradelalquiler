@@ -9,13 +9,12 @@ import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
 import { consultarCedula } from '@/lib/padron'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
+import { analizarBusqueda } from '@/lib/busqueda-fichas'
 import {
   destinoInterno,
   esCedulaValida,
   normalizarCedula,
   normalizarPerfilFacebook,
-  palabrasBusqueda,
-  variantesAcento,
 } from '@/lib/util'
 import type {
   Denuncia,
@@ -221,56 +220,18 @@ export async function buscarFichas(opts: {
   const usuario = await obtenerUsuario()
   if (!usuario || !(await puedeConsultar(usuario))) return { fichas: [], total: 0 }
 
+  const busqueda = analizarBusqueda(opts.q ?? '')
+  if (busqueda.tipo === 'invalida') return { fichas: [], total: 0 }
   const supabase = await clienteServicio()
-  const porPagina = 20
-  const pagina = Math.max(1, Number.isFinite(opts.pagina) ? Math.floor(opts.pagina ?? 1) : 1)
-
-  let query = supabase
-    .from('personas')
-    .select(
-      'id, identificacion, nombre, nombre2, apellido1, apellido2, foto_url, resenas!inner(id, estado, creado_en)',
-      { count: 'exact' },
-    )
-    .eq('resenas.estado', 'publicada')
-
-  for (const palabra of palabrasBusqueda(opts.q ?? '')) {
-    const filtros = variantesAcento(palabra).flatMap((v) => [
-      `nombre.ilike.%${v}%`,
-      `nombre2.ilike.%${v}%`,
-      `apellido1.ilike.%${v}%`,
-      `apellido2.ilike.%${v}%`,
-      `identificacion.ilike.%${v}%`,
-    ])
-    query = query.or(filtros.join(','))
-  }
-
-  const { data, count, error } = await query
-    .order('apellido1', { ascending: true })
-    .order('nombre', { ascending: true })
-    .range((pagina - 1) * porPagina, pagina * porPagina - 1)
-  if (error) throw error
-
-  type FilaBusqueda = {
-    estado: string
-    creado_en: string
-  }
-  type FilaPersona = VistaFicha['persona'] & {
-    resenas: FilaBusqueda[] | null
-  }
-
-  const fichas: VistaFicha[] = ((data ?? []) as FilaPersona[]).map((fila) => {
-    const rs = (fila.resenas ?? []).filter((r) => r.estado === 'publicada')
-    const fechas = rs.map((r) => r.creado_en).sort()
-    const { resenas: _resenas, ...persona } = fila
-    void _resenas
-    return {
-      persona,
-      resenas: rs.length,
-      ultima: fechas.at(-1) ?? null,
-    }
+  const pagina = Math.min(100000, Math.max(1, Number.isFinite(opts.pagina) ? Math.floor(opts.pagina ?? 1) : 1))
+  const { data, error } = await supabase.rpc('buscar_fichas_relevantes', {
+    p_usuario_id: usuario.id, p_q: busqueda.valor, p_pagina: pagina,
   })
-
-  return { fichas, total: count ?? 0 }
+  if (error) throw error
+  if (!data || !Number.isSafeInteger(data.total) || data.total < 0 || !Array.isArray(data.fichas)) {
+    throw new Error('Invalid search response')
+  }
+  return data as { fichas: VistaFicha[]; total: number }
 }
 
 /** Único agregado público del registro: no devuelve filas ni datos personales. */

@@ -21,7 +21,7 @@ export default function PrivacidadPage() {
           La Protectora del Alquiler es un registro para propietarios y agencias en Costa Rica que comparten
           experiencias sobre sus inquilinos. Esta página describe los datos que guarda el sitio y quién puede verlos.
         </p>
-        <p className="text-xs text-ink-soft">Actualizado el 30 de septiembre de 2026</p>
+        <p className="text-xs text-ink-soft">Actualizado el 1 de octubre de 2026</p>
       </header>
 
       <nav aria-label="En esta página" className="rounded-2xl border border-line bg-card p-5">
@@ -33,6 +33,7 @@ export default function PrivacidadPage() {
             ['resenas', 'Reseñas y cédula'],
             ['visibilidad', 'Quién ve sus datos'],
             ['audiencia', 'Estadísticas de audiencia'],
+            ['activacion', 'Activación y búsquedas'],
             ['eliminacion', 'Eliminar el ingreso con Facebook'],
           ].map(([id, texto]) => (
             <li key={id}><a href={`#${id}`} className="enlace-texto">{texto}</a></li>
@@ -113,8 +114,9 @@ export default function PrivacidadPage() {
       </section>
 
       <section id="activacion" className="space-y-3">
-        <h2 className="text-xl">Estadísticas de activación</h2>
+        <h2 className="text-xl">Estadísticas de activación y búsquedas</h2>
         <p className="text-sm leading-relaxed text-ink-soft">Dentro de nuestra base de datos registramos cuándo se crea una cuenta nueva, cuándo envía su primera reseña, cuándo obtiene su primera aprobación y cuándo completa su primera búsqueda. Estos hitos se vinculan con su cuenta para contarlos una sola vez y se eliminan al borrar la cuenta. No guardamos el texto de la búsqueda ni los resultados en estos hitos y no los enviamos a Statsig. El registro de la primera búsqueda respeta «No rastrear» y Global Privacy Control.</p>
+        <p className="text-sm leading-relaxed text-ink-soft">También medimos si una búsqueda por nombre o documento encuentra reseñas publicadas y si se abre una ficha desde esos resultados. Guardamos una referencia aleatoria, la cuenta, la fecha, el tipo de búsqueda y esos dos resultados durante un máximo de 90 días; se eliminan antes al borrar la cuenta. No guardamos el texto buscado, nombres, cédulas ni identificadores de fichas en estas métricas, ni las enviamos a Statsig. Las aperturas se vinculan durante 30 minutos y respetamos «No rastrear» y Global Privacy Control.</p>
         <p className="text-sm leading-relaxed text-ink-soft">Administración ve únicamente los conteos por cohorte y los tiempos de revisión agregados. Estas cifras ayudan a mejorar el registro y la moderación; no se usan para publicidad.</p>
       </section>
 

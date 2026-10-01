@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --import ./tests/register.mjs --test tests/*.test.mjs",
+    "db:busqueda": "node scripts/aplicar-esquema.mjs --solo-busqueda",
+    "test:busqueda": "node --test tests/integration/busqueda-relevante.test.mjs",
     "db:activacion": "node scripts/aplicar-esquema.mjs --solo-activacion",
     "avisos:cron": "node scripts/configurar-avisos-cron.mjs",
     "test:activacion": "node --test tests/integration/activacion.test.mjs",

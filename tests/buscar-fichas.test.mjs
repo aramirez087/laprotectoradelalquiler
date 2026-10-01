@@ -16,15 +16,8 @@ async function buscarConFilas(filas, opts = { pagina: 1 }, total = filas.length)
     fetch: async (url, options) => {
       const request = new URL(url)
       requests.push({ request, options })
-      const isSearch = request.pathname.endsWith('/personas')
-      const validFilter = request.searchParams.get('select')?.includes('resenas!inner(')
-        && request.searchParams.get('resenas.estado') === 'eq.publicada'
-      const data = isSearch && validFilter
-        ? filas
-        : []
-      return new Response(JSON.stringify(data), {
-        headers: { 'content-type': 'application/json', 'content-range': `0-${data.length ? data.length - 1 : 0}/${isSearch && validFilter ? total : 0}` },
-      })
+      const data = { fichas: filas, total }
+      return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
     },
   })
   const db = {
@@ -37,6 +30,7 @@ async function buscarConFilas(filas, opts = { pagina: 1 }, total = filas.length)
         assert.equal(parametros.p_session_id, '11111111-1111-4111-8111-111111111111')
         return { data: true, error: null }
       }
+      if (nombre === 'buscar_fichas_relevantes') return postgrest.rpc(nombre, parametros)
       return { data: [{ puede_consultar: true, usuario_id: 1 }], error: null }
     },
     auth: {
@@ -60,41 +54,36 @@ async function buscarConFilas(filas, opts = { pagina: 1 }, total = filas.length)
   return { result: await mod.exports.buscarFichas(opts), requests }
 }
 
-test('search excludes fichas without published reviews before counting and paginating', async () => {
-  const { result, requests } = await buscarConFilas([
-    { id: 7, nombre: 'Ana', apellido1: 'Solís', provincia_id: null, provincia: null,
-      resenas: [{ id: 8, estado: 'publicada', creado_en: '2026-01-01' }] },
-  ], { pagina: 2 }, 21)
-  const search = requests.find(({ request }) => request.pathname.endsWith('/personas'))
-  assert.ok(search)
-  assert.match(search.request.searchParams.get('select'), /resenas!inner\(/)
-  assert.equal(search.request.searchParams.get('resenas.estado'), 'eq.publicada')
-  assert.equal(search.request.searchParams.get('offset'), '20')
-  assert.equal(search.request.searchParams.get('limit'), '20')
-  assert.equal(search.options.headers.prefer, 'count=exact')
-  assert.equal(result.total, 21)
-  assert.equal(result.fichas[0].resenas, 1)
+test('search sends a parameterized, account-bound ranked RPC with pagination', async () => {
+  const ficha={persona:{id:7,nombre:'Ana',apellido1:'Solís'},resenas:1,ultima:'2026-01-01',coincidencia:'nombre_parcial'}
+  const {result, requests}=await buscarConFilas([ficha],{q:'Ana Sol',pagina:2},21)
+  assert.equal(requests.length,1)
+  const [{request,options}]=requests
+  assert.equal(request.pathname,'/rest/v1/rpc/buscar_fichas_relevantes')
+  assert.equal(options.method,'POST')
+  assert.deepEqual(JSON.parse(options.body),{p_usuario_id:1,p_q:'Ana Sol',p_pagina:2})
+  assert.equal(result.total,21)
+  assert.equal(result.fichas[0].resenas,1)
+  assert.equal(result.fichas[0].coincidencia,'nombre_parcial')
 })
 
-test('search uses review counts and latest publication without rating or catalog lookups', async () => {
-  const { result, requests } = await buscarConFilas([
-    { id: 7, nombre: 'Ana', apellido1: 'Solís', provincia_id: 1, provincia: { nombre: 'San José' },
-      resenas: [
-        { id: 8, estado: 'publicada', calificacion_id: 1, calificacion: { valor: 5 }, creado_en: '2026-09-20T12:00:00Z' },
-        { id: 9, estado: 'publicada', calificacion_id: null, calificacion: null, creado_en: '2026-01-01T12:00:00Z' },
-        { id: 10, estado: 'borrador', calificacion_id: 2, calificacion: { valor: 1 }, creado_en: '2026-09-29T12:00:00Z' },
-      ] },
-    { id: 11, nombre: 'María', apellido1: 'Pérez', provincia_id: null, provincia: null,
-      resenas: [{ id: 12, estado: 'publicada', creado_en: '2026-05-15T12:00:00Z' }] },
-  ])
+test('document formatting normalizes before search while punctuation cannot change PostgREST filters', async () => {
+  for(const [q, expected] of [['1-0234-0567','102340567'],['José, Muñoz','José, Muñoz'],['AB-123456','ab123456']]) {
+    const {requests}=await buscarConFilas([],{q,pagina:1})
+    assert.equal(JSON.parse(requests[0].options.body).p_q,expected)
+    assert.equal(requests[0].request.searchParams.size,0)
+  }
+})
 
-  assert.equal(requests.length, 1, 'search must not load historical form catalogs')
-  const [{ request }] = requests
-  assert.equal(request.pathname, '/rest/v1/personas')
-  assert.doesNotMatch(request.searchParams.get('select'), /calificacion|provincia|\*/)
-  assert.equal(result.total, 2)
-  assert.equal(result.fichas[0].resenas, 2)
-  assert.equal(result.fichas[0].ultima, '2026-09-20T12:00:00Z')
-  assert.equal(result.fichas[1].resenas, 1)
-  assert.ok(result.fichas.every((ficha) => !Object.hasOwn(ficha, 'promedio') && !Object.hasOwn(ficha, 'provincia')))
+test('invalid and too-short searches never broaden to the whole directory', async () => {
+  for(const q of ['J','123','%%___','x'.repeat(151)]) {
+    const {result,requests}=await buscarConFilas([],{q})
+    assert.equal(result.total,0)
+    assert.equal(requests.length,0)
+  }
+})
+
+test('an out-of-range page preserves the total so the page can redirect safely', async () => {
+  const {result}=await buscarConFilas([],{q:'Ana',pagina:5},21)
+  assert.equal(result.total,21);assert.equal(result.fichas.length,0)
 })

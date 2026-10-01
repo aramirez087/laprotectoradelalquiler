@@ -132,6 +132,17 @@ de inquilino y reseña en una sola transacción. Las cédulas legacy sin modific
 se admiten al corregir otros datos. Puede verificarlo con
 `npm run test:admin-resenas` (requiere Docker; crea una base desechable).
 
+### Búsqueda relevante y medición de resultados
+
+`npm run db:busqueda` prepara la migración aditiva de búsqueda por relevancia y
+métricas privadas de resultados/aperturas. Aplique la migración antes de desplegar
+el código. Los documentos exactos aparecen primero; los nombres admiten tildes
+y prefijos de palabras, con etiquetas que distinguen coincidencias parciales.
+El panel de estadísticas muestra búsquedas sin resultados, aperturas desde la
+búsqueda y miembros que vuelven en otro día, sin guardar identidades consultadas.
+La [guía de búsqueda](docs/runbooks/busqueda-relevante.md) define los índices,
+la privacidad, las métricas, el rollout y la validación con bases desechables.
+
 ### Borradores, avisos y activación
 
 `npm run db:activacion` instala una migración aditiva para borradores privados,

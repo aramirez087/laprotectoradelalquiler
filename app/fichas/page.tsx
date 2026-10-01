@@ -12,21 +12,26 @@ import { EstadoVacio } from '@/components/estado-vacio'
 import type { VistaFicha } from '@/lib/tipos'
 import { PrimeraConsulta } from '@/components/primera-consulta'
 import { confirmarConsulta } from '@/lib/consulta-confirmada'
+import { analizarBusqueda } from '@/lib/busqueda-fichas'
+import { confirmarResultadoBusqueda, confirmarAperturaFicha } from '@/lib/resultado-busqueda-confirmado'
+import { ResultadoBusqueda } from '@/components/resultado-busqueda'
 
 export const metadata = { title: 'Reseñas' }
 
-function hrefLista(opts: { q?: string; pagina?: number }) {
+function hrefLista(opts: { q?: string; pagina?: number; consulta?: string | null }) {
   const p = new URLSearchParams()
   if (opts.q) p.set('q', opts.q)
   if (opts.pagina && opts.pagina > 1) p.set('pagina', String(opts.pagina))
+  if (opts.consulta) p.set('consulta', opts.consulta)
   const s = p.toString()
   return s ? `/fichas?${s}` : '/fichas'
 }
 
-function hrefFicha(id: number, opts: { q?: string; pagina?: number }) {
+function hrefFicha(id: number, opts: { q?: string; pagina?: number; consulta?: string | null }) {
   const p = new URLSearchParams()
   if (opts.q) p.set('q', opts.q)
   if (opts.pagina && opts.pagina > 1) p.set('pagina', String(opts.pagina))
+  if (opts.consulta) p.set('consulta', opts.consulta)
   const s = p.toString()
   return s ? `/fichas/${id}?${s}` : `/fichas/${id}`
 }
@@ -35,6 +40,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   const searchParams = await props.searchParams
   const q = primer(searchParams.q).trim()
   const pagina = paginaSegura(primer(searchParams.pagina))
+  const busqueda = analizarBusqueda(q)
   const usuario = await requireUsuario(hrefLista({ q, pagina }))
   const acceso = await accesoConsulta(usuario)
   if (!acceso.puede_consultar) {
@@ -59,12 +65,15 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
   if (!aviso && pagina > paginas) redirect(hrefLista({ q, pagina: paginas }))
   const desde = fichas.length === 0 ? 0 : (pagina - 1) * porPagina + 1
   const hasta = (pagina - 1) * porPagina + fichas.length
-  const filtros = { q }
-  const confirmacion = q && !aviso && usuario.rol !== 'admin' ? confirmarConsulta(usuario.id) : null
+  const resultadoConfirmado = !aviso && usuario.rol !== 'admin'
+    ? confirmarResultadoBusqueda(usuario.id, q, total > 0, primer(searchParams.consulta)) : null
+  const filtros = { q, consulta: resultadoConfirmado }
+  const confirmacion = q && busqueda.tipo !== 'invalida' && !aviso && usuario.rol !== 'admin' ? confirmarConsulta(usuario.id) : null
 
   return (
     <div className="contenedor space-y-5">
       {confirmacion && <PrimeraConsulta confirmacion={confirmacion} />}
+      {resultadoConfirmado && <ResultadoBusqueda confirmacion={resultadoConfirmado} persistirContexto />}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-3">Registro de propietarios y agencias</p>
@@ -105,11 +114,30 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
         </div>
       )}
 
+      {q && total > 0 && !aviso && <p className="text-sm leading-6 text-ink-soft">
+        {busqueda.tipo === 'documento'
+          ? 'El documento completo aparece primero. Las coincidencias parciales requieren confirmar el nombre y el número.'
+          : 'Ordenados por coincidencia. Personas distintas pueden compartir un nombre; confirme el documento completo.'}
+      </p>}
+
       {fichas.length === 0 && !aviso ? (
         <EstadoVacio
-          titulo={q ? 'No encontramos coincidencias' : 'Todavía no hay fichas disponibles'}
-          texto={q ? 'Revise la escritura o pruebe solo con un apellido o la cédula. Que no aparezca aquí no significa que tenga un historial positivo o negativo.' : 'Las fichas reúnen experiencias de propietarios y agencias con sus inquilinos. Puede compartir la suya para contribuir al registro.'}
+          titulo={busqueda.tipo === 'invalida' ? 'Complete los datos para buscar' : q ? 'No encontramos coincidencias' : 'Todavía no hay fichas disponibles'}
+          texto={busqueda.ayuda ?? (q ? 'No encontramos una ficha con reseñas publicadas para esta búsqueda. Que no aparezca aquí no significa que tenga un historial positivo o negativo.' : 'Las fichas reúnen experiencias de propietarios y agencias con sus inquilinos. Puede compartir la suya para contribuir al registro.')}
         >
+          {q && busqueda.tipo !== 'invalida' && <div className="basis-full text-left sm:max-w-lg">
+            <h3 className="text-sm font-medium">Pruebe estos pasos</h3>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-ink-soft">
+              {busqueda.tipo === 'documento' ? <>
+                <li>Compruebe el número con el documento de la persona. Los espacios, puntos y guiones no cambian la búsqueda.</li>
+                <li>Pruebe con el nombre y un apellido para revisar otras posibles coincidencias.</li>
+              </> : <>
+                <li>Pruebe con un nombre y un apellido, o solo un apellido. Las tildes no cambian la búsqueda.</li>
+                <li>Si conoce el documento, búsquelo completo para distinguir personas con nombres similares.</li>
+              </>}
+              <li>La persona puede no tener experiencias publicadas en la comunidad.</li>
+            </ul>
+          </div>}
           {q && (
             <Link href="/fichas" className="btn-secundario">
               Quitar búsqueda
@@ -123,7 +151,7 @@ export default async function FichasPage(props: PageProps<'/fichas'>) {
         <ul className="space-y-3" aria-label="Resultados de la búsqueda">
           {fichas.map((ficha) => (
             <li key={ficha.persona.id}>
-              <TarjetaFicha ficha={ficha} href={hrefFicha(ficha.persona.id, { ...filtros, pagina })} />
+              <TarjetaFicha ficha={ficha} href={hrefFicha(ficha.persona.id, { q, pagina, consulta: resultadoConfirmado ? confirmarAperturaFicha(resultadoConfirmado, usuario.id, ficha.persona.id) : null })} />
             </li>
           ))}
         </ul>
