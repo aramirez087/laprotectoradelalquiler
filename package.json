@@ -27,6 +27,7 @@
     "test:acceso-consultas": "node --test tests/integration/acceso-consultas.test.mjs"
   },
   "dependencies": {
+    "@statsig/js-client": "^3.33.5",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "mysql2": "^3.24.4",

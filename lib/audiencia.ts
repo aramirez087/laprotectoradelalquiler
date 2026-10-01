@@ -1,0 +1,103 @@
+/** Only fixed categories leave the site. Never send URLs, queries or record IDs. */
+export const PAGINAS_AUDIENCIA = {
+  inicio: 'Inicio', como_funciona: 'Cómo funciona', privacidad: 'Privacidad',
+  login: 'Iniciar sesión', registro: 'Registro', primera_resena: 'Primera reseña',
+  fichas: 'Consulta de fichas', ficha: 'Detalle de ficha',
+  nueva_resena: 'Escribir reseña', perfil: 'Mi perfil',
+} as const
+
+export const FUENTES_AUDIENCIA = {
+  directo: 'Acceso directo', google: 'Google', facebook: 'Facebook',
+  instagram: 'Instagram', bing: 'Bing', otros: 'Otros sitios',
+} as const
+
+export const DISPOSITIVOS_AUDIENCIA = {
+  movil: 'Celular', tableta: 'Tableta', computadora: 'Computadora',
+} as const
+
+export function paginaAudiencia(path: string): keyof typeof PAGINAS_AUDIENCIA | null {
+  const rutas: Record<string, keyof typeof PAGINAS_AUDIENCIA> = {
+    '/': 'inicio', '/como-funciona': 'como_funciona', '/privacidad': 'privacidad',
+    '/login': 'login', '/registro': 'registro', '/registro/resena': 'primera_resena',
+    '/fichas': 'fichas', '/resenas/nueva': 'nueva_resena', '/perfil': 'perfil',
+  }
+  if (Object.hasOwn(rutas, path)) return rutas[path]
+  return /^\/fichas\/\d+$/.test(path) ? 'ficha' : null
+}
+
+export function fuenteAudiencia(referrer: string, origin: string): keyof typeof FUENTES_AUDIENCIA {
+  try {
+    const url = new URL(referrer)
+    if (url.origin === origin) return 'directo'
+    const host = url.hostname.toLowerCase()
+    if (/^(?:[^.]+\.)?google\.(?:com|co\.cr|[a-z]{2})$/.test(host)) return 'google'
+    if (/(^|\.)(facebook\.com|fb\.com)$/.test(host)) return 'facebook'
+    if (/(^|\.)instagram\.com$/.test(host)) return 'instagram'
+    if (/(^|\.)bing\.com$/.test(host)) return 'bing'
+    return 'otros'
+  } catch { return 'directo' }
+}
+
+export function dispositivoAudiencia(userAgent: string): keyof typeof DISPOSITIVOS_AUDIENCIA {
+  if (/ipad|tablet|android(?!.*mobile)/i.test(userAgent)) return 'tableta'
+  return /mobile|iphone|ipod|android/i.test(userAgent) ? 'movil' : 'computadora'
+}
+
+export function eventosAudiencia(pagina: keyof typeof PAGINAS_AUDIENCIA, dispositivo: keyof typeof DISPOSITIVOS_AUDIENCIA,
+  fuente: keyof typeof FUENTES_AUDIENCIA | null) {
+  return [
+    'site_page_view', `site_page_${pagina}`, `site_device_${dispositivo}`,
+    ...(fuente === null ? [] : ['site_session_start', `site_source_${fuente}`]),
+  ]
+}
+
+export type PeriodoAudiencia = 7 | 28
+export function periodoAudiencia(valor: string): PeriodoAudiencia { return valor === '28' ? 28 : 7 }
+
+/** Statsig's default fixed GMT-8 day closes at 02:00 in Costa Rica. Exclude the open day. */
+export function fechasAudiencia(periodo: PeriodoAudiencia, ahora = new Date()) {
+  const cerrado = new Date(ahora.getTime() - 8 * 3_600_000 - 86_400_000)
+  return Array.from({ length: periodo }, (_, i) =>
+    new Date(cerrado.getTime() - (periodo - 1 - i) * 86_400_000).toISOString().slice(0, 10))
+}
+
+export interface ValorAudiencia { metricName: string; metricType: string; unitType: string; value: number }
+export interface DiaAudiencia { fecha: string; valores: ValorAudiencia[] | null }
+
+function valorMetricas(valores: ValorAudiencia[], nombre: string, tipo?: string) {
+  const filas = valores.filter(v => v.metricName === nombre && (!tipo || v.metricType === tipo))
+  // Different unit types describe the same traffic: never add them together.
+  for (const unidad of tipo === 'event_count' ? ['overall', 'userID'] : ['userID', 'overall']) {
+    const fila = filas.find(v => v.unitType === unidad)
+    if (fila) return fila.value
+  }
+  return null
+}
+
+export function resumirAudiencia(dias: DiaAudiencia[], periodo: PeriodoAudiencia) {
+  const ultimo = dias.at(-1)
+  const validos = dias.filter((d): d is DiaAudiencia & { valores: ValorAudiencia[] } =>
+    d.valores !== null && valorMetricas(d.valores, 'site_page_view', 'event_count') !== null)
+  const sumar = (nombre: string) => validos.reduce((total, dia) =>
+    total + (valorMetricas(dia.valores, nombre, 'event_count') ?? 0), 0)
+  const lista = (categorias: Record<string, string>, prefijo: string) => Object.entries(categorias)
+    .map(([clave, etiqueta]) => ({ etiqueta, cantidad: sumar(`${prefijo}${clave}`) }))
+    .filter(v => v.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad)
+  const metricasUltimo = ultimo?.valores ?? []
+  return {
+    disponible: validos.length > 0,
+    completo: validos.length === dias.length,
+    diasDisponibles: validos.length,
+    visitantes: valorMetricas(metricasUltimo, periodo === 7 ? 'weekly_active_user' : 'monthly_active_user'),
+    nuevos: valorMetricas(metricasUltimo, periodo === 7 ? 'new_wau' : 'new_mau_28d'),
+    vistas: validos.length ? sumar('site_page_view') : null,
+    sesiones: validos.length ? sumar('site_session_start') : null,
+    paginas: lista(PAGINAS_AUDIENCIA, 'site_page_'),
+    fuentes: lista(FUENTES_AUDIENCIA, 'site_source_'),
+    dispositivos: lista(DISPOSITIVOS_AUDIENCIA, 'site_device_'),
+    serie: dias.map(d => ({ fecha: d.fecha,
+      vistas: d.valores ? valorMetricas(d.valores, 'site_page_view', 'event_count') : null,
+      visitantes: d.valores ? valorMetricas(d.valores, 'daily_active_user') : null,
+    })),
+  }
+}

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 
 const ENLACES = [
   { href: '/admin', etiqueta: 'Resumen', exacto: true },
+  { href: '/admin/estadisticas', etiqueta: 'Estadísticas' },
   { href: '/admin/revision', etiqueta: 'Revisión' },
   { href: '/admin/resenas', etiqueta: 'Reseñas' },
   { href: '/admin/rechazadas', etiqueta: 'Rechazadas' },

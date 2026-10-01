@@ -11,6 +11,7 @@ import { FranjaPermiso } from '@/components/permiso-consulta'
 import { ActividadGlobal } from '@/components/indicador-carga'
 import { AvisoErrorCliente } from '@/components/aviso-error-cliente'
 import { Marca } from '@/components/marca'
+import { Audiencia } from '@/components/audiencia'
 import type { Tema } from '@/components/selector-tema'
 import Cargando from './loading'
 import { DESCRIPCION_SITIO, NOMBRE_SITIO, ORIGEN_SITIO, ROBOTS_PRIVADOS } from '@/lib/seo'
@@ -51,6 +52,7 @@ async function ContenidoConSesion({ children, tema }: { children: React.ReactNod
   const usuario = await obtenerUsuario()
   const acceso = usuario ? await accesoConsulta(usuario) : null
   return <>
+    <Audiencia administra={usuario?.rol === 'admin'} habilitada={process.env.VERCEL_ENV === 'production'} />
     <Nav usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, administra: usuario.rol === 'admin' && usuario.activo } : null} tema={tema}>
       {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
     </Nav>

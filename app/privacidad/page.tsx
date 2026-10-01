@@ -21,7 +21,7 @@ export default function PrivacidadPage() {
           La Protectora del Alquiler es un registro para propietarios y agencias en Costa Rica que comparten
           experiencias sobre sus inquilinos. Esta página describe los datos que guarda el sitio y quién puede verlos.
         </p>
-        <p className="text-xs text-ink-soft">Actualizado el 28 de septiembre de 2026</p>
+        <p className="text-xs text-ink-soft">Actualizado el 30 de septiembre de 2026</p>
       </header>
 
       <nav aria-label="En esta página" className="rounded-2xl border border-line bg-card p-5">
@@ -32,6 +32,7 @@ export default function PrivacidadPage() {
             ['facebook', 'Ingreso con Facebook'],
             ['resenas', 'Reseñas y cédula'],
             ['visibilidad', 'Quién ve sus datos'],
+            ['audiencia', 'Estadísticas de audiencia'],
             ['eliminacion', 'Eliminar el ingreso con Facebook'],
           ].map(([id, texto]) => (
             <li key={id}><a href={`#${id}`} className="enlace-texto">{texto}</a></li>
@@ -79,7 +80,24 @@ export default function PrivacidadPage() {
         <h2 className="text-xl">Quién más los ve</h2>
         <p className="text-sm leading-relaxed text-ink-soft">
           Los usa la administración del sitio para revisar reseñas y cuentas. No los vendemos ni los usamos para
-          publicidad. El sitio no incluye medidores de audiencia de terceros.
+          publicidad. Para medir el uso del sitio utilizamos Statsig, como se explica a continuación.
+        </p>
+      </section>
+
+      <section id="audiencia" className="space-y-3">
+        <h2 className="text-xl">Estadísticas de audiencia</h2>
+        <p className="text-sm leading-relaxed text-ink-soft">
+          Statsig recibe eventos de visita con categorías de páginas, origen de entrada y tipo de dispositivo.
+          Usamos un identificador aleatorio guardado en su navegador para estimar visitantes distintos; no lo
+          vinculamos con su cuenta. La medición no crea cookies de audiencia. Statsig también procesa datos
+          técnicos de la conexión, como la dirección IP. Puede consultar su{' '}
+          <a href="https://www.statsig.com/privacy" className="enlace-texto">política de privacidad</a>.
+        </p>
+        <p className="text-sm leading-relaxed text-ink-soft">
+          No enviamos nombres, correos, cédulas, búsquedas, identificadores de fichas ni contenido de reseñas
+          o formularios. No grabamos la pantalla ni las sesiones. Excluimos las visitas de administración y
+          respetamos las señales de «No rastrear» y Global Privacy Control del navegador. Los informes
+          agregados solo están disponibles para administración.
         </p>
       </section>
 
