@@ -115,7 +115,7 @@ test('public home offers registration and a fictional example before any real se
   assert.match(html, /Ver una consulta de ejemplo/)
   assert.match(html, /ejemplo ficticio sin registrarse/)
   assert.match(html, /Unirme a La Protectora/)
-  assert.match(html, /<h1[^>]*>Reseñas de inquilinos\./)
+  assert.match(html, /<h1[^>]*>Proteja su propiedad\./)
   assert.match(html, /propietarios y agencias/i)
   assert.doesNotMatch(html, /role="search"|type="search"|<form/)
 })

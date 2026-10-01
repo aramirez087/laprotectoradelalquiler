@@ -23,7 +23,7 @@ function CabeceraInicio({ publica = false }: { publica?: boolean }) {
       <BarrioVivo />
       <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
       <h1 className="titulo-inicio mt-5">
-        {publica ? 'Reseñas de inquilinos.' : 'Proteja su propiedad.'}<br />
+        Proteja su propiedad.<br />
         <span className="text-seal">Alquile con confianza.</span>
       </h1>
       <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">

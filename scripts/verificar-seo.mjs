@@ -52,7 +52,7 @@ for (const ruta of ['/', '/como-funciona', '/privacidad']) {
   assert.equal(meta(cabecera, 'twitter:description'), descripcion)
   assert.equal([...html.matchAll(/<h1\b/g)].length, 1, `${ruta}: debe tener un solo H1`)
   if (ruta === '/') {
-    assert.match(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '', /Reseñas de inquilinos/)
+    assert.match(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '', /Proteja su propiedad/)
     assert.match(html, /id="resenas-inquilinos"/)
   }
   assert.match(html, /<html[^>]+lang="es-CR"/)
