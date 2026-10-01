@@ -92,7 +92,7 @@ export default async function HomePage() {
             id="q"
             name="q"
             type="search"
-            placeholder="Nombre y apellido, o cédula completa"
+            placeholder="Nombre o cédula"
             maxLength={150}
             autoComplete="off"
             aria-describedby="ayuda-busqueda"
