@@ -37,8 +37,16 @@ cinco minutos sin cambiar de plan. El job llama solo al dominio de producción.
 No active este scheduler en una base de Preview con avisos de prueba.
 
 `db/avisos-cron.sql` deja el HTTP fuera de la transacción de moderación mediante
-[pg_net](https://supabase.com/docs/guides/database/extensions/pg_net). Los headers
-temporales de su cola quedan inaccesibles para `anon` y `authenticated`.
+[pg_net](https://supabase.com/docs/guides/database/extensions/pg_net). Intenta
+revocar acceso a las tablas de solicitudes cuando el rol tiene permiso para ello.
+En Supabase los objetos administrados por `supabase_admin` pueden conservar
+permisos a `PUBLIC`; un `REVOKE` sin autoridad no confirma su eliminación.
+La protección documentada por Supabase depende de que `net` no esté expuesto
+por Data API y de que `anon` y `authenticated` sean roles `NOLOGIN`.
+Verifique ambas condiciones: una petición con clave publicable y
+`Accept-Profile: net` debe devolver `PGRST106`, y `pg_roles.rolcanlogin` debe
+ser falso para ambos roles. No añada `net` a los esquemas expuestos ni otorgue
+`LOGIN` a esos roles.
 El secreto no aparece en `cron.job.command`. El scheduler también limpia
 borradores vencidos y siete días de historial de su propio job.
 
@@ -156,3 +164,36 @@ Lint, TypeScript y el build de producción con `--webpack` pasaron. Turbopack
 falló por una restricción del entorno al abrir un puerto; no se modificó el
 comando normal de build. El envío real y la ejecución de las extensiones siguen
 siendo parte de la verificación de rollout.
+
+## Despliegue de producción del 1 de octubre de 2026
+
+La versión quedó activa en [el sitio](https://www.protectoradelalquiler.com),
+con deployment `dpl_AXSbfAky4nFvspYRQJxC6uSASkeT`
+([URL de la versión](https://laprotectoradelalquiler-48d88mp8u.vercel.app)).
+El build normal con Turbopack pasó en Vercel. La migración aditiva se aplicó
+una vez: se conservaron los 6.447 usuarios, 5.235 personas y 4.795 reseñas.
+Las cinco tablas privadas nuevas tienen RLS y no permiten lectura directa
+a `anon` ni `authenticated`; el advisor de seguridad reportó cero hallazgos.
+
+Se habilitaron `pg_cron` 1.6.4 y `pg_net` 0.20.4, con Vault 0.3.1 disponible.
+Hay un único job activo cada cinco minutos; sus ejecuciones de las 19:00 y
+19:05 UTC terminaron correctamente. Una solicitud de verificación enviada
+por `pg_net` al worker autenticado devolvió HTTP 200, `configurado:true` y
+cero avisos enviados, pendientes o en revisión. La cola estaba vacía antes
+de la prueba; no se crearon reseñas ni se enviaron correos de prueba.
+Esto confirma el transporte y la configuración del worker, pero la aceptación
+y entrega de correos reales siguen pendientes de una decisión de moderación.
+
+Inicio, privacidad y login respondieron HTTP 200; administración y registro
+de reseñas redirigieron a login sin sesión. El worker devolvió HTTP 401 sin
+credencial. Data API rechazó el esquema `net` con `PGRST106` y ambos roles
+de cliente mantienen `NOLOGIN`. No se exportaron logs de solicitudes.
+Las métricas agregadas de errores no están disponibles en el plan actual.
+
+Se guardó un respaldo local únicamente del esquema, sin filas ni esquema Auth,
+en `/private/tmp/protectora-rollout-backup-20261001/pre-activacion-schema.dump`.
+La revisión automática de aprobación rechazó exportar datos de usuarios y
+logs de producción; la verificación usó conteos, advisors y checks de salud.
+Para revertir el código, desactive el job y promueva la versión anterior
+`https://laprotectoradelalquiler-lu5kfz7ht.vercel.app`; conserve las tablas
+aditivas. No restaure el esquema ni borre datos para una reversión de código.

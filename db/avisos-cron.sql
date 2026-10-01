@@ -19,4 +19,7 @@ END;
 $$;
 REVOKE ALL ON FUNCTION privado.despertar_worker_avisos() FROM PUBLIC,anon,authenticated,service_role;
 -- pg_net conserva temporalmente los headers para ejecutar la petición.
+-- Endurecimiento adicional cuando el rol puede revocar los permisos. En Supabase,
+-- los objetos administrados por supabase_admin pueden conservar grants a PUBLIC:
+-- verificar que net no esté expuesto por Data API y anon/authenticated sean NOLOGIN.
 REVOKE ALL ON TABLE net.http_request_queue,net._http_response FROM PUBLIC,anon,authenticated;
