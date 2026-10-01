@@ -126,7 +126,7 @@ export function BarrioVivo() {
           <Image {...imagen} alt="" loading="eager" className={styles.sol} draggable={false} />
         </div>
         <div className={styles.casas}>
-          <Image {...imagen} alt="" loading="eager" className={styles.ilustracion} draggable={false} />
+          <Image {...imagen} alt="" loading="eager" fetchPriority="high" className={styles.ilustracion} draggable={false} />
           <svg className={styles.ventanas} viewBox="0 0 1000 500" fill="currentColor" focusable="false">
             {/* Inset panes preserve the watercolor frames and window boxes. */}
             <g className={styles.ventanaUno}>

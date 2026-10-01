@@ -2,6 +2,8 @@
 
 Fecha: 29 de septiembre de 2026, hora de Costa Rica. Alcance: código del sitio, respuestas públicas de producción y documentación vigente de Google Search Central.
 
+> Registro histórico de la entrega del 29 de septiembre. El [plan de crecimiento del 1 de octubre](seo-growth-plan.md) documenta la verificación posterior en Search Console, las nuevas guías, la medición vigente y las comprobaciones de rendimiento. Las observaciones de producción de abajo describen el estado anterior a esos cambios.
+
 ## Objetivo y límites de la indexación
 
 El objetivo es atraer propietarios y agencias de Costa Rica que desean conocer experiencias de alquiler y entender cómo funciona la comunidad. El contenido público debe explicar el servicio, sus condiciones y su uso responsable. Las fichas de personas, las búsquedas por nombre o cédula, las reseñas individuales y las cuentas pertenecen al área privada y no deben convertirse en páginas de captación.
@@ -121,7 +123,7 @@ Los entornos Vercel `preview` y `development` se excluyen mediante cabeceras y m
 | Media | Relacionar captación con resultados del producto | Medir de forma agregada las cuentas y primeras reseñas aprobadas si existe un proceso compatible con la política de privacidad. No enviar nombres, cédulas, relatos, tokens ni consultas privadas a herramientas de marketing. |
 | Baja | Reducir los dos saltos desde HTTP sin `www` | Revisar la configuración del dominio para redirigir esa variante directamente a HTTPS con `www` sin afectar el acceso. |
 
-La política pública actual indica que no hay medidores de audiencia de terceros. Una futura integración de analítica debe concordar con el funcionamiento y esa política; no se ha instalado ni provisionado ninguna.
+En el momento de esta auditoría no se había instalado un medidor de audiencia. Actualización del 1 de octubre: el código y la política pública ya incluyen Statsig con categorías predefinidas y sin vincular el identificador de navegador a una cuenta. Consulte el [plan vigente](seo-growth-plan.md) para sus límites y las métricas de activación separadas.
 
 ## Búsqueda con IA y datos estructurados
 

@@ -83,7 +83,8 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
         <AvisoErrorCliente />
         <Suspense fallback={<CargandoSesion />}>
           <ContenidoConSesion tema={tema}>{props.children}</ContenidoConSesion>
-        </Suspense>
+          {/* Reveal the footer with the session content so it cannot shift out of
+              the viewport when the short loading state becomes a long page. */}
         <footer className="pie-pagina">
           <div className="mx-auto flex max-w-6xl flex-col justify-between gap-x-6 gap-y-3 px-4 py-6 sm:flex-row sm:items-center sm:px-6">
             <div>
@@ -93,6 +94,9 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
             <nav aria-label="Información y comunidad" className="flex flex-wrap items-center gap-x-5 gap-y-1">
               <Link href="/como-funciona" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
                 Cómo funciona
+              </Link>
+              <Link href="/guias" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
+                Guías para propietarios
               </Link>
               <Link href="/privacidad" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
                 Privacidad
@@ -110,6 +114,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
             </nav>
           </div>
         </footer>
+        </Suspense>
       </body>
     </html>
   )

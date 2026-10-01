@@ -11,6 +11,11 @@ import {
 test('audience categorizes allowed pages without exporting document IDs, queries or access tokens', () => {
   assert.equal(paginaAudiencia('/fichas/123456789'), 'ficha')
   assert.equal(paginaAudiencia('/ejemplo'), 'ejemplo')
+  assert.equal(paginaAudiencia('/guias'), 'guias')
+  assert.equal(paginaAudiencia('/guias/referencias-de-inquilinos'), 'guia_referencias')
+  assert.equal(paginaAudiencia('/guias/preguntas-para-arrendadores'), 'guia_preguntas')
+  assert.equal(paginaAudiencia('/guias/como-escribir-una-resena'), 'guia_resena')
+  assert.equal(paginaAudiencia('/guias/desconocida'), null)
   for (const path of ['/admin', '/admin/estadisticas', '/auth/confirmar', '/recuperar', '/restablecer', '/invitacion/admin', '/fichas/123?cedula=123456789', '/unknown']) {
     assert.equal(paginaAudiencia(path), null)
   }
@@ -29,6 +34,15 @@ test('public events admit only fixed names on their matching route and trigger',
   }
   assert.equal(eventoPublicoAudiencia('registro_desde_ejemplo', '/registro', 'visita'), 'site_public_registro_desde_ejemplo')
   assert.equal(eventoPublicoAudiencia('registro_desde_ejemplo', '/registro', 'clic'), null)
+  for (const [evento, ruta] of [
+    ['guia_referencias_registro', '/guias/referencias-de-inquilinos'],
+    ['guia_preguntas_registro', '/guias/preguntas-para-arrendadores'],
+    ['guia_resena_registro', '/guias/como-escribir-una-resena'],
+  ]) {
+    assert.equal(eventoPublicoAudiencia(evento, ruta, 'clic'), `site_public_${evento}`)
+    assert.equal(eventoPublicoAudiencia(evento, '/guias', 'clic'), null)
+    assert.equal(eventoPublicoAudiencia(evento, ruta, 'visita'), null)
+  }
   for (const valor of [null, '', '__proto__', 'constructor', 'private@example.test', '/fichas/123', 'ejemplo_registro?cedula=123']) {
     assert.equal(eventoPublicoAudiencia(valor, '/ejemplo', 'clic'), null)
   }

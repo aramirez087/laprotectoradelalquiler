@@ -1,4 +1,5 @@
 import Link from '@/components/enlace'
+import { GUIAS_PUBLICAS } from '@/lib/guias'
 
 export const PREGUNTAS_FRECUENTES = [
   {
@@ -118,6 +119,21 @@ export function ContenidoInicio() {
           una reseña para que administración la revise. Las fichas de inquilinos no son un directorio público.
         </p>
         <Link href="/privacidad" className="enlace-texto">Revise cómo se usan y protegen los datos →</Link>
+      </section>
+
+      <section aria-labelledby="guias-propietarios" className="space-y-6">
+        <div className="space-y-3">
+          <p className="eyebrow">Recursos para su próximo alquiler</p>
+          <h2 id="guias-propietarios" className="text-2xl sm:text-3xl">Prepare sus referencias y comparta su experiencia</h2>
+          <p className="max-w-3xl text-sm leading-relaxed text-ink-soft">Guías prácticas con preguntas, plantillas y ejemplos que puede consultar sin crear una cuenta.</p>
+        </div>
+        <ul className="grid gap-6 sm:grid-cols-3">
+          {GUIAS_PUBLICAS.map(guia => <li key={guia.ruta} className="space-y-3 border-t border-line pt-5">
+            <h3 className="text-lg"><Link href={guia.ruta} className="enlace-texto">{guia.nombre}</Link></h3>
+            <p className="text-sm leading-relaxed text-ink-soft">{guia.resumen}</p>
+          </li>)}
+        </ul>
+        <Link href="/guias" className="enlace-texto">Ver las guías para propietarios →</Link>
       </section>
 
       <PreguntasFrecuentes breves />

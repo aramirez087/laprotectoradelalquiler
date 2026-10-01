@@ -51,6 +51,7 @@ const comunes = {
   '@/lib/util': util,
   '@/lib/acceso-consulta': acceso,
   '@/lib/seo': seo,
+  '@/lib/guias': cargar('lib/guias.ts'),
   '@/components/icono': { Icono: () => null },
   '@/components/barrio-vivo': { BarrioVivo: () => null },
   '@/components/aviso-configuracion': { AvisoConfiguracion: () => null },
@@ -110,12 +111,14 @@ test('public home offers registration and a fictional example before any real se
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
   assert.deepEqual(destinos.slice(0, 2), ['/registro', '/ejemplo'])
   assert.deepEqual([...new Set(destinos)].sort(), [
-    '/como-funciona', '/como-funciona#preguntas-frecuentes', '/ejemplo', '/privacidad', '/registro',
+    '/como-funciona', '/como-funciona#preguntas-frecuentes', '/ejemplo', '/guias',
+    '/guias/como-escribir-una-resena', '/guias/preguntas-para-arrendadores', '/guias/referencias-de-inquilinos',
+    '/privacidad', '/registro',
   ])
   assert.match(html, /Ver una consulta de ejemplo/)
   assert.match(html, /ejemplo ficticio sin registrarse/)
   assert.match(html, /Unirme a La Protectora/)
-  assert.match(html, /<h1[^>]*>Proteja su propiedad\./)
+  assert.match(html, /<h1[^>]*>Consulte reseñas de inquilinos/)
   assert.match(html, /propietarios y agencias/i)
   assert.doesNotMatch(html, /role="search"|type="search"|<form/)
 })
@@ -367,7 +370,7 @@ test('public navigation offers account entry without search or review links', ()
   })
   const html = renderToStaticMarkup(createElement(Nav, { usuario: null, tema: 'claro' }))
   const destinos = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1])
-  assert.deepEqual(destinos.sort(), ['/', '/login', '/registro'])
+  assert.deepEqual(destinos.sort(), ['/', '/como-funciona', '/guias', '/login', '/registro'])
 })
 
 test('signed-in navigation returns to the search home and marks search pages as current', () => {

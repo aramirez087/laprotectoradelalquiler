@@ -134,6 +134,15 @@ export default function ComoFuncionaPage() {
         <Link href="/privacidad" className="enlace-texto">Lea la política de privacidad y el uso de sus datos →</Link>
       </section>
 
+      <section aria-labelledby="recursos-referencias" className="space-y-4 border-t border-line pt-8">
+        <h2 id="recursos-referencias" className="text-2xl sm:text-3xl">Prepare su próxima consulta o reseña</h2>
+        <p className="text-sm leading-relaxed text-ink-soft">Consulte nuestras guías para pedir referencias con contexto y compartir una experiencia útil para otros propietarios.</p>
+        <ul className="space-y-3">
+          <li><Link href="/guias/referencias-de-inquilinos" className="enlace-texto">Cómo pedir y evaluar referencias de inquilinos</Link></li>
+          <li><Link href="/guias/como-escribir-una-resena" className="enlace-texto">Cómo escribir una reseña clara y concreta</Link></li>
+        </ul>
+      </section>
+
       <PreguntasFrecuentes />
 
       <section className="space-y-4 border-t border-line pt-8">

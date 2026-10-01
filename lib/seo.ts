@@ -7,7 +7,12 @@ export const DESCRIPCION_SITIO =
   'Consulte reseñas de inquilinos en Costa Rica y comparta su experiencia como propietario o agencia. Su primera reseña aprobada le da 3 meses de consultas gratis.'
 
 // Only public informational pages belong in the sitemap. Never add tenant records.
-export const RUTAS_PUBLICAS = ['/', '/como-funciona', '/privacidad'] as const
+export const RUTAS_PUBLICAS = [
+  '/', '/como-funciona', '/privacidad', '/guias',
+  '/guias/referencias-de-inquilinos',
+  '/guias/preguntas-para-arrendadores',
+  '/guias/como-escribir-una-resena',
+] as const
 export type RutaPublica = (typeof RUTAS_PUBLICAS)[number]
 
 export function esEntornoIndexable() {
@@ -120,6 +125,7 @@ export const datosSitio = {
 
 export function datosPagina(ruta: Exclude<RutaPublica, '/'>, nombre: string, descripcion: string) {
   const url = urlPublica(ruta)
+  const rutaGuia = ruta.startsWith('/guias/')
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -138,7 +144,8 @@ export function datosPagina(ruta: Exclude<RutaPublica, '/'>, nombre: string, des
         '@id': `${url}#ruta`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Inicio', item: urlPublica('/') },
-          { '@type': 'ListItem', position: 2, name: nombre, item: url },
+          ...(rutaGuia ? [{ '@type': 'ListItem', position: 2, name: 'Guías', item: urlPublica('/guias') }] : []),
+          { '@type': 'ListItem', position: rutaGuia ? 3 : 2, name: nombre, item: url },
         ],
       },
     ],

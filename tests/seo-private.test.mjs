@@ -36,7 +36,7 @@ function cargar(ruta, mocks = {}) {
   return modulo.exports
 }
 
-function proxyCon({ configurado = true, indexable = true, user = { id: 'cuenta' }, facebook = false, error = false } = {}) {
+function proxyCon({ configurado = true, indexable = true, user = { id: 'cuenta' }, facebook = false, error = false, alCrearCliente = () => {} } = {}) {
   return cargar('proxy.ts', {
     '@/lib/seo': { esEntornoIndexable: () => indexable },
     '@/lib/facebook-alta': { altaFacebookLista: async () => false },
@@ -49,12 +49,12 @@ function proxyCon({ configurado = true, indexable = true, user = { id: 'cuenta' 
       sinSupabase: () => !configurado,
     },
     '@/lib/supabase/proxy': {
-      createProxyClient: () => ({ applyCookies: response => response, supabase: { auth: {
+      createProxyClient: () => { alCrearCliente(); return { applyCookies: response => response, supabase: { auth: {
         getUser: async () => {
           if (error) throw new Error('Servicio no disponible')
           return { data: { user } }
         },
-      } } }),
+      } } } },
     },
     '@/lib/util': { destinoInterno: path => path ?? '/' },
   })
@@ -101,13 +101,29 @@ test('private login, unavailable-auth and incomplete-Facebook redirects retain r
 })
 
 test('production public pages and crawl files remain indexable while preview responses are excluded', async () => {
-  for (const path of ['/', '/como-funciona', '/privacidad', '/robots.txt', '/sitemap.xml']) {
+  for (const path of ['/', '/como-funciona', '/privacidad', '/guias', '/guias/referencias-de-inquilinos', '/robots.txt', '/sitemap.xml']) {
     const request = new NextRequest(new URL(path, 'https://example.test'))
     const production = await proxyCon().proxy(request)
     assert.equal(production.headers.get('x-robots-tag'), null, path)
     const preview = await proxyCon({ indexable: false }).proxy(request)
     comprobarExclusion(preview)
   }
+})
+
+test('crawl files bypass authentication and incomplete registration without losing preview safeguards', async () => {
+  let clientes = 0
+  for (const indexable of [true, false]) {
+    const { proxy } = proxyCon({ indexable, facebook: true, alCrearCliente: () => { clientes += 1 } })
+    for (const path of ['/robots.txt', '/sitemap.xml']) {
+      const response = await proxy(new NextRequest(new URL(path, 'https://example.test')))
+      assert.equal(response.status, 200)
+      assert.equal(response.headers.get('location'), null)
+      assert.equal(response.headers.get('set-cookie'), null)
+      assert.ok(response.headers.get('content-security-policy'))
+      if (!indexable) comprobarExclusion(response)
+    }
+  }
+  assert.equal(clientes, 0, 'discovery must work without contacting authentication')
 })
 
 test('ficha metadata never loads or exposes tenant data, even for a permitted account', async () => {

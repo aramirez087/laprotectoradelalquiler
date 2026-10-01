@@ -70,7 +70,9 @@ export async function proxy(request: NextRequest) {
   const continuar = () =>
     conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp, privada)
 
-  if (sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
+  // Discovery files are public for every session and must not depend on auth refresh
+  // or an incomplete Facebook registration. Keep security/preview headers above.
+  if (path === '/sitemap.xml' || path === '/robots.txt' || sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
 
   const protegida =
     path.startsWith('/fichas') ||

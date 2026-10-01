@@ -10,6 +10,8 @@ test('public discovery includes only canonical informational pages', () => {
   try {
     assert.deepEqual(sitemap().map(({ url }) => url), [
       `${ORIGEN_SITIO}/`, `${ORIGEN_SITIO}/como-funciona`, `${ORIGEN_SITIO}/privacidad`,
+      `${ORIGEN_SITIO}/guias`, `${ORIGEN_SITIO}/guias/referencias-de-inquilinos`,
+      `${ORIGEN_SITIO}/guias/preguntas-para-arrendadores`, `${ORIGEN_SITIO}/guias/como-escribir-una-resena`,
     ])
     assert.equal(robots().sitemap, `${ORIGEN_SITIO}/sitemap.xml`)
     assert.equal(robots().rules.allow, '/')
@@ -85,4 +87,9 @@ test('public structured data has consistent identities and visible breadcrumbs',
     `${ORIGEN_SITIO}/`, `${ORIGEN_SITIO}/como-funciona`,
   ])
   assert.ok(!JSON.stringify(datosSitio).includes('SearchAction'), 'search requires authentication')
+  const guia = datosPagina('/guias/referencias-de-inquilinos', 'Referencias', 'Guía práctica')
+  assert.deepEqual(guia['@graph'][1].itemListElement.map(({ item, position }) => [item, position]), [
+    [`${ORIGEN_SITIO}/`, 1], [`${ORIGEN_SITIO}/guias`, 2],
+    [`${ORIGEN_SITIO}/guias/referencias-de-inquilinos`, 3],
+  ])
 })

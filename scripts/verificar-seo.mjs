@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
+import { ORIGEN_SITIO, RUTAS_PUBLICAS } from '../lib/seo.ts'
 
 // Run against a production build without authentication:
 // node scripts/verificar-seo.mjs http://127.0.0.1:3107
 // After deployment, omit the argument to check the public production site.
-const origenCanonico = 'https://www.protectoradelalquiler.com'
+// Node.js 24 supports the type-only TypeScript import above without a loader.
+const origenCanonico = ORIGEN_SITIO
 const base = new URL(process.argv[2] || origenCanonico)
 assert.ok(['http:', 'https:'].includes(base.protocol), 'La URL debe usar HTTP o HTTPS')
 assert.ok(!base.username && !base.password && !base.search, 'Use una URL sin credenciales ni parámetros')
@@ -17,17 +19,56 @@ function meta(html, nombre) {
   return etiquetas.find((etiqueta) => etiqueta.name === nombre || etiqueta.property === nombre)?.content
 }
 
-async function solicitar(ruta) {
+async function solicitar(ruta, agente = 'Twitterbot/1.0') {
   return fetch(new URL(ruta, base), {
     redirect: 'manual',
-    headers: { 'User-Agent': 'Twitterbot/1.0' },
+    headers: { 'User-Agent': agente },
     signal: AbortSignal.timeout(15000),
   })
 }
 
+// Check discovery before rendering pages so a fetch failure is reported directly.
+// These user-agent checks do not prove access from Google's own IP addresses.
+const agentes = [
+  ['navegador', 'Mozilla/5.0'],
+  ['Googlebot', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
+  ['Googlebot móvil', 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
+]
+let sitemapInicial
+let robotsInicial
+for (const [nombre, agente] of agentes) {
+  const respuestaRobots = await solicitar('/robots.txt', agente)
+  assert.equal(respuestaRobots.status, 200, `${nombre}: robots.txt debe responder 200 sin redirigir`)
+  assert.match(respuestaRobots.headers.get('content-type') || '', /^text\/plain\b/i)
+  const robots = await respuestaRobots.text()
+  assert.match(robots, /User-Agent: \*/i)
+  assert.match(robots, /Allow: \/\s/)
+  assert.ok(robots.includes(`Sitemap: ${origenCanonico}/sitemap.xml`))
+  assert.ok(!robots.includes('Disallow:'), 'Los rastreadores deben poder observar noindex')
+
+  const respuestaSitemap = await solicitar('/sitemap.xml', agente)
+  assert.equal(respuestaSitemap.status, 200, `${nombre}: sitemap.xml debe responder 200 sin redirigir`)
+  assert.match(respuestaSitemap.headers.get('content-type') || '', /^(application|text)\/xml\b/i)
+  assert.ok(!respuestaSitemap.headers.get('x-robots-tag')?.includes('noindex'))
+  const sitemap = await respuestaSitemap.text()
+  assert.match(sitemap, /^<\?xml version="1\.0" encoding="UTF-8"\?>\s*<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/)
+  assert.match(sitemap, /<\/urlset>\s*$/)
+  assert.deepEqual(
+    [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url),
+    RUTAS_PUBLICAS.map((ruta) => `${origenCanonico}${ruta}`),
+    `${nombre}: el sitemap debe incluir exactamente las rutas públicas aprobadas`,
+  )
+  if (sitemapInicial !== undefined) assert.equal(sitemap, sitemapInicial, `${nombre}: sitemap diferente según el agente`)
+  if (robotsInicial !== undefined) assert.equal(robots, robotsInicial, `${nombre}: robots diferente según el agente`)
+  sitemapInicial = sitemap
+  robotsInicial = robots
+  console.log(`✓ ${nombre}: robots.txt y sitemap.xml accesibles, con tipos correctos y solo páginas públicas canónicas`)
+}
+
 const titulos = new Set()
 const descripciones = new Set()
-for (const ruta of ['/', '/como-funciona', '/privacidad']) {
+const enlacesPublicos = new Map()
+for (const ruta of RUTAS_PUBLICAS) {
   const respuesta = await solicitar(ruta)
   assert.equal(respuesta.status, 200, `${ruta}: debe responder 200`)
   assert.ok(!respuesta.headers.get('x-robots-tag')?.includes('noindex'), `${ruta}: no debe excluirse`)
@@ -52,7 +93,9 @@ for (const ruta of ['/', '/como-funciona', '/privacidad']) {
   assert.equal(meta(cabecera, 'twitter:description'), descripcion)
   assert.equal([...html.matchAll(/<h1\b/g)].length, 1, `${ruta}: debe tener un solo H1`)
   if (ruta === '/') {
-    assert.match(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '', /Proteja su propiedad/)
+    const encabezado = (html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '').replace(/<[^>]*>/g, '')
+    assert.match(encabezado, /Consulte reseñas de inquilinos/)
+    assert.match(encabezado, /Costa Rica/)
     assert.match(html, /id="resenas-inquilinos"/)
   }
   assert.match(html, /<html[^>]+lang="es-CR"/)
@@ -68,22 +111,27 @@ for (const ruta of ['/', '/como-funciona', '/privacidad']) {
   })
   assert.equal(datos[0]['@context'], 'https://schema.org')
   assert.ok(datos[0]['@graph'].some((entidad) => entidad['@type'] === 'WebPage'))
+  if (ruta.startsWith('/guias')) {
+    assert.match(html, /<nav\b[^>]*aria-label="Ruta de navegación"/)
+    assert.match(html, /aria-current="page"/)
+    assert.ok(datos[0]['@graph'].some((entidad) => entidad['@type'] === 'BreadcrumbList'))
+    if (ruta !== '/guias') assert.match(html, /<a\b[^>]*href="\/guias"/)
+  }
+  enlacesPublicos.set(ruta, [...html.matchAll(/<a\b[^>]*>/g)]
+    .map(([etiqueta]) => atributos(etiqueta).href)
+    .filter(Boolean)
+    .map((href) => new URL(href, `${origenCanonico}${ruta}`))
+    .filter((url) => url.origin === origenCanonico && RUTAS_PUBLICAS.includes(url.pathname))
+    .map((url) => url.pathname))
   console.log(`✓ ${ruta}: metadatos, canonical, H1 y JSON-LD correctos`)
 }
 
-const respuestaRobots = await solicitar('/robots.txt')
-assert.equal(respuestaRobots.status, 200)
-const robots = await respuestaRobots.text()
-assert.match(robots, /Allow: \/\s/)
-assert.match(robots, /Sitemap: https:\/\/www\.protectoradelalquiler\.com\/sitemap\.xml/)
-assert.ok(!robots.includes('Disallow:'), 'Los rastreadores deben poder observar noindex')
-const respuestaSitemap = await solicitar('/sitemap.xml')
-assert.equal(respuestaSitemap.status, 200)
-const sitemap = await respuestaSitemap.text()
-assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url), [
-  `${origenCanonico}/`, `${origenCanonico}/como-funciona`, `${origenCanonico}/privacidad`,
-])
-console.log('✓ robots.txt y sitemap.xml: solo páginas públicas canónicas')
+const alcanzables = new Set(['/'])
+for (const ruta of alcanzables) {
+  for (const enlace of enlacesPublicos.get(ruta) || []) alcanzables.add(enlace)
+}
+assert.deepEqual([...alcanzables].sort(), [...RUTAS_PUBLICAS].sort(), 'Todas las páginas públicas deben poder descubrirse por enlaces desde el inicio')
+console.log(`✓ Las ${RUTAS_PUBLICAS.length} páginas públicas son alcanzables desde el inicio mediante enlaces HTML`)
 
 const ejemplo = await solicitar('/ejemplo')
 assert.equal(ejemplo.status, 200, 'El ejemplo debe estar disponible sin iniciar sesión')

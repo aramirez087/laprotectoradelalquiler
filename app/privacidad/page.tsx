@@ -102,6 +102,8 @@ export default function PrivacidadPage() {
           Statsig recibe eventos de visita con categorías de páginas, origen de entrada y tipo de dispositivo.
           También cuenta interacciones predefinidas con la consulta de ejemplo: abrirla desde el inicio,
           explorar sus casos y continuar al registro, incluida la visita al registro con ese origen.
+          En las guías, cuenta las visitas y los clics para crear una cuenta. Esos clics no se vinculan con
+          los registros ni con las reseñas aprobadas.
           Usamos un identificador aleatorio guardado en su navegador para estimar visitantes distintos; no lo
           vinculamos con su cuenta. La medición no crea cookies de audiencia. Statsig también procesa datos
           técnicos de la conexión, como la dirección IP. Puede consultar su{' '}

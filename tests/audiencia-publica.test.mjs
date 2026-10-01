@@ -153,6 +153,21 @@ test('one fixed event per actual visit survives repeated clicks and remounted ef
   h.dispose()
 })
 
+test('guide registration clicks stay separate from conversions and only log on the matching page', async () => {
+  const h = collector()
+  h.render('/guias/referencias-de-inquilinos')
+  h.click('guia_referencias_registro')
+  h.click('guia_referencias_registro')
+  h.click('guia_preguntas_registro')
+  await settle()
+  assert.equal(h.events.filter(v => v === 'site_page_guia_referencias').length, 1)
+  assert.deepEqual(h.events.filter(v => v.startsWith('site_public_')), ['site_public_guia_referencias_registro'])
+  h.render('/registro')
+  await settle()
+  assert.equal(h.events.some(v => v.includes('aprobacion') || v.includes('registro_desde')), false)
+  h.dispose()
+})
+
 test('production, administrator, key and browser privacy gates also prevent SDK loading for public clicks', async () => {
   for (const [options, props] of [
     [{}, {habilitada: false}], [{}, {administra: true}], [{configured: false}, {}],
