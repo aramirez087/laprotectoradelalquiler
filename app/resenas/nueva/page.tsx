@@ -150,7 +150,8 @@ export default async function NuevaResenaPage(props: PageProps<'/resenas/nueva'>
         <h1 className="text-3xl sm:text-4xl">Comparta su experiencia</h1>
         {usuario.rol !== 'admin' && (
           <p className="mt-2 text-sm text-ink-soft">
-            La reseña se envía a revisión. Se publica cuando administración la aprueba.
+            Si ambas cédulas se verifican en el padrón del TSE y el contenido es apto,
+            la reseña puede publicarse automáticamente. Las demás quedan pendientes de revisión por administración.
           </p>
         )}
       </header>

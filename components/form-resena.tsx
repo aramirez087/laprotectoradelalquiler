@@ -89,7 +89,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
               : draft.estado === 'cambios' ? 'Hay cambios por guardar.'
                 : draft.estado === 'error' || draft.estado === 'conflicto' ? draft.error
                   : 'Su borrador se guarda automáticamente en su cuenta mientras escribe.'}</p>
-        <p className="mt-2 text-xs text-ink-soft">Solo usted puede retomarlo. Se conserva durante 30 días desde el último guardado. Guardar no envía la reseña a revisión.</p>
+        <p className="mt-2 text-xs text-ink-soft">Solo usted puede retomarlo. Se conserva durante 30 días desde el último guardado. Guardar no envía la reseña.</p>
         {draft.disponible && draft.estado !== 'conflicto' && <button type="button" className="enlace-texto mt-3 min-h-11" disabled={pendiente || draft.estado === 'guardando'} onClick={() => void draft.guardar()}>Guardar borrador ahora</button>}
       </div>}
       {primera && <input type="hidden" name="modo" value="registro" />}
@@ -159,11 +159,11 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
-            ? 'Puede seguir la revisión en su perfil. La primera reseña aprobada sobre cada inquilino suma 3 meses de consulta, hasta 12 meses acumulados. Solo puede enviar una reseña por inquilino.'
+            ? 'Puede seguir el estado en su perfil. La primera reseña aprobada sobre cada inquilino suma 3 meses de consulta, hasta 12 meses acumulados. Solo puede enviar una reseña por inquilino.'
             : 'Como administración, la reseña se publica de inmediato.'}
         </p>
         <button type="submit" disabled={pendiente} className="btn-primario shrink-0">
-          {pendiente ? 'Enviando reseña…' : enRevision ? 'Enviar reseña a revisión' : 'Publicar reseña'}
+          {pendiente ? 'Enviando reseña…' : enRevision ? 'Enviar reseña' : 'Publicar reseña'}
         </button>
       </div>
     </form>

@@ -36,8 +36,8 @@ test('ranked search and private outcome receipts', { timeout: 120_000 }, async t
     GRANT USAGE ON SCHEMA auth,public TO anon,authenticated,service_role;`)
   const schema = await readFile('schema.sql', 'utf8')
   const migration = await readFile('db/busqueda-relevante.sql', 'utf8')
-  assert.ok(schema.endsWith(migration))
-  await db.query(schema.slice(0, schema.length - migration.length))
+  assert.ok(schema.includes(migration), 'fresh installs include the identical additive migration')
+  await db.query(schema.slice(0, schema.lastIndexOf(migration)))
   await db.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
     INSERT INTO usuarios(email,nombre,rol,auth_user_id) VALUES

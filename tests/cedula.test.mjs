@@ -108,6 +108,7 @@ test('form submissions persist server results, previews and unavailable lookups 
   assert.equal(api.guardados[0].nombre, 'guardar_verificacion_cedula')
   assert.equal(api.guardados[0].args.p_identificacion, '102340567')
   assert.equal(api.guardados[0].args.p_nombre_tse, persona.nombreCompleto)
+  assert.equal(api.guardados[0].args.p_version_padron, `${new Date().toISOString().slice(0, 10)}-abcdef0123456789`)
   await api.consultarCedula('102340568', true)
   assert.equal(api.guardados[1].args.p_nombre_tse, null)
   for (const api of [padron({ downloadError: true }), padron({ fecha: '2020-01-01' })]) {
@@ -176,7 +177,9 @@ test('admin saves preserve administrator names and never consult the TSE', async
 })
 
 test('new tenant saves use TSE names and preserve moderation without accepting a forged verification flag', async () => {
+  for (const publicada of [false, true]) {
   const guardados = []
+  const moderadas = []
   const usuario = { id: 7, rol: 'propietario', activo: true }
   const db = {
     auth: {
@@ -190,7 +193,7 @@ test('new tenant saves use TSE names and preserve moderation without accepting a
         select: () => q, eq: () => q, ilike: () => q, limit: () => q,
         insert: datos => { guardados.push({ tabla, datos }); escrito = true; return q },
         maybeSingle: async () => ({ data: tabla === 'usuarios' ? usuario : null, error: null }),
-        single: async () => ({ data: escrito ? { id: tabla === 'personas' ? 2 : 3 } : null, error: null }),
+        single: async () => ({ data: escrito ? { id: tabla === 'personas' ? 2 : 3, version: 1 } : null, error: null }),
         then: resolve => resolve({ data: [], error: null }),
       }
       return q
@@ -203,13 +206,20 @@ test('new tenant saves use TSE names and preserve moderation without accepting a
     '@/lib/util': cargarTS('lib/util.ts'),
     '@/lib/supabase/admin': { createAdmin: () => db },
     '@/lib/supabase/server': { createClient: async () => db, sinSupabase: () => false },
+    '@/lib/moderacion-automatica': { intentarAprobacionAutomatica: async input => {
+      assert.equal(guardados[1].datos.estado, 'borrador', 'review must be saved before moderation begins')
+      moderadas.push(input)
+      return publicada
+    } },
   })
   const resultado = await api.crearResena({ identificacion: '102340567', nombre: 'Falso', apellido1: 'Falso', etiquetas: [], autorId: 7, verificada: true })
-  assert.equal(resultado.enRevision, true)
+  assert.equal(resultado.enRevision, !publicada)
   assert.equal(guardados[0].datos.nombre, persona.nombre)
   assert.equal(guardados[0].datos.nombre2, persona.nombre2)
   assert.equal(guardados[1].datos.estado, 'borrador')
   assert.equal(guardados[1].datos.verificada, undefined)
+  assert.deepEqual(JSON.parse(JSON.stringify(moderadas)), [{ id: 3, autorId: 7, version: 1 }])
+  }
 })
 
 test('email signup resolves the TSE name on the server instead of trusting submitted metadata', async () => {

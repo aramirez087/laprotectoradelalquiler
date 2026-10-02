@@ -4,6 +4,8 @@ import { registrarError } from '@/lib/registro-error'
 
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
+import { procesarAvisosSinInterrumpir } from '@/lib/avisos-moderacion'
 import * as z from 'zod'
 import { AvisoCorreccion, corregirResena, crearResena, listarResenasDe, requireUsuario } from '@/lib/dal'
 import { esCedulaValida } from '@/lib/util'
@@ -40,7 +42,7 @@ export async function corregirResenaAction(_estado: EstadoForm, formData: FormDa
     campos: Object.fromEntries(parsed.error.issues.map(issue => [String(issue.path[0]), issue.message])),
   }
   try {
-    const personaId = await corregirResena({ ...parsed.data, anonima: formData.get('anonima') === '1' })
+    const { personaId, enRevision } = await corregirResena({ ...parsed.data, anonima: formData.get('anonima') === '1' })
     revalidatePath('/', 'layout')
     revalidatePath('/perfil')
     revalidatePath('/fichas')
@@ -49,7 +51,8 @@ export async function corregirResenaAction(_estado: EstadoForm, formData: FormDa
     revalidatePath('/admin/revision')
     revalidatePath('/admin/rechazadas')
     revalidatePath('/admin/resenas')
-    redirect('/perfil?corregida=1#mis-resenas')
+    if (!enRevision) after(procesarAvisosSinInterrumpir)
+    redirect(enRevision ? '/perfil?corregida=1#mis-resenas' : '/perfil?publicada=1#mis-resenas')
   } catch (error) {
     unstable_rethrow(error)
     if (error instanceof AvisoCorreccion) return { error: error.message }
@@ -108,7 +111,13 @@ export async function crearResenaAction(_estado: EstadoForm, formData: FormData)
     revalidatePath('/fichas')
     revalidatePath(`/fichas/${fichaId}`)
     revalidatePath('/perfil')
+    revalidatePath('/admin')
+    revalidatePath('/admin/resenas')
     revalidatePath('/admin/revision')
+    if (!enRevision) {
+      revalidatePath('/', 'layout')
+      after(procesarAvisosSinInterrumpir)
+    }
     redirect(enRevision ? '/perfil?enviada=1' : `/fichas/${fichaId}`)
   } catch (e) {
     unstable_rethrow(e)

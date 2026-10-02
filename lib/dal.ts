@@ -7,6 +7,7 @@ import type { AccesoConsulta } from '@/lib/acceso-consulta'
 import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
 import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
 import { consultarCedula } from '@/lib/padron'
+import { intentarAprobacionAutomatica } from '@/lib/moderacion-automatica'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { analizarBusqueda } from '@/lib/busqueda-fichas'
@@ -392,7 +393,8 @@ export async function crearResena(input: {
     }
   }
 
-  // 2) Reseña. Quien no administra queda en revisión. El cliente de
+  // 2) Guardar primero en revisión; un fallo de moderación no pierde el envío.
+  // El cliente de
   // servicio hace falta porque la política de lectura oculta los borradores
   // y un INSERT ... RETURNING no devolvería el id.
   const { data: resena, error: eResena } = await dbResena
@@ -415,7 +417,7 @@ export async function crearResena(input: {
       anonima: input.anonima === true,
       estado: enRevision ? 'borrador' : 'publicada',
     })
-    .select('id')
+    .select('id, version')
     .single()
   if (eResena?.code === '23505' && eResena.message.includes('resenas_autor_persona_unica')) {
     throw new Error('No puede enviar otra reseña sobre esta persona. Ya tiene una; puede verla en su perfil.')
@@ -430,7 +432,10 @@ export async function crearResena(input: {
     if (errorEtiquetas) throw errorEtiquetas
   }
 
-  return { resenaId: resena!.id, personaId: persona!.id, enRevision }
+  const publicadaAutomaticamente = enRevision && await intentarAprobacionAutomatica({
+    id: resena!.id, autorId: yo.id, version: resena!.version,
+  })
+  return { resenaId: resena!.id, personaId: persona!.id, enRevision: enRevision && !publicadaAutomaticamente }
 }
 
 export async function resenasPrivadasVisibles(personaId: number, usuario: Usuario) {
@@ -508,7 +513,8 @@ export async function corregirResena(input: { id: number; version: number; comen
   if (error?.code === 'P0001' && mensajes.includes(error.message)) throw new AvisoCorreccion(error.message)
   if (error) throw error
   if (!data) throw new Error('No se pudo confirmar la corrección.')
-  return data.persona_id
+  const publicada = await intentarAprobacionAutomatica({ id: input.id, autorId: usuario.id, version: input.version + 1 })
+  return { personaId: data.persona_id, enRevision: !publicada }
 }
 
 export async function historialResenas(ids: number[]): Promise<VersionResena[]> {

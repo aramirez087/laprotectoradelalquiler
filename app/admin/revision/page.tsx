@@ -39,7 +39,7 @@ export default async function RevisionPage(props: { searchParams: Promise<Record
       <section className="space-y-5" aria-labelledby="resenas-pendientes">
         <div>
           <h2 id="resenas-pendientes" className="text-xl">Reseñas pendientes</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft">Compruebe la cédula, el perfil de Facebook y que corresponda a una experiencia real. Cada propietario o agencia puede enviar una sola reseña por inquilino. Cada primera aprobación suma 3 meses al permiso vigente, hasta acumular 12 meses.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft">Aquí aparecen las reseñas que requieren revisión humana. Consulte el resultado de la evaluación automática cuando esté disponible y compruebe ambas cédulas, el perfil de Facebook y el relato antes de decidir. Cada primera aprobación suma 3 meses al permiso vigente, hasta acumular 12 meses.</p>
         </div>
         {aviso && <p className="aviso aviso-error" role="alert">{aviso}</p>}
         {!aviso && <ResultadosAdmin pagina={pagina} tamano={TAMANO_PAGINA_ADMIN} total={total} />}

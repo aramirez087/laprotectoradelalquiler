@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   try {
     for (let pagina = 1; pagina <= 5; pagina += 1) {
-      const resultado = await consultarResenas({ desde, hasta, pagina, limite: 1000 })
+      const resultado = await consultarResenas({ desde, hasta, pagina, limite: 1000, incluirModeracion: false })
       filas.push(...resultado.filas)
       if (filas.length >= resultado.total || resultado.filas.length < 1000) break
     }

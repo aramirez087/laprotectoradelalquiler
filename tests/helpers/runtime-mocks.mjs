@@ -10,6 +10,7 @@ export const runtimeMocks = {
   '@/components/resultado-busqueda': { ResultadoBusqueda: () => null },
   '@/lib/borrador-resena-servidor': { obtenerBorradorResena: async () => ({ disponible: false, datos: null, version: null }) },
   '@/lib/avisos-moderacion': { procesarAvisosSinInterrumpir: async () => {} },
+  '@/lib/moderacion-automatica': { intentarAprobacionAutomatica: async () => false },
   '@/lib/origen': { esOrigenPropio },
   '@/lib/ruta-diagnostico': { rutaDiagnostico },
   '@/components/enlace': ({ children, href, ...props }) => createElement('a', { ...props, href }, children),

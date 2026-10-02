@@ -11,7 +11,7 @@ const util = cargarTS('lib/util.ts')
 const original = 'Pagó a tiempo y entregó la propiedad en buen estado.'
 const edited = 'Precisé los hechos sobre los pagos y la entrega de la propiedad.'
 
-function dal({ activo = true, error = null } = {}) {
+function dal({ activo = true, error = null, publicada = false } = {}) {
   const requests = []
   const usuario = { id: 7, rol: 'propietario', activo, auth_user_id: 'auth-id' }
   const rest = new PostgrestClient('https://example.test/rest/v1', { fetch: async (url, init) => {
@@ -39,16 +39,30 @@ function dal({ activo = true, error = null } = {}) {
     '@/lib/util': util, '@/lib/padron': mocksCedula['@/lib/padron'],
     '@/lib/supabase/admin': { createAdmin: () => db },
     '@/lib/supabase/server': { sinSupabase: () => false, createClient: async () => db },
+    '@/lib/moderacion-automatica': { intentarAprobacionAutomatica: async input => {
+      requests.push({ moderation: input })
+      return publicada
+    } },
   })
   return { api, requests }
 }
 
 test('correction RPC uses the authenticated owner and accepts only review content and version', async () => {
   const { api, requests } = dal()
-  assert.equal(await api.corregirResena({ id: 1, version: 2, comentario: edited, anonima: false,
-    autorId: 99, personaId: 999, estado: 'publicada', permite_correccion: true }), 42)
+  const corrected = await api.corregirResena({ id: 1, version: 2, comentario: edited, anonima: false,
+    autorId: 99, personaId: 999, estado: 'publicada', permite_correccion: true })
+  assert.equal(corrected.personaId, 42)
+  assert.equal(corrected.enRevision, true)
   const rpc = requests.find(r => r.path.endsWith('/corregir_resena'))
   assert.deepEqual(rpc.body, { p_autor_id: 7, p_id: 1, p_version: 2, p_comentario: edited, p_anonima: false })
+  assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).moderation)), { id: 1, autorId: 7, version: 3 })
+})
+
+test('a correction reports published only after the new saved version passes automatic approval', async () => {
+  const { api, requests } = dal({ publicada: true })
+  const result = await api.corregirResena({ id: 1, version: 2, comentario: edited, anonima: false })
+  assert.equal(result.enRevision, false)
+  assert.ok(requests.findIndex(r => r.path?.endsWith('/corregir_resena')) < requests.findIndex(r => r.moderation))
 })
 
 test('inactive authors stop before mutation and database policy errors remain actionable', async () => {
@@ -73,20 +87,21 @@ test('history is read as the session user and requests batch all owned reviews',
   assert.equal((await dal({ activo: false }).api.historialResenas([1])).length, 0)
 })
 
-function action({ activo = true, failure = null } = {}) {
-  const saved = [], revalidated = []
+function action({ activo = true, failure = null, enRevision = true } = {}) {
+  const saved = [], revalidated = [], notifications = []
   class AvisoCorreccion extends Error {}
   const api = cargarTS('lib/actions/resenas.ts', {
     '@/lib/dal': { AvisoCorreccion, requireUsuario: async () => ({ id: 7, activo }),
-      corregirResena: async input => { if (failure) throw new AvisoCorreccion(failure); saved.push(input); return 42 } },
+      corregirResena: async input => { if (failure) throw new AvisoCorreccion(failure); saved.push(input); return { personaId: 42, enRevision } } },
     '@/lib/util': {},
     'next/cache': { revalidatePath: path => revalidated.push(path) },
+    'next/server': { after: callback => notifications.push(callback) },
     'next/navigation': {
       redirect: path => { throw new Error(`redirect:${path}`) },
       unstable_rethrow: error => { if (error.message?.startsWith('redirect:')) throw error },
     },
   })
-  return { ...api, saved, revalidated }
+  return { ...api, saved, revalidated, notifications }
 }
 function form() {
   const f = new FormData()
@@ -99,6 +114,13 @@ test('valid corrected submissions refresh moderation and return to the existing 
   await assert.rejects(a.corregirResenaAction(undefined, form()), /redirect:\/perfil\?corregida=1#mis-resenas/)
   assert.deepEqual(JSON.parse(JSON.stringify(a.saved[0])), { id: 1, version: 2, comentario: edited, anonima: true })
   for (const route of ['/perfil','/fichas/42','/admin/revision','/admin/rechazadas']) assert.ok(a.revalidated.includes(route))
+})
+
+test('an automatically approved correction shows the publication notice and refreshes its ficha', async () => {
+  const a = action({ enRevision: false })
+  await assert.rejects(a.corregirResenaAction(undefined, form()), /redirect:\/perfil\?publicada=1#mis-resenas/)
+  assert.ok(a.revalidated.includes('/fichas/42'))
+  assert.equal(a.notifications.length, 1)
 })
 
 test('invalid, stale and inactive submissions do not replace the typed correction or report success', async () => {
@@ -132,7 +154,8 @@ test('the correction form prefills text and anonymity and uses unique accessible
   assert.match(html, /aria-describedby="correccion-42-ayuda"/)
   assert.ok(html.includes(original))
   assert.match(html, /name="anonima"[^>]*checked=""/)
-  assert.match(html, /Reenviar a revisión/)
+  assert.match(html, /Reenviar reseña/)
+  assert.match(html, /puede publicarse automáticamente/)
   assert.doesNotMatch(html, /name="personaId"|name="autorId"|name="estado"/)
 })
 

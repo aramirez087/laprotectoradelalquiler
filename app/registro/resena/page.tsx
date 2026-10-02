@@ -64,7 +64,8 @@ export default async function RegistroResenaPage() {
         <PasosRegistro actual={2} />
         <h1 className="text-3xl sm:text-4xl">Mi primera reseña</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Identifique al inquilino y cuente qué ocurrió. La reseña se envía a revisión antes de publicarse.
+          Identifique al inquilino y cuente qué ocurrió. Si ambas cédulas se verifican en el padrón del TSE
+          y el contenido es apto, la reseña puede publicarse automáticamente. Las demás quedan pendientes de revisión por administración.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-ink-soft">{REGLAS_CONSULTA}</p>
       </div>

@@ -14,7 +14,7 @@ import { configuracionPostgres } from './postgres-config.mjs';
 // additive migration flag must never fall through to the full schema reset.
 const argumentos = process.argv.slice(2);
 const opciones = new Set([
-  '--solo-busqueda', '--solo-activacion',
+  '--solo-busqueda', '--solo-activacion', '--solo-moderacion-automatica',
   '--solo-resultados-cedulas', '--solo-padron-tse', '--solo-schema', '--solo-invitaciones-admin', '--solo-admin-resenas',
   '--solo-admin-usuarios', '--solo-acceso-consultas', '--solo-seguridad-supabase', '--solo-correcciones-resenas',
 ]);
@@ -48,7 +48,10 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const pool = new pg.Pool(configuracionPostgres(process.env.DATABASE_URL));
 
 try {
-  if (argumentos.includes('--solo-busqueda')) {
+  if (argumentos.includes('--solo-moderacion-automatica')) {
+    await pool.query(readFileSync(path.join(dir, '..', 'db', 'moderacion-automatica.sql'), 'utf8'));
+    console.log('✓ Moderación automática y evidencia privada preparadas; los datos se conservan.');
+  } else if (argumentos.includes('--solo-busqueda')) {
     await pool.query(readFileSync(path.join(dir, '..', 'db', 'busqueda-relevante.sql'), 'utf8'));
     console.log('✓ Búsqueda relevante y resultados preparados; los datos se conservan.');
   } else if (argumentos.includes('--solo-activacion')) {

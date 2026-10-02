@@ -4,9 +4,10 @@ Actualizado: 1 de octubre de 2026, hora de Costa Rica. Objetivo: atraer búsqued
 
 ## Estado y alcance
 
-- El propietario ya agregó el sitio a Google Search Console. El informe del sitemap mostraba un fallo de lectura, última lectura el 1 de octubre y cero URL descubiertas. En esa misma fecha, la prueba en vivo de la URL exacta `https://www.protectoradelalquiler.com/sitemap.xml` indicó «URL is available to Google», rastreo permitido, descarga correcta e indexación permitida. Es evidencia de acceso actual; todavía no confirma que el informe de sitemaps lo haya procesado correctamente. Tras el despliegue se prevé reenviarlo una vez y revisar el resultado.
+- El propietario ya agregó el sitio a Google Search Console. El informe del sitemap mostraba un fallo de lectura, última lectura el 1 de octubre y cero URL descubiertas. La prueba en vivo de `https://www.protectoradelalquiler.com/sitemap.xml` indicó rastreo permitido y descarga correcta. Después de publicar y reenviar la URL una vez, el informe cambió a **Success**, con tres páginas descubiertas en ese momento. El sitemap vigente contiene siete URL públicas; la cifra del informe todavía no refleja las cuatro guías nuevas. Este resultado acredita la lectura del sitemap, no la indexación de todas las páginas.
 - El código ya integra Statsig y un panel privado de activación. Este plan aprovecha esas herramientas; no requiere instalar otro medidor.
-- Las páginas públicas nuevas previstas son `/guias`, `/guias/referencias-de-inquilinos`, `/guias/preguntas-para-arrendadores` y `/guias/como-escribir-una-resena`. Confirmar su despliegue y respuesta 200 antes de compartir los borradores de difusión de este documento.
+- Las páginas `/guias`, `/guias/referencias-de-inquilinos`, `/guias/preguntas-para-arrendadores` y `/guias/como-escribir-una-resena` están publicadas y verificadas con respuesta 200, metadatos propios y navegación rastreable. La entrega se publicó en el dominio principal desde el despliegue `dpl_5veGd7QPXPUM4cHQATTsM4vgZMGx` el 1 de octubre. El build remoto de Next.js, la verificación de siete páginas públicas y los controles de exclusión de trece rutas privadas pasan.
+- Por indicación del propietario, la cabecera conserva exactamente «Proteja su propiedad. Alquile con confianza.» y el subtítulo «Experiencias de otros propietarios para elegir mejor a su inquilino.». El vocabulario de búsqueda se mantiene en el título de la página y en el contenido informativo.
 - La identidad pública del operador, el contacto, la firma de una persona autora y las nuevas explicaciones de moderación quedan **aplazadas por decisión del propietario**. No inventar esas identidades, credenciales o procesos.
 - No se han enviado mensajes a agencias, editores o comunidades, ni se han modificado perfiles externos. Los textos de difusión de abajo son borradores. Este documento tampoco crea una automatización semanal.
 
@@ -50,9 +51,9 @@ Fuentes internas: [audiencia](../lib/audiencia.ts), [recolección](../components
 
 Statsig usa categorías fijas y un identificador aleatorio de navegador que no se vincula con la cuenta. La recolección está limitada a producción, respeta Do Not Track y Global Privacy Control y excluye administración. No envía nombres, cédulas, texto de formularios, búsquedas ni identificadores de fichas. Mantener esas garantías al ampliar las métricas.
 
-### Ampliación preparada en esta entrega
+### Ampliación publicada en esta entrega
 
-La revisión inicial encontró que las rutas nuevas de guías no estaban en la lista permitida de `paginaAudiencia`; sin ampliarla, no generarían vistas. La entrega prepara las cuatro categorías de página, tres eventos fijos de clic al registro y su presentación en administración:
+La revisión inicial encontró que las rutas nuevas de guías no estaban en la lista permitida de `paginaAudiencia`. La entrega incorpora las cuatro categorías de página, tres eventos fijos de clic al registro y su presentación en administración:
 
 | Evento | Significado |
 | --- | --- |
@@ -64,7 +65,7 @@ La revisión inicial encontró que las rutas nuevas de guías no estaban en la l
 | `site_public_guia_preguntas_registro` | Clic al registro desde la lista de preguntas. |
 | `site_public_guia_resena_registro` | Clic al registro desde la guía de reseñas. |
 
-Los eventos de clic solo se admiten en su página y usan el mecanismo existente de deduplicación y privacidad. Un informe ausente es «pendiente», no cero. El clic expresa intención; no acredita llegada al registro, cuenta creada ni aprobación. El despliegue y el procesamiento de los primeros informes deben confirmarse después de las pruebas. Consultar el [runbook de estadísticas](runbooks/estadisticas.md) para la implementación final.
+Los eventos de clic solo se admiten en su página y usan el mecanismo existente de deduplicación y privacidad. Un informe ausente es «pendiente», no cero. El clic expresa intención; no acredita llegada al registro, cuenta creada ni aprobación. La implementación está publicada; el procesamiento de los primeros informes queda pendiente de tráfico y de Statsig. Consultar el [runbook de estadísticas](runbooks/estadisticas.md).
 
 Una mejora futura acotada sería añadir marcadores permitidos de llegada al registro, con el patrón ya usado para el ejemplo. Si luego se necesita distinguir llegadas desde Google/Bing durante la misma sesión, conservar únicamente la categoría validada de origen y su caducidad, nunca el referente completo ni parámetros. Esa atribución no forma parte de esta entrega. No instalar GA4, capturar parámetros arbitrarios o unir cuentas a identificadores de terceros solo para completar un embudo.
 
@@ -115,7 +116,7 @@ El 1 de octubre de 2026 a las 17:49 de Costa Rica se completó una medición de 
 
 El diagnóstico atribuye el desplazamiento de 0,177 al elemento `footer.pie-pagina`. Una hipótesis a verificar en el código y en una traza es que el contenido corto de carga de la sesión se sustituye por la portada completa, desplazando el pie; el informe identifica el elemento afectado, no demuestra por sí solo la causa. También señala que la ilustración LCP (`barrio.webp`) carece de prioridad alta de descarga y que dos archivos CSS bloquean el renderizado (13,9 KiB en total). Las estimaciones de ahorro del informe no son mejoras ya conseguidas.
 
-Prioridad de implementación: estabilizar el espacio durante la carga y confirmar el desplazamiento con otra medición; después revisar la prioridad de la imagen y los recursos que bloquean el renderizado. No se han medido las guías nuevas en producción antes de su despliegue. Los resultados 100/100 corresponden a comprobaciones automáticas y no sustituyen revisiones completas de accesibilidad o SEO.
+La entrega mueve el pie de página dentro del límite de Suspense de sesión para que aparezca junto al contenido y da prioridad alta a la ilustración principal. Una comprobación independiente del streaming de React confirma que el pie ya no se muestra antes de resolver la sesión; la medición posterior de portada registró CLS 0. Los resultados 100/100 corresponden a comprobaciones automáticas y no sustituyen revisiones completas de accesibilidad o SEO.
 
 Después de publicar, medir portada y una guía representativa; si aparecen problemas, verificar las demás. Priorizar un recurso o interacción concretos señalados por el informe y comparar bajo condiciones equivalentes. Para datos de campo, registrar los percentiles 75 de LCP, INP y CLS cuando existan, indicando si corresponden a la URL o al origen. Los umbrales «buenos» actuales son LCP ≤ 2,5 s, INP ≤ 200 ms y CLS ≤ 0,1. [Criterios de PSI](https://developers.google.com/speed/docs/insights/v5/about).
 
@@ -185,3 +186,9 @@ Las fechas organizan el trabajo; no prometen una posición determinada. Día 1 e
 | Días 61–90, 30 de noviembre–29 de diciembre | Comparar períodos maduros, corregir fricciones y decidir siguiente recurso | Propietario + desarrollo | Informe con clics pertinentes, uso de guías y activación general, límites de atribución explícitos y siguiente prioridad. |
 
 Si Search Console sigue sin datos suficientes, mantener el diagnóstico como «sin evidencia aún» y verificar descubrimiento y pertinencia antes de publicar más páginas. Si llegan visitas y el recorrido se interrumpe, mejorar el paso identificado con las métricas disponibles. Retomar operador, contacto y firma solo cuando el propietario facilite los datos y solicite hacerlo.
+
+## Verificación posterior a la publicación
+
+Search Console confirmó «Indexing requested» para `/guias`; esto acredita la solicitud, no la indexación.
+
+El [informe móvil de portada posterior](https://pagespeed.web.dev/analysis/https-www-protectoradelalquiler-com/3qjeqxkz4j?form_factor=mobile), del 1 de octubre a las 18:08, registró rendimiento 94, CLS 0 y LCP 2,9 s. El [informe móvil de la guía de referencias](https://pagespeed.web.dev/analysis/https-www-protectoradelalquiler-com-guias-referencias-de-inquilinos/6vtnw1d0eo?form_factor=mobile), a las 18:09, registró rendimiento 87, CLS 0,236 y LCP 2,1 s. Ambos dieron 100 en las comprobaciones automáticas de accesibilidad, buenas prácticas y SEO, sin datos de campo. La guía todavía requiere investigar el desplazamiento atribuido al pie de página, incluyendo el límite de carga de ruta; el resultado de portada no acredita que todas las rutas estén libres de desplazamientos. LCP de portada permanece como oportunidad de mejora.

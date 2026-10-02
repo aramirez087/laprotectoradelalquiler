@@ -8,6 +8,7 @@ import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol, VersionResena } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { registrarError } from '@/lib/registro-error'
 
 export class AvisoAdmin extends Error {
   constructor(message: string) {
@@ -32,6 +33,18 @@ const SELECT_RESENA = `
   autor:usuarios(id, nombre, email, identificacion)
 `
 
+export interface ModeracionAutomaticaResena {
+  resena_id: number
+  version_evaluada: number
+  version_resultante: number | null
+  decision: 'aprobada' | 'revision' | 'obsoleta'
+  motivo: string
+  modelo: string | null
+  politica: string
+  categorias: string[]
+  evaluada_en: string
+}
+
 export interface FilaAdminResena {
   id: number
   anonima: boolean
@@ -41,6 +54,7 @@ export interface FilaAdminResena {
   permite_correccion: boolean
   version: number
   historial?: VersionResena[]
+  moderacionAutomatica?: ModeracionAutomaticaResena | null
   creado_en: string
   persona: {
     id: number
@@ -214,6 +228,27 @@ async function idsPersona(db: Cliente, q: string) {
   return (data ?? []).map((p) => p.id as number)
 }
 
+async function moderacionAutomaticaPorResena(db: Cliente, adminId: number, ids: number[]) {
+  const resultados = new Map<number, ModeracionAutomaticaResena>()
+  if (!ids.length) return resultados
+  try {
+    for (let desde = 0; desde < ids.length; desde += POR_PAGINA) {
+      const { data, error } = await db.rpc('admin_moderacion_automatica_resenas', {
+        p_admin_id: adminId,
+        p_resena_ids: ids.slice(desde, desde + POR_PAGINA),
+      })
+      if (error) throw error
+      for (const resultado of (data ?? []) as ModeracionAutomaticaResena[]) {
+        resultados.set(resultado.resena_id, resultado)
+      }
+    }
+  } catch (error) {
+    // Audit visibility must not stop administrators from reviewing pending submissions.
+    registrarError('review_moderation_audit_error', error, { routeType: 'admin' })
+  }
+  return resultados
+}
+
 export async function consultarResenas(opts: {
   q?: string
   estado?: EstadoResena | ''
@@ -222,8 +257,9 @@ export async function consultarResenas(opts: {
   hasta?: string
   pagina?: number
   limite?: number
+  incluirModeracion?: boolean
 }) {
-  const { db } = await exigirAdmin()
+  const { usuario, db } = await exigirAdmin()
   const pagina = Math.max(1, opts.pagina ?? 1)
   const limite = opts.limite ?? POR_PAGINA
   let consulta = db.from('resenas').select(SELECT_RESENA, { count: 'exact' })
@@ -258,11 +294,13 @@ export async function consultarResenas(opts: {
   })
   const cedulas = [...new Set(filas.flatMap(fila => [fila.persona.identificacion, fila.autor?.identificacion])
     .map(cedulaNacional).filter((cedula): cedula is string => cedula !== null))]
-  const [perfiles, verificaciones, versiones] = await Promise.all([
+  const [perfiles, verificaciones, versiones, moderaciones] = await Promise.all([
     facebookPorUsuario(db, filas.flatMap(fila => fila.autor ? [fila.autor.id] : [])),
     cedulas.length ? db.from('verificaciones_cedula').select('identificacion, estado, fecha_padron, nombre_tse, consultado_en').in('identificacion', cedulas)
       : Promise.resolve({ data: [], error: null }),
     historialResenas(filas.map(fila => fila.id)),
+    opts.incluirModeracion === false ? Promise.resolve(new Map<number, ModeracionAutomaticaResena>())
+      : moderacionAutomaticaPorResena(db, usuario.id, filas.map(fila => fila.id)),
   ])
   if (verificaciones.error) throw verificaciones.error
   const porCedula = new Map((verificaciones.data as VerificacionCedula[]).map(resultado => [resultado.identificacion, resultado]))
@@ -271,6 +309,7 @@ export async function consultarResenas(opts: {
     filas: filas.map(fila => ({
       ...fila,
       historial: versiones.filter(v => v.resena_id === fila.id),
+      moderacionAutomatica: moderaciones.get(fila.id) ?? null,
       persona: { ...fila.persona, verificacionCedula: verificacionDe(fila.persona.identificacion) },
       autor: fila.autor ? { ...fila.autor, facebook: perfiles.get(fila.autor.id) ?? null, verificacionCedula: verificacionDe(fila.autor.identificacion) } : null,
     })),

@@ -7,25 +7,26 @@ import test from 'node:test'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
-function action({ activo = true } = {}) {
-  const saved = []
+function action({ activo = true, enRevision = true } = {}) {
+  const saved = [], notifications = []
   const mod = { exports: {} }
   const mocks = {
     'next/navigation': { redirect: (path) => { throw new Error(`redirect:${path}`) }, unstable_rethrow: (error) => {
       if (error.message.startsWith('redirect:')) throw error
     } },
     'next/cache': { revalidatePath() {} },
+    'next/server': { after: callback => notifications.push(callback) },
     '@/lib/dal': {
       requireUsuario: async () => ({ id: 7, activo }),
       listarResenasDe: async () => [],
-      crearResena: async (input) => { saved.push(input); return { personaId: 1, enRevision: true } },
+      crearResena: async (input) => { saved.push(input); return { personaId: 1, enRevision } },
     },
     '@/lib/util': { esCedulaValida: () => true },
   }
   vm.runInNewContext(ts.transpileModule(readFileSync('lib/actions/resenas.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)), Error })
-  return { submit: mod.exports.crearResenaAction, saved }
+  return { submit: mod.exports.crearResenaAction, saved, notifications }
 }
 function form(fechaInicio) {
   const data = new FormData()
@@ -44,6 +45,7 @@ test('reviews without a rental date reach moderation using the session author', 
   assert.equal(a.saved[0].fechaInicio, undefined)
   assert.equal(a.saved[0].autorId, 7)
   assert.equal(a.saved[0].estado, undefined)
+  assert.equal(a.notifications.length, 0)
 })
 test('a supplied rental date is ignored, including stale forms and forged values', async () => {
   for (const value of ['', '2024-02-29', '2026-09-29', 'not-a-date']) {
@@ -51,6 +53,13 @@ test('a supplied rental date is ignored, including stale forms and forged values
     await assert.rejects(a.submit(undefined, form(value)), /redirect:\/perfil\?enviada=1/)
     assert.equal(a.saved[0].fechaInicio, undefined)
   }
+})
+test('a confirmed automatic publication redirects to the published tenant ficha', async () => {
+  const a = action({ enRevision: false })
+  await assert.rejects(a.submit(undefined, form()), /redirect:\/fichas\/1$/)
+  assert.equal(a.saved[0].autorId, 7)
+  assert.equal(a.saved[0].estado, undefined)
+  assert.equal(a.notifications.length, 1)
 })
 test('review content is still required without a rental date', async () => {
   const a = action()

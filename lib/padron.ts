@@ -87,6 +87,7 @@ export const consultarCedula = cache(async (valor: string | null | undefined, gu
       const { error } = await db.rpc('guardar_verificacion_cedula', {
         p_identificacion: cedula, p_fecha_padron: fechaPadron,
         p_nombre_tse: persona?.nombreCompleto ?? null,
+        p_version_padron: datos.version,
       })
       if (error) throw error
     }

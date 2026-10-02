@@ -41,8 +41,8 @@ export function FormCorregirResena({ id, version, comentario, anonima, accion = 
         </label>
         <MensajeForm error={estado?.error} />
         {estado?.error && <a href="/perfil#mis-resenas" className="enlace-texto">Volver a cargar el estado de mis reseñas</a>}
-        <p className="text-xs leading-relaxed text-ink-soft">Se conserva la misma reseña y su historial. La corrección vuelve a revisión. Su primera aprobación le da 3 meses de consulta; si ya fue aprobada antes, volver a aprobarla no suma meses.</p>
-        <button type="submit" disabled={pendiente} className="btn-primario w-full sm:w-auto">{pendiente ? 'Reenviando…' : 'Reenviar a revisión'}</button>
+        <p className="text-xs leading-relaxed text-ink-soft">Se conserva la misma reseña y su historial. La corrección puede publicarse automáticamente si ambas cédulas se verifican en el TSE y el contenido es apto; en los demás casos, administración la revisará. Su primera aprobación le da 3 meses de consulta; si ya fue aprobada antes, volver a aprobarla no suma meses.</p>
+        <button type="submit" disabled={pendiente} className="btn-primario w-full sm:w-auto">{pendiente ? 'Reenviando…' : 'Reenviar reseña'}</button>
       </form>
     </details>
   )

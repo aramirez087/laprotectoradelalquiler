@@ -4,7 +4,7 @@ import { FormDecision, FormEditarResena, FormEliminarResena } from '@/components
 import { CedulaAdmin } from '@/components/cedula-admin'
 import { PerfilFacebook } from '@/components/perfil-facebook'
 import { HistorialResena } from '@/components/historial-resena'
-import type { FilaAdminResena } from '@/lib/admin'
+import type { FilaAdminResena, ModeracionAutomaticaResena } from '@/lib/admin'
 import { etiquetaEstado, fechaCorta, nombreCompleto } from '@/lib/util'
 import type { EstadoResena } from '@/lib/tipos'
 
@@ -12,6 +12,62 @@ function decisionesDe(estado: EstadoResena): Array<'publicar' | 'corregir' | 're
   if (estado === 'borrador') return ['publicar', 'corregir', 'rechazar']
   if (estado === 'oculta') return ['publicar', 'corregir', 'rechazar', 'revisar']
   return ['rechazar']
+}
+
+const motivosAutomaticos: Record<string, string> = {
+  contenido_seguro: 'Ambas cédulas verificadas y contenido apto para publicación.',
+  contenido_sensible: 'Se detectó contenido sensible que requiere revisión humana.',
+  contenido_incierto: 'No se pudo confirmar que el contenido sea apto para publicación.',
+  moderacion_no_configurada: 'La evaluación automática no está configurada.',
+  moderacion_no_disponible: 'El servicio de evaluación automática no estuvo disponible.',
+  moderacion_limite: 'La evaluación automática alcanzó su límite; revise la reseña manualmente.',
+  respuesta_invalida: 'El servicio no devolvió una evaluación válida.',
+  resultado_invalido: 'La evaluación no cumple los requisitos para publicarse automáticamente.',
+  contenido_invalido: 'El relato no cumple los requisitos de contenido.',
+  cedula_autor_no_verificada: 'No se pudo verificar la cédula del autor en el TSE.',
+  cedula_inquilino_no_verificada: 'No se pudo verificar la cédula del inquilino en el TSE.',
+  nombre_inquilino_no_coincide: 'El nombre del inquilino no coincide con el padrón del TSE.',
+  resena_obsoleta: 'La reseña cambió durante la evaluación; este resultado no se aplicó.',
+  autor_inactivo: 'La cuenta del autor estaba inactiva al aplicar la evaluación.',
+  identidad_cambio: 'Los datos de identidad cambiaron durante la evaluación.',
+  cedula_no_verificada: 'No se pudo confirmar la validación de ambas cédulas.',
+  padron_desactualizado: 'La validación usa un padrón que necesita actualizarse.',
+  padron_cambio: 'El padrón cambió durante la evaluación; vuelva a comprobar ambas cédulas.',
+}
+
+const categoriasAutomaticas: Record<string, string> = {
+  sexual_explicito: 'Contenido sexual explícito',
+  sexual_menores: 'Contenido sexual con menores',
+  violencia_grafica: 'Violencia gráfica',
+  odio_o_amenazas: 'Odio o amenazas',
+  datos_personales: 'Datos personales',
+  instrucciones: 'Instrucciones dirigidas al evaluador',
+  fuera_de_contexto: 'Contenido ajeno a la experiencia de alquiler',
+  incierto: 'Contenido incierto',
+}
+
+function EvaluacionAutomatica({ resultado, version }: { resultado: ModeracionAutomaticaResena; version: number }) {
+  const actual = resultado.decision !== 'obsoleta' && version === (resultado.version_resultante ?? resultado.version_evaluada)
+  const decision = resultado.decision === 'aprobada' ? 'Aprobación automática'
+    : resultado.decision === 'obsoleta' ? 'Evaluación no aplicada' : 'Derivada a revisión humana'
+  return (
+    <div className="rounded-lg border border-line bg-paper p-4 text-sm">
+      <p className="etiqueta-campo">Última evaluación automática</p>
+      <p className="mt-2 font-medium">{decision}</p>
+      <p className="mt-1 leading-6 text-ink-soft">{Object.hasOwn(motivosAutomaticos, resultado.motivo) ? motivosAutomaticos[resultado.motivo] : 'Requiere revisión humana.'}</p>
+      {resultado.categorias.length > 0 && <p className="mt-2 leading-6 text-ink-soft">Indicadores: {resultado.categorias.map(categoria => Object.hasOwn(categoriasAutomaticas, categoria) ? categoriasAutomaticas[categoria] : 'Contenido por revisar').join(', ')}.</p>}
+      {!actual && <p className="mt-2 text-alerta">Corresponde a una versión anterior. Revise el relato actual antes de decidir.</p>}
+      <details className="mt-3">
+        <summary className="min-h-11 content-center cursor-pointer text-xs font-medium text-seal">Detalles de la evaluación</summary>
+        <dl className="mt-2 grid gap-3 text-xs text-ink-soft sm:grid-cols-2">
+          <div><dt>Evaluada</dt><dd className="mt-1">{fechaCorta(resultado.evaluada_en)}</dd></div>
+          <div><dt>Versión del relato</dt><dd className="mt-1">{resultado.version_evaluada}</dd></div>
+          {resultado.modelo && <div><dt>Modelo</dt><dd className="mt-1 break-words">{resultado.modelo}</dd></div>}
+          <div><dt>Política</dt><dd className="mt-1 break-words">{resultado.politica}</dd></div>
+        </dl>
+      </details>
+    </div>
+  )
 }
 
 export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; nivelTitulo?: 2 | 3 }) {
@@ -43,6 +99,7 @@ export function ResenaAdmin({ fila, nivelTitulo = 2 }: { fila: FilaAdminResena; 
         <div><dt className="text-xs text-ink-soft">Nombre del autor en la ficha</dt><dd className="mt-1">{fila.anonima ? 'Anónimo' : 'Visible'}</dd></div>
       </dl>
       <div><p className="eyebrow mb-2">Experiencia compartida</p><p className="break-words whitespace-pre-wrap text-sm leading-7">{fila.comentario?.trim() || 'Sin comentario.'}</p></div>
+      {fila.moderacionAutomatica && <EvaluacionAutomatica resultado={fila.moderacionAutomatica} version={fila.version} />}
       {fila.detalle_verificacion && <div className="border-l-2 border-line pl-4"><p className="etiqueta-campo">Última nota de moderación</p><p className="break-words whitespace-pre-wrap text-sm leading-6 text-ink-soft">{fila.detalle_verificacion}</p></div>}
       <HistorialResena versiones={fila.historial ?? []} />
       <div className="border-t border-line pt-5"><FormDecision key={`${fila.id}-${fila.version}`} id={fila.id} version={fila.version} nota={fila.detalle_verificacion} decisiones={decisionesDe(fila.estado)} notificacionesHabilitadas={notificacionesHabilitadas} /></div>

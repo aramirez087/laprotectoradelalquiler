@@ -29,6 +29,7 @@ export default async function PerfilPage(props: {
   const params = await props.searchParams
   const enviada = primer(params.enviada) === '1'
   const corregida = primer(params.corregida) === '1'
+  const publicada = primer(params.publicada) === '1'
   const usuario = await requireUsuario('/perfil')
   const [acceso, facebook] = await Promise.all([accesoConsulta(usuario), perfilFacebookDe(usuario.id)])
   const consulta = acceso.puede_consultar
@@ -107,13 +108,13 @@ export default async function PerfilPage(props: {
         </p>
       )}
 
-      {enviada && (
+      {publicada && <p role="status" className="aviso aviso-ok">Su reseña fue aprobada y publicada. Puede verla en «Mis reseñas» y consultar su permiso actualizado abajo. Cada reseña sobre un mismo inquilino cuenta una sola vez para su permiso.</p>}
+      {enviada && !publicada && (
         <p role="status" className="aviso aviso-ok">
-          Recibimos su reseña. Puede seguir su estado en «Mis reseñas».
-          {' '}El tiempo de consulta se suma cuando se aprueba su reseña sobre otro inquilino; el envío todavía no cambia su permiso.
+          Recibimos su reseña. Consulte su estado en «Mis reseñas» y su permiso de consulta abajo.
         </p>
       )}
-      {corregida && <p role="status" className="aviso aviso-ok">Recibimos su corrección. La misma reseña volvió a revisión. El envío todavía no cambia su permiso de consulta.</p>}
+      {corregida && !publicada && <p role="status" className="aviso aviso-ok">Recibimos su corrección. Consulte el estado de la misma reseña en «Mis reseñas» y su permiso de consulta abajo.</p>}
       <PanelPermiso acceso={acceso} ahoraServidor={horaServidor()} />
 
       <section id="mis-resenas" aria-labelledby="titulo-mis-resenas" className="scroll-mt-36 space-y-4">

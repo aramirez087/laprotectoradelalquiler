@@ -31,12 +31,9 @@ test('private drafts, transactional notices and account cohorts', { timeout: 120
     CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.role', true),'') $$;
     GRANT USAGE ON SCHEMA auth,public TO anon,authenticated,service_role;`)
   const completo = await readFile('schema.sql','utf8')
-  const busqueda = await readFile('db/busqueda-relevante.sql','utf8')
-  assert.ok(completo.endsWith(busqueda))
-  const schema = completo.slice(0, completo.length - busqueda.length).trimEnd() + '\n'
   const migration = await readFile('db/activacion.sql','utf8')
-  assert.ok(schema.endsWith(migration), 'fresh installs and additive upgrades agree')
-  await db.query(schema.slice(0,schema.length-migration.length))
+  assert.ok(completo.includes(migration), 'fresh installs and additive upgrades agree')
+  await db.query(completo.slice(0,completo.lastIndexOf(migration)))
   await db.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;`)
   const seed = async () => {
