@@ -38,6 +38,21 @@ test('error event filename recovers location without a stack, and third-party so
   }
 })
 
+test('Next immutable chunk paths survive extraction and endpoint validation', async () => {
+  const archivo = `${origen}/_next/static/immutable/chunks/0awqf0hhsvoq7.js?dpl=private`
+  const datos = diagnosticoErrorCliente({ name: 'TypeError', stack: `accion@${archivo}:1:42` }, {}, origen)
+  assert.deepEqual(datos.frames, ['/_next/static/immutable/chunks/0awqf0hhsvoq7.js:1:42'])
+  const logs = []
+  const api = cargarTS('app/api/errores/route.ts', { '@/lib/registro-error': { registrarError: (...args) => logs.push(args) } })
+  const response = await api.POST(new Request(`${origen}/api/errores`, {
+    method: 'POST', headers: { origin: origen, 'content-type': 'application/json' },
+    body: JSON.stringify({ origen: 'navegador', nombre: 'TypeError', ruta: '/', ...datos }),
+  }))
+  assert.equal(response.status, 204)
+  assert.deepEqual(JSON.parse(JSON.stringify(logs[0][2].clientFrames)), datos.frames)
+  assert.ok(!JSON.stringify(logs).includes('private'))
+})
+
 test('reporting keeps the request bounded and absorbs failures in diagnostic extraction or delivery', async () => {
   const enviados = []
   function cliente(fetch) {

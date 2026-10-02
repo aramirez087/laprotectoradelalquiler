@@ -42,7 +42,7 @@ export function diagnosticoErrorCliente(error: unknown, contexto: ContextoErrorC
             : url.pathname.endsWith('.js') ? 'app' : 'inline'
       // The event filename / first stack location describes the throw site.
       if (fuente === 'unknown') fuente = tipo
-      if (tipo !== 'app' || !/^\/_next\/static\/chunks\/[\w./[\]-]+\.js$/.test(url.pathname)
+      if (tipo !== 'app' || !/^\/_next\/static\/(?:immutable\/)?chunks\/[\w./[\]-]+\.js$/.test(url.pathname)
         || !Number.isSafeInteger(linea) || !Number.isSafeInteger(columna) || linea! < 1 || columna! < 1) return
       const frame = `${url.pathname}:${linea}:${columna}`
       if (frame.length <= 160 && !frames.includes(frame) && frames.length < 3) frames.push(frame)

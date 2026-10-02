@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       || (datos.digest !== undefined && (typeof datos.digest !== 'string' || !/^\d{1,20}(?:@E\d{1,8})?$/.test(datos.digest)))
       || (datos.ruta !== undefined && !rutaDiagnostico(datos.ruta))
       || (datos.frames !== undefined && (!Array.isArray(datos.frames) || datos.frames.length > 5
-        || !datos.frames.every((frame: unknown) => typeof frame === 'string' && frame.length <= 160 && /^\/_next\/static\/chunks\/[\w./[\]-]+\.js:\d+:\d+$/.test(frame))))
+        || !datos.frames.every((frame: unknown) => typeof frame === 'string' && frame.length <= 160 && /^\/_next\/static\/(?:immutable\/)?chunks\/[\w./[\]-]+\.js:\d+:\d+$/.test(frame))))
       || (diagnostico !== undefined && (!diagnostico || !categoriasErrorCliente.includes(diagnostico.categoria)
         || !fuentesErrorCliente.includes(diagnostico.fuente) || typeof diagnostico.tienePila !== 'boolean'
         || (diagnostico.evento !== undefined && !eventosErrorCliente.includes(diagnostico.evento))
