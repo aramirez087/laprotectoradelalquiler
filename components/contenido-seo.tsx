@@ -76,7 +76,7 @@ const PASOS = [
 
 export function ContenidoInicio() {
   return (
-    <div className="contenedor max-w-5xl space-y-14 border-t border-line py-12 sm:space-y-16 sm:py-16">
+    <div className="contenido-inicio contenedor max-w-5xl space-y-14 border-t border-line py-12 sm:space-y-16 sm:py-16">
       <section aria-labelledby="resenas-inquilinos" className="space-y-5">
         <p className="eyebrow">Una comunidad para compartir experiencias</p>
         <h2 id="resenas-inquilinos" className="max-w-3xl text-3xl sm:text-4xl">

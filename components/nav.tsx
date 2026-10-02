@@ -101,7 +101,7 @@ export function Nav({
   return (
     <header
       ref={cabecera}
-      className="sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-md"
+      className="cabecera-sitio sticky top-0 z-30 border-b border-line bg-paper/95 backdrop-blur-md"
       onBlur={(e) => {
         if (e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) {
           setRutaAbierta(null)

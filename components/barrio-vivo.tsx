@@ -8,7 +8,7 @@ const imagen = {
   src: '/images/barrio.webp',
   width: 1000,
   height: 500,
-  sizes: '(max-width: 373px) 75vw, (max-width: 639px) 280px, 336px',
+  sizes: '(max-width: 639px) and (max-height: 740px) 192px, (max-width: 639px) min(32svh, 280px), 336px',
 } as const
 
 /** The sun and moon follow a quiet arc above the fixed neighborhood. */

@@ -21,12 +21,12 @@ function CabeceraInicio() {
   return (
     <>
       <BarrioVivo />
-      <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
-      <h1 className="titulo-inicio mt-5">
+      <p className="eyebrow contexto-inicio">Propietarios y agencias · Costa Rica</p>
+      <h1 className="titulo-inicio">
         Proteja su propiedad.<br />
         <span className="text-seal">Alquile con confianza.</span>
       </h1>
-      <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
+      <p className="descripcion-inicio text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
         Experiencias de otros propietarios para elegir mejor a su inquilino.
       </p>
     </>
@@ -81,10 +81,10 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="inicio">
+    <div className="inicio inicio-consulta">
       <CabeceraInicio />
-      <FormularioBusqueda action="/fichas"  className="mt-8 w-full max-w-xl text-left" role="search" aria-label="Consultar reseñas">
-        <label className="etiqueta-campo mb-2.5 ml-5" htmlFor="q">
+      <FormularioBusqueda action="/fichas" className="consulta-inicio" role="search" aria-label="Consultar reseñas">
+        <label className="etiqueta-campo" htmlFor="q">
           ¿A quién desea consultar?
         </label>
         <div className="buscador buscador-inicio">
@@ -96,18 +96,19 @@ export default async function HomePage() {
             placeholder="Nombre o cédula"
             maxLength={150}
             autoComplete="off"
+            enterKeyHint="search"
             aria-describedby="ayuda-busqueda"
           />
           <button type="submit" className="boton-buscar">
             Buscar <Icono nombre="flecha" className="h-4 w-4" />
           </button>
         </div>
+        <p id="ayuda-busqueda" className="ayuda-inicio">
+          <Icono nombre="escudo" className="h-3.5 w-3.5 shrink-0" />
+          <span>Use la cédula completa para distinguir personas con nombres similares.</span>
+        </p>
       </FormularioBusqueda>
-      <p id="ayuda-busqueda" className="mt-2 inline-flex items-center gap-1.5 text-center text-xs text-ink-soft">
-        <Icono nombre="escudo" className="h-3.5 w-3.5 shrink-0" />
-        Use la cédula completa para distinguir personas con nombres similares.
-      </p>
-      <Link href="/resenas/nueva" className="enlace-inicio mt-5">
+      <Link href="/resenas/nueva" className="enlace-inicio">
         Comparta su experiencia <Icono nombre="flecha" className="h-4 w-4" />
       </Link>
     </div>

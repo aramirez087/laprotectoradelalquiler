@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 async function ContenidoConSesion({ children, tema }: { children: React.ReactNode; tema: Tema }) {
   const usuario = await obtenerUsuario()
   const acceso = usuario ? await accesoConsulta(usuario) : null
-  return <>
+  return <div className="marco-aplicacion">
     <Audiencia administra={usuario?.rol === 'admin'} habilitada={process.env.VERCEL_ENV === 'production'} />
     <Nav usuario={usuario ? { nombre: usuario.nombre, rol: usuario.rol, administra: usuario.rol === 'admin' && usuario.activo } : null} tema={tema}>
       {acceso && <FranjaPermiso acceso={acceso} ahoraServidor={horaServidor()} />}
@@ -59,14 +59,14 @@ async function ContenidoConSesion({ children, tema }: { children: React.ReactNod
     <AvisosAdmin key={usuario?.id ?? 'publico'}>
       <main id="contenido" tabIndex={-1} className="flex-1">{children}</main>
     </AvisosAdmin>
-  </>
+  </div>
 }
 
 function CargandoSesion() {
-  return <>
-    <header className="border-b border-line bg-paper"><div className="cabecera-nav"><Marca /></div></header>
+  return <div className="marco-aplicacion">
+    <header className="cabecera-sitio border-b border-line bg-paper"><div className="cabecera-nav"><Marca /></div></header>
     <main id="contenido" className="flex-1"><Cargando /></main>
-  </>
+  </div>
 }
 
 export default async function RootLayout(props: LayoutProps<'/'>) {
