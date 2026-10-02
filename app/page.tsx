@@ -17,24 +17,17 @@ export const metadata = metadataPublica({
   ruta: '/',
 })
 
-function CabeceraInicio({ publica = false }: { publica?: boolean }) {
+function CabeceraInicio() {
   return (
     <>
       <BarrioVivo />
       <p className="eyebrow contexto-inicio mt-5">Propietarios y agencias · Costa Rica</p>
       <h1 className="titulo-inicio mt-5">
-        {publica ? <>
-          Consulte reseñas de inquilinos<br />
-          <span className="text-seal">en Costa Rica</span>
-        </> : <>
-          Proteja su propiedad.<br />
-          <span className="text-seal">Alquile con confianza.</span>
-        </>}
+        Proteja su propiedad.<br />
+        <span className="text-seal">Alquile con confianza.</span>
       </h1>
       <p className="descripcion-inicio mt-5 text-pretty text-base leading-relaxed text-ink-soft sm:text-lg">
-        {publica
-          ? 'Conozca experiencias de otros propietarios y agencias antes de alquilar. Las referencias compartidas le ayudan a evaluar a un posible inquilino con más contexto.'
-          : 'Experiencias de otros propietarios para elegir mejor a su inquilino.'}
+        Experiencias de otros propietarios para elegir mejor a su inquilino.
       </p>
     </>
   )
@@ -51,7 +44,7 @@ export default async function HomePage() {
       <>
         <JsonLd datos={datosSitio} />
         <div className="inicio inicio-publico">
-          <CabeceraInicio publica />
+          <CabeceraInicio />
           <div className="acciones-inicio mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             <Link href="/registro" className="btn-primario">
               Unirme a La Protectora <Icono nombre="flecha" className="h-4 w-4 shrink-0" />

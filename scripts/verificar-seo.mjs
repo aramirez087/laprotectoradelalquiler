@@ -94,8 +94,8 @@ for (const ruta of RUTAS_PUBLICAS) {
   assert.equal([...html.matchAll(/<h1\b/g)].length, 1, `${ruta}: debe tener un solo H1`)
   if (ruta === '/') {
     const encabezado = (html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '').replace(/<[^>]*>/g, '')
-    assert.match(encabezado, /Consulte reseñas de inquilinos/)
-    assert.match(encabezado, /Costa Rica/)
+    assert.match(encabezado, /Proteja su propiedad\./)
+    assert.match(encabezado, /Alquile con confianza\./)
     assert.match(html, /id="resenas-inquilinos"/)
   }
   assert.match(html, /<html[^>]+lang="es-CR"/)
