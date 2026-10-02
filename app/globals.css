@@ -917,6 +917,36 @@ main:has(> .inicio-consulta) {
   font-size: 0.75rem;
 }
 
+.dialogo-instalacion {
+  width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100svh - 2rem);
+  margin: auto;
+  padding: min(1.5rem, 6vw);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.dialogo-instalacion > span {
+  flex-wrap: wrap;
+}
+
+.dialogo-instalacion .marca-nombre {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.dialogo-instalacion::backdrop {
+  background: rgb(15 24 18 / 55%);
+  backdrop-filter: blur(4px);
+}
+
 @media (max-width: 639px) {
   .inicio {
     padding: clamp(1.25rem, 4svh, 2rem) 1.25rem max(1.5rem, env(safe-area-inset-bottom, 0px));

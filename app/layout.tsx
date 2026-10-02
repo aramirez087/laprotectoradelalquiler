@@ -12,6 +12,7 @@ import { ActividadGlobal } from '@/components/indicador-carga'
 import { AvisoErrorCliente } from '@/components/aviso-error-cliente'
 import { Marca } from '@/components/marca'
 import { Audiencia } from '@/components/audiencia'
+import { AppInstalable } from '@/components/app-instalable'
 import type { Tema } from '@/components/selector-tema'
 import Cargando from './loading'
 import { DESCRIPCION_SITIO, NOMBRE_SITIO, ORIGEN_SITIO, ROBOTS_PRIVADOS } from '@/lib/seo'
@@ -30,6 +31,11 @@ export const metadata: Metadata = {
   },
   description: DESCRIPCION_SITIO,
   applicationName: NOMBRE_SITIO,
+  appleWebApp: {
+    capable: true,
+    title: 'La Protectora',
+    statusBarStyle: 'default',
+  },
   // Indexing is opt-in for public information, including future routes.
   robots: ROBOTS_PRIVADOS,
   verification: {
@@ -92,6 +98,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
               <p className="mt-1">Experiencias de propietarios y agencias. Decisiones informadas.</p>
             </div>
             <nav aria-label="Información y comunidad" className="flex flex-wrap items-center gap-x-5 gap-y-1">
+              <AppInstalable />
               <Link href="/como-funciona" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
                 Cómo funciona
               </Link>

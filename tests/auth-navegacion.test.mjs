@@ -156,3 +156,28 @@ test('login and logout invalidate the shared layout before redirecting', async (
     ['revalidate', '/', 'layout'], ['redirect', '/'],
   ])
 })
+
+test('PWA resources stay public during incomplete onboarding and retain registration-safe CSP', async () => {
+  const proxy = refreshProxy({ facebook: true })
+  for (const path of ['/manifest.webmanifest', '/sw.js', '/offline.html']) {
+    const response = await proxy(request(path))
+    assert.equal(response.status, 200, path)
+    assert.equal(response.headers.get('location'), null, path)
+    assert.equal(response.headers.get('set-cookie'), null, path)
+    const csp = response.headers.get('content-security-policy')
+    assert.match(csp, /(?:^|; )worker-src 'self'(?:;|$)/)
+    assert.match(csp, /(?:^|; )manifest-src 'self'(?:;|$)/)
+    assert.match(csp, /'nonce-[^']+'/)
+    assert.match(csp, /'strict-dynamic'/)
+  }
+})
+
+test('normal pages permit same-origin service worker registration without weakening script CSP', async () => {
+  const response = await refreshProxy()(request('/'))
+  const csp = response.headers.get('content-security-policy')
+  assert.match(csp, /(?:^|; )worker-src 'self'(?:;|$)/)
+  const scripts = csp.split('; ').find(directive => directive.startsWith('script-src '))
+  assert.match(scripts, /'nonce-[^']+'/)
+  assert.match(scripts, /'strict-dynamic'/)
+  assert.doesNotMatch(scripts, /'unsafe-inline'/)
+})

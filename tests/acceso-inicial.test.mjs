@@ -55,6 +55,7 @@ const comunes = {
   '@/components/icono': { Icono: () => null },
   '@/components/barrio-vivo': { BarrioVivo: () => null },
   '@/components/aviso-configuracion': { AvisoConfiguracion: () => null },
+  '@/components/estado-conexion': cargar('components/estado-conexion.tsx'),
 }
 
 function destinoConResenas(resenas, sesion = usuario) {

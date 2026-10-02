@@ -412,3 +412,35 @@ proyecto y sigue pendiente.
 El registro y las nuevas reseñas consultan el padrón mensual oficial del TSE para completar los nombres. El servidor resuelve los nombres al crear una ficha nueva. Las páginas y ediciones administrativas usan los datos guardados y no consultan el TSE. Documentos extranjeros, ausencias y fallos permiten revisión manual.
 
 Para preparar una instalación existente use `npm run db:padron-tse` y `npm run padron:actualizar`. La [guía de verificación de cédulas](docs/runbooks/verificacion-cedulas-tse.md) explica el almacenamiento privado, la actualización mensual, los límites y la validación.
+
+## Aplicación instalable (PWA)
+
+El manifiesto de `app/manifest.ts` permite instalar La Protectora como aplicación
+independiente. **Instalar aplicación**, en el pie de página, abre la instalación
+del navegador cuando está disponible o muestra instrucciones. En iPhone/iPad,
+abra el sitio en Safari → Compartir → Añadir a pantalla de inicio y mantenga
+**Abrir como app web** activado si aparece. Si Brave no ofrece la opción, use
+Safari para instalarla. La instalación necesita HTTPS (localhost sirve para
+pruebas de navegador).
+
+El service worker `public/sw.js` se registra solo en producción y guarda
+únicamente `public/offline.html`, una pantalla pública sin dependencias.
+Consultas, fichas, sesiones, respuestas de API y reseñas no se guardan en esa
+caché. Consultar y enviar reseñas requiere internet; no hay envíos pendientes
+ni sincronización en segundo plano. Las páginas abiertas muestran un aviso
+cuando el navegador detecta que perdió la conexión.
+
+Las actualizaciones del worker esperan a que se cierren las pestañas anteriores;
+no fuerzan recargas que puedan perder un formulario. Cambie la versión de
+`CACHE_NAME` en `public/sw.js` al modificar la pantalla sin conexión. Use un
+origen o puerto distinto para desarrollo y pruebas de producción, porque un
+worker previamente instalado persiste en su origen hasta desregistrarlo.
+
+Los iconos se generan a partir de `app/icon.svg`:
+
+```bash
+node scripts/generar-iconos-pwa.mjs
+```
+
+Incluyen PNG de 192 y 512 píxeles, una variante enmascarable para Android y el
+icono de Apple de 180 píxeles. No se necesita una dependencia adicional de PWA.

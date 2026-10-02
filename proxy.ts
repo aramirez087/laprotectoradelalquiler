@@ -14,6 +14,8 @@ function politicaContenido(nonce: string) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https:",
     "font-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.statsig.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -70,9 +72,9 @@ export async function proxy(request: NextRequest) {
   const continuar = () =>
     conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp, privada)
 
-  // Discovery files are public for every session and must not depend on auth refresh
-  // or an incomplete Facebook registration. Keep security/preview headers above.
-  if (path === '/sitemap.xml' || path === '/robots.txt' || sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
+  // Discovery and PWA files must load without auth refresh or onboarding redirects.
+  // Keep security/preview headers above, including worker-src for registration.
+  if (['/sitemap.xml', '/robots.txt', '/manifest.webmanifest', '/sw.js', '/offline.html'].includes(path) || sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
 
   const protegida =
     path.startsWith('/fichas') ||

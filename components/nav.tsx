@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { cerrarSesion } from '@/lib/actions/auth'
 import { Marca } from '@/components/marca'
+import { EstadoConexion } from '@/components/estado-conexion'
 import { SelectorTema, type Tema } from '@/components/selector-tema'
 import type { Rol } from '@/lib/tipos'
 
@@ -151,6 +152,7 @@ export function Nav({
         </div>
       </div>
       {children}
+      <EstadoConexion />
     </header>
   )
 }

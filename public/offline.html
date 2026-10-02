@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es-CR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171a17" media="(prefers-color-scheme: dark)" />
+    <meta name="robots" content="noindex" />
+    <title>Sin conexión · La Protectora</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #faf9f5;
+        --ink: #252b26;
+        --muted: #666b63;
+        --line: #e3e5dc;
+        --seal: #385443;
+        --soft: #edf1e9;
+        --button-ink: #ffffff;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+        background: var(--paper);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        line-height: 1.6;
+        overflow-wrap: break-word;
+      }
+
+      header, main, footer { width: 100%; margin-inline: auto; }
+      header, footer { max-width: 68rem; }
+      header { display: flex; align-items: center; gap: 0.75rem; }
+      .mark { width: 2.75rem; height: 2.75rem; flex-shrink: 0; }
+      .brand { font-size: 1.125rem; font-weight: 650; line-height: 1.2; letter-spacing: -0.035em; }
+      .brand span { display: block; margin-top: 0.25rem; font-size: 0.625rem; font-weight: 400; letter-spacing: 0.16em; color: var(--muted); }
+
+      main {
+        max-width: 30rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding-block: clamp(3rem, 10vh, 7rem);
+      }
+
+      .connection {
+        display: grid;
+        place-items: center;
+        width: 4rem;
+        height: 4rem;
+        margin-bottom: 1.75rem;
+        border: 1px solid var(--line);
+        border-radius: 1.25rem;
+        background: var(--soft);
+        color: var(--seal);
+      }
+
+      .status { margin: 0 0 0.75rem; font-size: 0.6875rem; font-weight: 650; letter-spacing: 0.15em; color: var(--muted); }
+      h1 { margin: 0; font-size: clamp(2.25rem, 8vw, 3.5rem); font-weight: 500; line-height: 1.08; letter-spacing: -0.055em; text-wrap: balance; }
+      .description { margin: 1.5rem 0 0; font-size: 1.0625rem; color: var(--muted); text-wrap: pretty; }
+      .retry { display: inline-flex; align-items: center; justify-content: center; gap: 1rem; min-height: 3.25rem; max-width: 100%; margin-top: 2rem; padding: 0.875rem 1.5rem; border-radius: 2rem; background: var(--seal); color: var(--button-ink); font-size: 1rem; font-weight: 500; text-decoration: none; }
+      .retry svg { flex-shrink: 0; }
+      .retry:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+      .retry:focus-visible { outline: 2px solid var(--seal); outline-offset: 4px; }
+      footer { padding-top: 1.25rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.75rem; }
+      footer p { margin: 0; }
+
+      @media (prefers-color-scheme: dark) {
+        :root { --paper: #171a17; --ink: #f0f1e9; --muted: #b0b6a8; --line: #363d32; --seal: #bfd0b4; --soft: #2a3628; --button-ink: #1c281d; }
+      }
+
+      @media (max-width: 22rem) {
+        body { padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)); }
+        .retry { padding-inline: 1.25rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <svg class="mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="10" fill="#385443" />
+        <path d="m8 15 8-7 8 7M10 14v10h12V14M14 24v-7h4v7" fill="none" stroke="#faf9f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <div class="brand">La Protectora<span>DEL ALQUILER</span></div>
+    </header>
+    <main>
+      <div class="connection" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m3 3 18 18M2 8.5a16 16 0 0 1 3.7-2M9.5 5.2a16 16 0 0 1 12.5 3.3M5 12a10.5 10.5 0 0 1 4-2M13.5 9.6A10.5 10.5 0 0 1 19 12M8.5 15.5a5.2 5.2 0 0 1 5.4-.9" />
+          <circle cx="12" cy="19" r="0.75" fill="currentColor" stroke="none" />
+        </svg>
+      </div>
+      <p class="status">SIN CONEXIÓN</p>
+      <h1>Volvamos a conectar.</h1>
+      <p class="description">Necesita conexión a internet para consultar inquilinos y compartir reseñas. Revise su conexión y vuelva al inicio para continuar.</p>
+      <a class="retry" href="/">
+        Volver al inicio
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+      </a>
+    </main>
+    <footer><p>Experiencias que ayudan a alquilar con confianza.</p></footer>
+  </body>
+</html>
