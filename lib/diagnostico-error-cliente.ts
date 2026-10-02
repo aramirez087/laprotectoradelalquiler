@@ -1,4 +1,4 @@
-export const categoriasErrorCliente = ['network', 'aborted', 'chunk-load', 'property-access', 'not-callable', 'other'] as const
+export const categoriasErrorCliente = ['network', 'aborted', 'chunk-load', 'property-access', 'not-callable', 'browser-wallet', 'other'] as const
 export const fuentesErrorCliente = ['app', 'inline', 'external', 'extension', 'unknown'] as const
 export const eventosErrorCliente = ['error', 'unhandledrejection'] as const
 
@@ -31,7 +31,7 @@ export function diagnosticoErrorCliente(error: unknown, contexto: ContextoErrorC
   }
 
   const frames: string[] = []
-  let fuente: DiagnosticoErrorCliente['fuente'] = 'unknown'
+  const diagnostico: DiagnosticoErrorCliente = { categoria, fuente: 'unknown', evento: contexto.evento, tienePila: pila.length > 0 }
   function localizar(archivo: string, linea?: number, columna?: number) {
     try {
       const url = new URL(archivo, origen)
@@ -41,7 +41,7 @@ export function diagnosticoErrorCliente(error: unknown, contexto: ContextoErrorC
           : url.origin !== origen ? 'external'
             : url.pathname.endsWith('.js') ? 'app' : 'inline'
       // The event filename / first stack location describes the throw site.
-      if (fuente === 'unknown') fuente = tipo
+      if (diagnostico.fuente === 'unknown') diagnostico.fuente = tipo
       if (tipo !== 'app' || !/^\/_next\/static\/(?:immutable\/)?chunks\/[\w./[\]-]+\.js$/.test(url.pathname)
         || !Number.isSafeInteger(linea) || !Number.isSafeInteger(columna) || linea! < 1 || columna! < 1) return
       const frame = `${url.pathname}:${linea}:${columna}`
@@ -55,5 +55,13 @@ export function diagnosticoErrorCliente(error: unknown, contexto: ContextoErrorC
     const match = linea.match(/((?:https?|chrome-extension|moz-extension|safari-web-extension):\/\/[^\s()]+):([0-9]+):([0-9]+)\)?$/)
     if (match) localizar(match[1], Number(match[2]), Number(match[3]))
   }
-  return { frames, diagnostico: { categoria, fuente, evento: contexto.evento, tienePila: pila.length > 0 } satisfies DiagnosticoErrorCliente }
+  // Brave iOS evaluates these assignments in pages even when its wallet provider
+  // is absent. This app has no wallet integration. Match only the documented
+  // WebKit error, from inline code, with no app frames; keep all other failures.
+  // https://github.com/brave/brave-browser/issues/58670
+  if (fallo.name === 'TypeError' && contexto.evento === 'error' && diagnostico.fuente === 'inline' && frames.length === 0
+    && /^undefined is not an object \(evaluating 'window\.ethereum\.(?:chainId|networkVersion|selectedAddress) = (?:undefined|"(?:0x)?[0-9a-fA-F]+")'\)$/.test(mensaje)) {
+    diagnostico.categoria = 'browser-wallet'
+  }
+  return { frames, diagnostico }
 }

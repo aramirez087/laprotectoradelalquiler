@@ -111,3 +111,53 @@ test('global listeners preserve the error event source and distinguish promise r
   assert.equal(reports[1][2].evento, 'unhandledrejection')
   assert.deepEqual(avisos, ['protectora:error-cliente', 'protectora:error-cliente'])
 })
+
+test('only the documented inline wallet assignments are classified as browser noise', () => {
+  const contexto = { evento: 'error', archivo: `${origen}/`, linea: 1, columna: 28 }
+  const wallet = value => ({ name: 'TypeError', message: `undefined is not an object (evaluating '${value}')`, stack: `global code@${origen}/:1:28` })
+  for (const assignment of ['window.ethereum.selectedAddress = undefined', 'window.ethereum.chainId = "0x1"', 'window.ethereum.networkVersion = "1"']) {
+    const datos = diagnosticoErrorCliente(wallet(assignment), contexto, origen)
+    assert.equal(datos.diagnostico.categoria, 'browser-wallet')
+    assert.ok(!JSON.stringify(datos).includes(assignment))
+  }
+  const error = wallet('window.ethereum.selectedAddress = undefined')
+  for (const [fallo, ctx] of [
+    [wallet('usuario.nombre'), contexto],
+    [wallet('window.ethereum.other = undefined'), contexto],
+    [{ ...error, name: 'Error' }, contexto],
+    [error, { ...contexto, evento: 'unhandledrejection' }],
+    [error, { ...contexto, archivo: 'https://other.test/script.js' }],
+    [{ ...error, stack: `handler@${origen}/_next/static/immutable/chunks/app.js:1:23` }, contexto],
+  ]) assert.notEqual(diagnosticoErrorCliente(fallo, ctx, origen).diagnostico.categoria, 'browser-wallet')
+})
+
+test('wallet noise is still reported, duplicate events stay quiet, and genuine app failures still show the alert', async () => {
+  const enviados = [], avisos = [], listeners = new Map()
+  const browser = {
+    location: { origin: origen, pathname: '/' },
+    addEventListener: (name, fn) => listeners.set(name, fn),
+    dispatchEvent: e => avisos.push(e.type),
+  }
+  const reporter = cargarTS('lib/error-cliente.ts', {}, {
+    window: browser, navigator: { onLine: true },
+    fetch: async (_, options) => { enviados.push(JSON.parse(options.body)); return new Response(null, { status: 204 }) },
+  })
+  cargarTS('instrumentation-client.ts', { '@/lib/error-cliente': reporter }, { window: browser, Event })
+  const error = { name: 'TypeError', message: "undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')", stack: `global code@${origen}/:1:28` }
+  const evento = { error, filename: `${origen}/`, lineno: 1, colno: 28 }
+  listeners.get('error')(evento)
+  listeners.get('error')(evento)
+  listeners.get('error')(evento)
+  assert.equal(enviados.length, 1)
+  assert.equal(enviados[0].diagnostico.categoria, 'browser-wallet')
+  assert.equal(avisos.length, 0)
+  listeners.get('error')({ ...evento, error: new TypeError('Cannot read properties of undefined') })
+  assert.deepEqual(avisos, ['protectora:error-cliente'])
+  const logs = []
+  const api = cargarTS('app/api/errores/route.ts', { '@/lib/registro-error': { registrarError: (...args) => logs.push(args) } })
+  const result = await api.POST(new Request(`${origen}/api/errores`, {
+    method: 'POST', headers: { origin: origen, 'content-type': 'application/json' }, body: JSON.stringify(enviados[0]),
+  }))
+  assert.equal(result.status, 204)
+  assert.equal(logs[0][2].clientDiagnostic.categoria, 'browser-wallet')
+})

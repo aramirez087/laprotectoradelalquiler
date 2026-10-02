@@ -2,7 +2,8 @@ import { registrarErrorCliente } from '@/lib/error-cliente'
 import type { ContextoErrorCliente } from '@/lib/diagnostico-error-cliente'
 
 function informar(error: unknown, contexto: ContextoErrorCliente) {
-  registrarErrorCliente(error, 'navegador', contexto)
+  const diagnostico = registrarErrorCliente(error, 'navegador', contexto)
+  if (diagnostico?.categoria === 'browser-wallet') return
   window.dispatchEvent(new Event('protectora:error-cliente'))
 }
 

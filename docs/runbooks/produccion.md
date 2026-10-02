@@ -31,6 +31,10 @@ Los nuevos informes incluyen `clientDiagnostic`: evento (`error` o `unhandledrej
 
 Para investigar una reproducción, consulte los logs inmediatamente. El equipo utiliza Hobby y la retención es de una hora: una consulta `--since 24h` no recupera registros ya caducados. El 2 de octubre se capturaron dos `TypeError` en `/` a las 08:13:30 y 08:13:54 de Costa Rica, sin pila. La persona afectada los reprodujo en Brave para iPhone y no en Safari; la simulación WebKit con solicitudes de Statsig bloqueadas no reprodujo el aviso. La causa sigue sin confirmar. Esta ampliación requiere desplegarse antes de pedir otra reproducción.
 
+La reproducción de las 09:01:23, ya con el diagnóstico ampliado desplegado, registró `property-access`, fuente `inline`, evento `error`, pila disponible, conexión declarada y ninguna ubicación de bundle. Es compatible con [Brave iOS #58670](https://github.com/brave/brave-browser/issues/58670), pero el registro todavía no confirma la expresión exacta. Se reconoce ahora como `browser-wallet` únicamente el mensaje WebKit documentado de asignación a `window.ethereum.chainId`, `networkVersion` o `selectedAddress`, desde código inline y sin frames de la aplicación. Esos eventos se siguen registrando sin mostrar el aviso de operación fallida. Las excepciones de aplicación, promesas rechazadas y mensajes que no coinciden conservan el aviso. Una reproducción que registre `browser-wallet` permitirá confirmar esta hipótesis sin guardar la expresión ni direcciones de wallet.
+
+También se observó `user_profile_error` con `PGRST303` a las 09:01:22. Es un fallo de validación de claims JWT en PostgREST; el registro no precisa qué claim falló. La lectura de perfil maneja ese error devolviendo una sesión de aplicación nula y no dispara directamente el aviso del navegador. Requiere investigación independiente si se repite.
+
 ## Evidencia y límites
 
 - 237 pruebas pasan, incluyendo caducidad/recuperación de caché, preservación de nombres administrativos, privacidad de registros, validación de origen y páginas de error.
