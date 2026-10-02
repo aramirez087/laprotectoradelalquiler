@@ -1,9 +1,12 @@
+import type { DiagnosticoErrorCliente } from '@/lib/diagnostico-error-cliente'
+
 type ContextoError = {
   route?: string
   routeType?: string
   method?: string
   durationMs?: number
   clientFrames?: string[]
+  clientDiagnostic?: DiagnosticoErrorCliente
 }
 
 /** Deliberately exclude messages, SQL details, headers, URLs and form values. */

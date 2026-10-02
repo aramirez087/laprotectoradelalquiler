@@ -23,6 +23,14 @@ vercel logs --environment production --level error --since 1h --json
 
 Busque `request_error`, `page_load_error`, `review_save_error`, `padron_lookup_error`, `padron_manifest_error`, `padron_quota_error` o `client_error_*`. Para errores de Supabase, use el código, la ruta y la hora para correlacionar los registros de la plataforma. Los informes del navegador no incluyen mensajes ni mapas de código fuente; tienen menos detalle que un registro del servidor.
 
+### Diagnóstico de navegador ampliado — 2 de octubre de 2026
+
+Los nuevos informes incluyen `clientDiagnostic`: evento (`error` o `unhandledrejection`), categoría fija del fallo, tipo de fuente (`app`, `inline`, `external`, `extension` o `unknown`), disponibilidad de pila y estado de conexión declarado por el navegador. Las categorías son pistas, no atribuyen por sí solas la causa a Brave, a un bloqueador o a una biblioteca. `enLinea: true` tampoco garantiza que una solicitud pueda completarse.
+
+`clientFrames` admite ubicaciones de WebKit y Chromium y usa el archivo/línea/columna del evento cuando existe. Solo transmite rutas de chunks del mismo origen, sin parámetros ni fragmentos; limita el envío a tres ubicaciones para mantener el cuerpo dentro de 1 KiB. No guarda mensajes originales, dominios externos, identificadores de extensiones ni el agente de usuario. El endpoint conserva compatibilidad con pestañas abiertas que envían el formato anterior.
+
+Para investigar una reproducción, consulte los logs inmediatamente. El equipo utiliza Hobby y la retención es de una hora: una consulta `--since 24h` no recupera registros ya caducados. El 2 de octubre se capturaron dos `TypeError` en `/` a las 08:13:30 y 08:13:54 de Costa Rica, sin pila. La persona afectada los reprodujo en Brave para iPhone y no en Safari; la simulación WebKit con solicitudes de Statsig bloqueadas no reprodujo el aviso. La causa sigue sin confirmar. Esta ampliación requiere desplegarse antes de pedir otra reproducción.
+
 ## Evidencia y límites
 
 - 237 pruebas pasan, incluyendo caducidad/recuperación de caché, preservación de nombres administrativos, privacidad de registros, validación de origen y páginas de error.

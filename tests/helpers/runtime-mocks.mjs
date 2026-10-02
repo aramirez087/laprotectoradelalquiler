@@ -2,9 +2,11 @@ import { createElement } from 'react'
 import { esOrigenPropio } from '../../lib/origen.ts'
 import { rutaDiagnostico } from '../../lib/ruta-diagnostico.ts'
 import * as busqueda from '../../lib/busqueda-fichas.ts'
+import * as diagnosticoErrorCliente from '../../lib/diagnostico-error-cliente.ts'
 
 // VM suites isolate framework/client boundaries; browser checks exercise their runtime.
 export const runtimeMocks = {
+  '@/lib/diagnostico-error-cliente': diagnosticoErrorCliente,
   '@/lib/busqueda-fichas': busqueda,
   '@/lib/resultado-busqueda-confirmado': { confirmarResultadoBusqueda: () => null, confirmarAperturaFicha: () => null, contextoBusquedaConfirmado: () => null },
   '@/components/resultado-busqueda': { ResultadoBusqueda: () => null },
