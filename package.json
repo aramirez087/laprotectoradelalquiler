@@ -20,6 +20,8 @@
     "padron:actualizar": "node scripts/actualizar-padron.mjs",
     "test:padron-tse": "node --test tests/integration/padron-tse.test.mjs",
     "db:seguridad": "node scripts/aplicar-esquema.mjs --solo-seguridad-supabase",
+    "db:dos-factores": "node scripts/aplicar-esquema.mjs --solo-dos-factores",
+    "test:dos-factores": "node --test tests/integration/dos-factores.test.mjs",
     "test:seguridad-supabase": "node --test tests/integration/seguridad-supabase.test.mjs",
     "db:aplicar": "node scripts/aplicar-esquema.mjs",
     "db:invitaciones-admin": "node scripts/aplicar-esquema.mjs --solo-invitaciones-admin",

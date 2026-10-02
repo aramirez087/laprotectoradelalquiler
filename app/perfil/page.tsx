@@ -3,6 +3,7 @@ import { registrarError } from '@/lib/registro-error'
 import { BotonSalir } from '@/components/boton-salir'
 import Link from '@/components/enlace'
 import { FormClave } from '@/components/form-clave'
+import { SeguridadDosFactores } from '@/components/seguridad-dos-factores'
 import { requireUsuario, listarResenasDe, accesoConsulta, perfilFacebookDe, horaServidor, historialResenas } from '@/lib/dal'
 import { FormCorregirResena } from '@/components/form-corregir-resena'
 import { HistorialResena } from '@/components/historial-resena'
@@ -38,12 +39,17 @@ export default async function PerfilPage(props: {
   const avisoFacebook = mensajeErrorFacebook(primer(params.error), facebookAuth)
   const facebookConectado = facebookAuth && primer(params.facebook) === 'conectado'
   let ofrecerFacebook = false
-  if (facebookAuth && !sinBackend) {
+  let factores: { id: string; nombre: string }[] = []
+  let dosFactoresDisponible = false
+  if (!sinBackend) {
     const supabase = await createClient()
     const {
-      data: { user },
+      data: { user }, error,
     } = await supabase.auth.getUser()
-    ofrecerFacebook = !tieneIdentidadFacebook(user)
+    ofrecerFacebook = facebookAuth && !tieneIdentidadFacebook(user)
+    dosFactoresDisponible = !error && !!user
+    factores = (user?.factors ?? []).filter(f => f.factor_type === 'totp' && f.status === 'verified')
+      .map((f, i) => ({ id: f.id, nombre: f.friendly_name || `Autenticador ${i + 1}` }))
   }
   let misResenas: Awaited<ReturnType<typeof listarResenasDe>> = []
   let aviso: string | null = null
@@ -186,6 +192,9 @@ export default async function PerfilPage(props: {
 
       <section id="seguridad" aria-labelledby="titulo-seguridad" className="scroll-mt-36 space-y-4">
         <h2 id="titulo-seguridad" className="text-2xl">Seguridad de su cuenta</h2>
+        <SeguridadDosFactores key={factores.map(f => f.id).join(',') || 'sin-autenticador'} factores={factores} disponible={dosFactoresDisponible}
+          aviso={primer(params.dos_factores) === 'activada' ? 'Verificación en dos pasos activada.'
+            : primer(params.dos_factores) === 'desactivada' ? 'Autenticador desactivado.' : undefined} />
         {ofrecerFacebook && (
           <div className="expediente flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0 flex-1">

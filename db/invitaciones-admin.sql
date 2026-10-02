@@ -22,7 +22,9 @@ ALTER TABLE public.invitaciones_admin
   ADD COLUMN IF NOT EXISTS proposito text NOT NULL DEFAULT 'administracion' CHECK (proposito IN ('administracion', 'acceso')),
   ADD COLUMN IF NOT EXISTS revocada_en timestamptz,
   ADD COLUMN IF NOT EXISTS enviada_en timestamptz,
-  ADD COLUMN IF NOT EXISTS error_envio_en timestamptz;
+  ADD COLUMN IF NOT EXISTS error_envio_en timestamptz,
+  ADD COLUMN IF NOT EXISTS sesion_enlace_id uuid,
+  ADD COLUMN IF NOT EXISTS enlace_verificado_en timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS invitaciones_admin_pendiente_email
   ON public.invitaciones_admin(email) WHERE aceptada_en IS NULL AND revocada_en IS NULL;
 CREATE INDEX IF NOT EXISTS invitaciones_admin_creado ON public.invitaciones_admin(creado_en DESC, id DESC);

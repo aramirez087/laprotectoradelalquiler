@@ -5,6 +5,7 @@ import { sinSupabase } from '@/lib/supabase/server'
 import { createProxyClient } from '@/lib/supabase/proxy'
 import { esEntornoIndexable } from '@/lib/seo'
 import { destinoInterno } from '@/lib/util'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 function politicaContenido(nonce: string) {
   const desarrollo = process.env.NODE_ENV === 'development'
@@ -82,13 +83,20 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/perfil') ||
     path.startsWith('/admin') ||
     path.startsWith('/registro/resena')
-  const vigilarFacebook = authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
+  const verificando = path === '/login/verificar'
+  // Invitations verify their own identity/session and can precede onboarding.
+  const vigilarFacebook = !verificando && path !== '/invitacion/admin' && authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
   const { supabase, applyCookies } = createProxyClient(request, requestHeaders)
   const redirigir = (url: URL) => applyCookies(conSeguridad(NextResponse.redirect(url), csp, privada))
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (protegida && !user) return redirigir(urlLogin(request, path))
+    if (user && !verificando && (protegida || ['/login', '/restablecer', '/registro/facebook', '/auth/facebook'].includes(path))
+      && await requiereSegundoFactor(supabase, user)) {
+      const siguiente = path === '/login' ? request.nextUrl.searchParams.get('siguiente') ?? '/' : path + request.nextUrl.search
+      return redirigir(new URL(rutaSegundoFactor(siguiente), request.url))
+    }
 
     if (vigilarFacebook && user && cuentaCreadaConFacebook(user) && !(await altaFacebookLista(user.id))) {
       const url = request.nextUrl.clone()

@@ -14,6 +14,7 @@ import { createAdmin } from '@/lib/supabase/admin'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, esCedulaValida, normalizarCedula, normalizarPerfilFacebook } from '@/lib/util'
 import type { Rol } from '@/lib/tipos'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 export type EstadoForm = {
   error?: string
@@ -198,6 +199,7 @@ export async function completarAltaFacebook(_estado: EstadoForm, formData: FormD
   if (!user || !cuentaCreadaConFacebook(user)) {
     return { error: 'La sesión de Facebook venció. Entre de nuevo.' }
   }
+  if (await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor('/registro/facebook'))
 
   const emailSesion = user.email?.trim().toLowerCase() ?? ''
   if (!emailSesion) {
@@ -333,6 +335,25 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     return { error: 'Correo o clave incorrectos.' }
   }
 
+  const siguiente = destinoInterno(formData.get('siguiente'), '/')
+  const jar = await cookies()
+  jar.set(COOKIE_CORREO, parsed.data.email, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 400,
+    sameSite: 'lax',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+  })
+  try {
+    if (data.user && await requiereSegundoFactor(supabase, data.user)) {
+      revalidatePath('/', 'layout')
+      redirect(rutaSegundoFactor(siguiente))
+    }
+  } catch (error) {
+    unstable_rethrow(error)
+    return { error: 'No pudimos verificar la seguridad de su cuenta. Intente de nuevo.' }
+  }
+
   if (data.user) {
     const admin = createAdmin()
     if (admin) {
@@ -343,15 +364,6 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
     }
   }
 
-  const jar = await cookies()
-  jar.set(COOKIE_CORREO, parsed.data.email, {
-    path: '/',
-    maxAge: 60 * 60 * 24 * 400,
-    sameSite: 'lax',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-  })
-  const siguiente = destinoInterno(formData.get('siguiente'), '/')
   revalidatePath('/', 'layout')
   redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
 }
@@ -419,6 +431,7 @@ export async function establecerClave(_estado: EstadoForm, formData: FormData): 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'El enlace venció. Pida otro.' }
+  if (await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor('/restablecer'))
 
   const parsed = SchemaClave.safeParse({
     clave: formData.get('clave'),

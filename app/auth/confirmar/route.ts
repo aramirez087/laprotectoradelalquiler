@@ -9,6 +9,7 @@ import {
 } from '@/lib/facebook-auth'
 import { createClient } from '@/lib/supabase/server'
 import { destinoInterno } from '@/lib/util'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 const TIPOS: EmailOtpType[] = ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email']
 
@@ -39,6 +40,10 @@ export async function GET(request: Request) {
     const flowId = url.searchParams.get('sb_flow_id')
     const { data, error } = await supabase.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined)
     if (!error) {
+      const cuenta = data.user ?? (await supabase.auth.getUser()).data.user
+      if (cuenta && await requiereSegundoFactor(supabase, cuenta)) {
+        return NextResponse.redirect(new URL(rutaSegundoFactor(siguiente), base))
+      }
       if (origenFacebook && modo === 'entrar') {
         const user = data.user ?? (await supabase.auth.getUser()).data.user
         if (user && cuentaCreadaConFacebook(user)) {
@@ -53,8 +58,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(siguiente, base))
     }
   } else if (tokenHash && esTipo(type)) {
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
-    if (!error) return NextResponse.redirect(new URL(siguiente, base))
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
+    if (!error) {
+      const user = data?.user ?? (await supabase.auth.getUser()).data.user
+      return NextResponse.redirect(new URL(user && await requiereSegundoFactor(supabase, user) ? rutaSegundoFactor(siguiente) : siguiente, base))
+    }
   }
 
   const fallo = origenFacebook ? rutaTrasFalloFacebook('', modo, siguiente) : '/recuperar?error=enlace'

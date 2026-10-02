@@ -13,7 +13,7 @@ function load(file, mocks) {
   const mod = { exports: {} }
   vm.runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, Error, URL, Date })
+  }).outputText, { module: mod, exports: mod.exports, require: (name) => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, Error, URL, URLSearchParams, Date })
   return mod.exports
 }
 const id = 'b2222222-2222-4222-8222-222222222222'
@@ -24,7 +24,7 @@ function harness(config = {}) {
   const calls = [], email = config.email ?? 'invitee@example.com', authId = 'auth-user'
   const clientOptions = []
   let leaseId = null
-  const invitation = { auth_user_id: authId, email, nombre: 'Invited', proposito: 'administracion', tipo: 'invite', aceptada_en: null, revocada_en: null, vence_en: new Date(Date.now() + 60_000).toISOString(), ...config.invitation }
+  const invitation = { auth_user_id: authId, email, nombre: 'Invited', proposito: 'administracion', tipo: 'invite', token_digest: createHash('sha256').update(input.token).digest('hex'), sesion_enlace_id: null, enlace_verificado_en: null, aceptada_en: null, revocada_en: null, vence_en: new Date(Date.now() + 60_000).toISOString(), ...config.invitation }
   const user = { id: authId, email, email_confirmed_at: '2026-01-01', ...config.user }
   const db = {
     from: (table) => {
@@ -33,10 +33,17 @@ function harness(config = {}) {
       const q = {
         select: (v) => { fields = v; return q },
         eq: (k, v) => { filters[k] = v; return q },
+        is: (k, v) => { filters[k] = v; return q },
         order: () => q, limit: () => q,
         range: (a, b) => { from = a; to = b; return q },
         update: (value) => { update = value; return q },
         maybeSingle: async () => {
+          if (update) {
+            calls.push(['bind', update, filters])
+            if (config.bindError || config.bindConflict) return { data: null, error: config.bindError }
+            Object.assign(invitation, update)
+            return { data: { id }, error: null }
+          }
           calls.push(['read', table, filters])
           return { data: 'id' in filters ? (config.missing ? null : invitation) : config.pending ?? null, error: config.readError }
         },
@@ -49,6 +56,8 @@ function harness(config = {}) {
     },
     rpc: (name, params) => {
       calls.push(['rpc', name, params])
+      if (name === 'sesion_administracion_vigente') return Promise.resolve({ data: config.live !== false, error: config.liveError })
+      if (name === 'aceptar_invitacion_admin' && !config.rpcError) invitation.aceptada_en = new Date().toISOString()
       if (name === 'cuenta_para_invitacion_admin') return { maybeSingle: async () => ({ data: config.existing ?? null, error: config.lookupError }) }
       if (name === 'reservar_emision_invitacion_admin') {
         if (config.reserveError || (config.simulateLease && leaseId)) return Promise.resolve({ error: config.reserveError ?? { code: 'P0001', message: 'Ya se está generando una invitación' } })
@@ -70,10 +79,13 @@ function harness(config = {}) {
   }
   const api = load('lib/invitaciones-admin.ts', {
     'server-only': {},
+    'next/navigation': { redirect: path => { throw Object.assign(new Error('redirect'), { path }) } },
     '@/lib/admin': { AvisoAdmin, SinClaveAdmin: AvisoAdmin },
     '@/lib/dal': { requerirRol: async (role) => { calls.push(['authorize', role]); if (config.unauthorized) throw new Error('unauthorized'); return { id: 7 } } },
     '@/lib/supabase/admin': { createAdmin: options => { clientOptions.push(options); return db } },
     '@/lib/supabase/server': { createClient: async () => ({ auth: {
+      getUser: async () => ({ data: { user: config.noUser ? null : user }, error: config.userError }),
+      getSession: async () => ({ data: { session: config.noSession ? null : { access_token: 'verified-access-token' } }, error: config.sessionError }),
       verifyOtp: async (p) => { calls.push(['verify', p]); return { data: { user, session: config.noSession ? null : { access_token: 'verified-access-token' } }, error: config.tokenError } },
       updateUser: async (p) => { calls.push(['password', p]); return { error: config.passwordError } },
       getClaims: async () => { calls.push(['claims']); return { data: { claims: { sub: user.id, session_id: sessionId, ...config.claims } }, error: config.claimsError } },
@@ -83,7 +95,7 @@ function harness(config = {}) {
       enviarCorreo: async (p) => { calls.push(['send', p]); return config.sent !== false },
     },
   })
-  return { ...api, calls, clientOptions }
+  return { ...api, calls, clientOptions, invitation }
 }
 const invite = { nombre: 'Invited Admin', email: 'invitee@example.com', enviarPorCorreo: true }
 const registration = h => h.calls.find(([op, name]) => op === 'rpc' && name === 'registrar_invitacion_admin')?.[2]
@@ -208,7 +220,7 @@ test('only a verified matching mailbox and Auth id with a session can change a p
 test('activation follows password change, verified session claims and strict revocation of all other sessions', async () => {
   const h = harness()
   await h.aceptarInvitacionAdmin(input)
-  assert.deepEqual(h.calls.map(([op]) => op), ['read', 'verify', 'password', 'claims', 'signOut', 'rpc'])
+  assert.deepEqual(h.calls.map(([op]) => op), ['read', 'verify', 'claims', 'password', 'signOut', 'rpc'])
   assert.equal(h.calls[0][2].token_digest, createHash('sha256').update(input.token).digest('hex'))
   assert.deepEqual(h.calls[4], ['signOut', 'verified-access-token', 'others'])
   assert.equal(h.calls[5][2].p_auth_user_id, 'auth-user')
@@ -392,4 +404,85 @@ test('acceptance redirects login provisioning to the profile and administration 
     })
     await assert.rejects(api.aceptarInvitacionAction(id, input.token, undefined, new FormData()), error => error.href === expected)
   }
+})
+
+const mfaUser = { factors: [{ id: 'factor', status: 'verified', factor_type: 'totp' }] }
+const continuation = `/invitacion/admin?id=${id}&continuar=1`
+const pending = () => ({ sesion_enlace_id: sessionId, enlace_verificado_en: new Date().toISOString() })
+const challengesInvitation = error => new URL(error.path, 'https://example.test').searchParams.get('siguiente') === continuation
+
+test('MFA invitation resumes only after verification without reusing the link or storing a password', async () => {
+  const config = { user: mfaUser, claims: { aal: 'aal1' } }
+  const h = harness(config)
+  await assert.rejects(h.aceptarInvitacionAdmin(input), challengesInvitation)
+  assert.equal(h.calls.filter(([op]) => op === 'verify').length, 1)
+  assert.equal(h.calls.some(([op]) => ['password', 'signOut'].includes(op)), false)
+  const binding = h.calls.find(([op]) => op === 'bind')
+  assert.deepEqual(Object.keys(binding[1]).sort(), ['enlace_verificado_en', 'sesion_enlace_id'])
+  assert.equal(binding[1].sesion_enlace_id, sessionId)
+  assert.equal(binding[2].sesion_enlace_id, null)
+  assert.equal(binding[2].revocada_en, null)
+  assert.equal(binding[2].aceptada_en, null)
+  assert.equal(activated(h), false)
+
+  // A failed/abandoned code attempt keeps the same session proof retryable.
+  await assert.rejects(h.consultarInvitacionPendiente(id), challengesInvitation)
+  await assert.rejects(h.aceptarInvitacionAdmin({ ...input, token: '' }), challengesInvitation)
+  assert.equal(h.calls.filter(([op]) => op === 'verify').length, 1)
+  assert.equal(h.calls.filter(([op]) => op === 'bind').length, 1)
+  config.claims.aal = 'aal2'
+  const preview = await h.consultarInvitacionPendiente(id)
+  assert.equal(preview.email, invite.email)
+  assert.deepEqual(Object.keys(preview).sort(), ['email', 'nombre', 'proposito'])
+  await h.aceptarInvitacionAdmin({ ...input, token: '' })
+  assert.equal(activated(h), true)
+  assert.equal(h.calls.filter(([op]) => op === 'verify').length, 1)
+  assert.equal(h.calls.filter(([op]) => op === 'password').length, 1)
+  assert.equal(h.calls.find(([op, name]) => op === 'rpc' && name === 'aceptar_invitacion_admin')[2].p_digest, createHash('sha256').update(input.token).digest('hex'))
+  await assert.rejects(h.aceptarInvitacionAdmin({ ...input, token: '' }), /invitación/)
+  assert.equal(await h.consultarInvitacionPendiente(id), null)
+  assert.equal(h.calls.filter(([op, name]) => op === 'rpc' && name === 'aceptar_invitacion_admin').length, 1)
+})
+
+test('invitation continuation rejects other sessions, identities, expiry, revocation and forged claims', async () => {
+  for (const overrides of [
+    { noUser: true }, { noSession: true }, { userError: {} }, { sessionError: {} },
+    { user: { ...mfaUser, id: 'other' } }, { user: { ...mfaUser, email: 'other@example.test' } },
+    { user: { ...mfaUser, email_confirmed_at: null } },
+    { claims: { sub: 'other', aal: 'aal2' } }, { claims: { session_id: id, aal: 'aal2' } }, { claimsError: {} },
+    { live: false }, { liveError: {} },
+    { invitation: { ...pending(), enlace_verificado_en: new Date(Date.now() - 31 * 60_000).toISOString() } },
+    { invitation: { ...pending(), enlace_verificado_en: null } },
+    { invitation: { ...pending(), revocada_en: new Date().toISOString() } },
+    { invitation: { ...pending(), aceptada_en: new Date().toISOString() } },
+    { invitation: { ...pending(), vence_en: new Date(Date.now() - 1000).toISOString() } },
+  ]) {
+    const h = harness({ user: mfaUser, claims: { aal: 'aal2' }, invitation: pending(), ...overrides })
+    assert.equal(await h.consultarInvitacionPendiente(id), null)
+    await assert.rejects(h.aceptarInvitacionAdmin({ ...input, token: '' }))
+    assert.equal(h.calls.some(([op]) => ['verify', 'password', 'signOut'].includes(op)), false)
+    assert.equal(activated(h), false)
+  }
+  const noProof = harness()
+  await assert.rejects(noProof.aceptarInvitacionAdmin({ ...input, token: '' }))
+  assert.equal(noProof.calls.some(([op]) => op === 'verify'), false)
+})
+
+test('failed or conflicting proof persistence never changes a password or grants a role', async () => {
+  for (const failure of [{ bindError: {} }, { bindConflict: true }]) {
+    const h = harness({ user: mfaUser, claims: { aal: 'aal1' }, ...failure })
+    await assert.rejects(h.aceptarInvitacionAdmin(input), /invitación/)
+    assert.equal(h.calls.some(([op]) => ['password', 'signOut'].includes(op)), false)
+    assert.equal(activated(h), false)
+  }
+})
+
+test('MFA redirects escape the invitation action without an error banner', async () => {
+  const redirectError = Object.assign(new Error('redirect'), { path: '/login/verificar?siguiente=invitation' })
+  const api = load('lib/actions/invitaciones.ts', {
+    'next/navigation': { unstable_rethrow: error => { if (error === redirectError) throw error } },
+    'next/cache': {}, '@/lib/admin': { AvisoAdmin },
+    '@/lib/invitaciones-admin': { aceptarInvitacionAdmin: async () => { throw redirectError } },
+  })
+  await assert.rejects(api.aceptarInvitacionAction(id, input.token, undefined, new FormData()), error => error === redirectError)
 })

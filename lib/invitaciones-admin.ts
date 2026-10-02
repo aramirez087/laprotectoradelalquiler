@@ -2,7 +2,10 @@ import 'server-only'
 
 import { createHash, randomUUID } from 'node:crypto'
 import * as z from 'zod'
+import { redirect } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import { requerirRol } from '@/lib/dal'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 import { createAdmin } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { correoResenasConfigurado, enviarCorreo } from '@/lib/correo-resenas'
@@ -43,6 +46,47 @@ const schemaInvitacion = z.object({
 const schemaEnlace = z.object({ id: z.uuid(), token: z.string().min(1).max(2048) })
 const digest = (token: string) => createHash('sha256').update(token).digest('hex')
 const NO_DISPONIBLE = 'La invitación venció, se canceló, ya se usó o la cuenta cambió. Pida a administración un nuevo enlace.'
+const MINUTOS_PARA_RETOMAR = 30
+type InvitacionAceptacion = {
+  auth_user_id: string; email: string; nombre: string; tipo: 'invite' | 'recovery'; proposito: PropositoInvitacion
+  token_digest: string; aceptada_en: string | null; revocada_en: string | null; vence_en: string
+  sesion_enlace_id: string | null; enlace_verificado_en: string | null
+}
+
+function disponible(invitacion: InvitacionAceptacion | null): invitacion is InvitacionAceptacion {
+  return !!invitacion && !invitacion.aceptada_en && !invitacion.revocada_en && Date.parse(invitacion.vence_en) > Date.now()
+}
+
+function cuentaInvitada(user: User | null, invitacion: InvitacionAceptacion): user is User {
+  return !!user && user.id === invitacion.auth_user_id && user.email?.toLowerCase() === invitacion.email && !!user.email_confirmed_at
+}
+
+function rutaRetomarInvitacion(id: string) {
+  return `/invitacion/admin?${new URLSearchParams({ id, continuar: '1' })}`
+}
+
+async function sesionInvitacion(supabase: Awaited<ReturnType<typeof createClient>>, user: User, accessToken: string) {
+  const { data, error } = await supabase.auth.getClaims(accessToken)
+  const sessionId = data?.claims.session_id
+  if (error || data?.claims.sub !== user.id || !z.uuid().safeParse(sessionId).success) throw new AvisoAdmin(NO_DISPONIBLE)
+  return sessionId as string
+}
+
+async function retomarInvitacion(db: NonNullable<ReturnType<typeof createAdmin>>, supabase: Awaited<ReturnType<typeof createClient>>, invitacion: InvitacionAceptacion) {
+  const verificadaEn = Date.parse(invitacion.enlace_verificado_en ?? '')
+  if (!invitacion.sesion_enlace_id || !Number.isFinite(verificadaEn) || verificadaEn + MINUTOS_PARA_RETOMAR * 60_000 <= Date.now()) throw new AvisoAdmin(NO_DISPONIBLE)
+  const { data: { user }, error: errorUser } = await supabase.auth.getUser()
+  if (errorUser || !cuentaInvitada(user, invitacion)) throw new AvisoAdmin(NO_DISPONIBLE)
+  // getSession only supplies the bearer token; getUser/getClaims and the live
+  // server-side session decide whether this is the session that used the link.
+  const { data: { session }, error } = await supabase.auth.getSession()
+  if (error || !session) throw new AvisoAdmin(NO_DISPONIBLE)
+  const sessionId = await sesionInvitacion(supabase, user, session.access_token)
+  if (sessionId !== invitacion.sesion_enlace_id) throw new AvisoAdmin(NO_DISPONIBLE)
+  const vigente = await db.rpc('sesion_administracion_vigente', { p_auth_user_id: user.id, p_session_id: sessionId })
+  if (vigente.error || vigente.data !== true) throw new AvisoAdmin(NO_DISPONIBLE)
+  return { user, sessionId, accessToken: session.access_token }
+}
 
 function avisoBaseDatos(error: { code?: string; message?: string }, alternativa: string): never {
   // Only our database validation errors are appropriate to show to an operator.
@@ -176,34 +220,66 @@ export async function consultarInvitacionAdmin(id: string, token: string) {
   return { nombre: String(data.nombre), email: String(data.email), proposito: data.proposito as PropositoInvitacion }
 }
 
+/** The consumed link can resume only in the same verified, live Auth session. */
+export async function consultarInvitacionPendiente(id: string) {
+  if (!z.uuid().safeParse(id).success) return null
+  const db = createAdmin()
+  if (!db) return null
+  const { data, error } = await db.from('invitaciones_admin').select('*').eq('id', id).maybeSingle<InvitacionAceptacion>()
+  if (error || !disponible(data)) return null
+  const supabase = await createClient()
+  let sesion
+  try { sesion = await retomarInvitacion(db, supabase, data) } catch (error) {
+    if (error instanceof AvisoAdmin) return null
+    throw error
+  }
+  if (await requiereSegundoFactor(supabase, sesion.user)) redirect(rutaSegundoFactor(rutaRetomarInvitacion(id)))
+  return { nombre: data.nombre, email: data.email, proposito: data.proposito }
+}
+
 export async function aceptarInvitacionAdmin(input: { id: string; token: string; clave: string; confirmacion: string }) {
   const parsed = schemaEnlace.extend({
+    token: z.string().max(2048), // Empty only when resuming a server-bound session.
     clave: z.string().min(8).max(72).regex(/[a-zA-Z]/).regex(/[0-9]/), confirmacion: z.string(),
   }).refine((v) => v.clave === v.confirmacion).safeParse(input)
   if (!parsed.success) throw new AvisoAdmin('Revise el enlace y use una clave de 8 a 72 caracteres, con letras y números. Las claves deben coincidir.')
   const db = createAdmin()
   if (!db) throw new SinClaveAdmin()
-  const huella = digest(parsed.data.token)
-  const { data: invitacion, error } = await db.from('invitaciones_admin')
-    .select('auth_user_id,email,tipo,proposito,aceptada_en,revocada_en,vence_en')
-    .eq('id', parsed.data.id).eq('token_digest', huella).maybeSingle()
-  if (error || !invitacion || invitacion.aceptada_en || invitacion.revocada_en || Date.parse(invitacion.vence_en) <= Date.now()) throw new AvisoAdmin(NO_DISPONIBLE)
+  let consulta = db.from('invitaciones_admin').select('*').eq('id', parsed.data.id)
+  if (parsed.data.token) consulta = consulta.eq('token_digest', digest(parsed.data.token))
+  const { data: invitacion, error } = await consulta.maybeSingle<InvitacionAceptacion>()
+  if (error || !disponible(invitacion)) throw new AvisoAdmin(NO_DISPONIBLE)
   const supabase = await createClient()
-  const { data, error: errorToken } = await supabase.auth.verifyOtp({ token_hash: parsed.data.token, type: invitacion.tipo })
-  if (errorToken || !data.user || !data.session || data.user.id !== invitacion.auth_user_id || data.user.email?.toLowerCase() !== invitacion.email || !data.user.email_confirmed_at) {
-    throw new AvisoAdmin(NO_DISPONIBLE)
+  let sesion: { user: User; sessionId: string; accessToken: string }
+  if (invitacion.sesion_enlace_id) {
+    sesion = await retomarInvitacion(db, supabase, invitacion)
+  } else {
+    if (!parsed.data.token) throw new AvisoAdmin(NO_DISPONIBLE)
+    const { data, error: errorToken } = await supabase.auth.verifyOtp({ token_hash: parsed.data.token, type: invitacion.tipo })
+    if (errorToken || !data.session || !cuentaInvitada(data.user, invitacion)) throw new AvisoAdmin(NO_DISPONIBLE)
+    sesion = { user: data.user, accessToken: data.session.access_token,
+      sessionId: await sesionInvitacion(supabase, data.user, data.session.access_token) }
+  }
+  if (await requiereSegundoFactor(supabase, sesion.user)) {
+    if (!invitacion.sesion_enlace_id) {
+      const { data: guardada, error } = await db.from('invitaciones_admin')
+        .update({ sesion_enlace_id: sesion.sessionId, enlace_verificado_en: new Date().toISOString() })
+        .eq('id', parsed.data.id).eq('token_digest', invitacion.token_digest)
+        .is('sesion_enlace_id', null).is('aceptada_en', null).is('revocada_en', null)
+        .select('id').maybeSingle()
+      if (error || !guardada) throw new AvisoAdmin(NO_DISPONIBLE)
+    }
+    // Do not persist the password or carry the consumed link through redirects.
+    redirect(rutaSegundoFactor(rutaRetomarInvitacion(parsed.data.id)))
   }
   const { error: errorClave } = await supabase.auth.updateUser({ password: parsed.data.clave })
-  if (errorClave) throw new AvisoAdmin('No se pudo guardar la clave. Pida un nuevo enlace de invitación e intente de nuevo.')
-  const { data: verificada, error: errorSesion } = await supabase.auth.getClaims()
-  const sessionId = verificada?.claims.session_id
-  if (errorSesion || verificada?.claims.sub !== data.user.id || !z.uuid().safeParse(sessionId).success) throw new AvisoAdmin(NO_DISPONIBLE)
+  if (errorClave) throw new AvisoAdmin(invitacion.sesion_enlace_id ? 'No se pudo guardar la clave. Revise la clave e intente de nuevo.' : 'No se pudo guardar la clave. Pida un nuevo enlace de invitación e intente de nuevo.')
   // The admin API surfaces revocation errors instead of swallowing 401/403.
   // The database also checks auth.sessions: old JWTs alone grant no admin access.
-  const { error: errorSesiones } = await db.auth.admin.signOut(data.session.access_token, 'others')
+  const { error: errorSesiones } = await db.auth.admin.signOut(sesion.accessToken, 'others')
   if (errorSesiones) throw new AvisoAdmin('No se pudieron cerrar las otras sesiones. Pida un nuevo enlace de invitación.')
   const { error: errorAceptar } = await db.rpc('aceptar_invitacion_admin', {
-    p_id: parsed.data.id, p_auth_user_id: data.user.id, p_digest: huella, p_session_id: sessionId,
+    p_id: parsed.data.id, p_auth_user_id: sesion.user.id, p_digest: invitacion.token_digest, p_session_id: sesion.sessionId,
   })
   if (errorAceptar) throw new AvisoAdmin(NO_DISPONIBLE)
   return { proposito: invitacion.proposito as PropositoInvitacion }

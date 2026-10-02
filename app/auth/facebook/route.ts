@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { authFacebookHabilitado, origenPublico, rutaTrasFalloFacebook } from '@/lib/facebook-auth'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno } from '@/lib/util'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     if (!user) {
       return NextResponse.redirect(new URL(`/login?${new URLSearchParams({ siguiente: '/perfil' })}`, origen))
     }
+    if (await requiereSegundoFactor(supabase, user)) return NextResponse.redirect(new URL(rutaSegundoFactor('/perfil'), origen))
   }
 
   const credenciales = {

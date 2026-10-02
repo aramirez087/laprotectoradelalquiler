@@ -4,6 +4,8 @@ import { FormClave } from '@/components/form-clave'
 import { AvisoConfiguracion } from '@/components/aviso-configuracion'
 import { establecerClave } from '@/lib/actions/auth'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 export const metadata = { title: 'Nueva clave' }
 
@@ -18,6 +20,7 @@ export default async function RestablecerPage() {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (user && await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor('/restablecer'))
 
   return (
     <MarcoAcceso titulo="Elija una clave nueva" texto="Use al menos 8 caracteres, con letras y números.">

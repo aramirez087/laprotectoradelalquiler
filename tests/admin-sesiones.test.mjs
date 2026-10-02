@@ -14,7 +14,7 @@ const sessionId = 'b2222222-2222-4222-8222-222222222222'
 function dal(options = {}) {
   const calls = { claims: 0, sessions: [], onboarding: 0 }
   const profile = options.profile ?? { id: 7, nombre: 'Admin', rol: 'admin', activo: true, auth_user_id: authId, identificacion: null }
-  const user = { id: authId, email: 'account@example.test', app_metadata: { provider: options.facebook ? 'facebook' : 'email' } }
+  const user = { id: authId, email: 'account@example.test', factors: options.factors, app_metadata: { provider: options.facebook ? 'facebook' : 'email' } }
   const lookup = { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: null }) }) }) }
   async function rpc(name, parameters) {
     calls.sessions.push({ name, parameters })
@@ -52,10 +52,22 @@ function dal(options = {}) {
     '@/lib/supabase/server': { createClient: async () => supabase, sinSupabase: () => false },
   }
   vm.runInNewContext(code, {
-    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, Error, URL, Date,
+    module: mod, exports: mod.exports, require: name => mocks[name] ?? mocksCedula[name] ?? (runtimeMocks[name] ?? require(name)), console, Error, URL, URLSearchParams, Date,
   })
   return { ...mod.exports, calls }
 }
+
+test('2FA gates the DAL before privileged lookups for all roles and redirects actions to the challenge', async () => {
+  for (const rol of ['admin', 'propietario', 'agencia']) {
+    const factors = [{ id: sessionId, factor_type: 'totp', status: 'verified' }]
+    const options = { profile: { id: 7, rol, activo: true }, factors }
+    const partial = dal({ ...options, claims: { aal: 'aal1' } })
+    assert.equal(await partial.obtenerUsuario(), null)
+    assert.equal(partial.calls.sessions.length, 0)
+    await assert.rejects(partial.requireUsuario('/perfil'), error => error.path === '/login/verificar?siguiente=%2Fperfil')
+    assert.equal((await dal({ ...options, claims: { aal: 'aal2' } }).obtenerUsuario()).id, 7)
+  }
+})
 
 test('administrator DAL binds a verified token subject and session to the live server-side session', async () => {
   const h = dal()

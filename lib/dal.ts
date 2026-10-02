@@ -3,6 +3,7 @@ import 'server-only'
 import { cache } from 'react'
 import { registrarError } from '@/lib/registro-error'
 import { redirect } from 'next/navigation'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 import type { AccesoConsulta } from '@/lib/acceso-consulta'
 import { altaFacebookLista, altaFacebookPendiente } from '@/lib/facebook-alta'
 import { cuentaCreadaConFacebook, rutaAltaFacebook } from '@/lib/facebook-auth'
@@ -58,6 +59,7 @@ export const obtenerUsuario = cache(async (): Promise<Usuario | null> => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+  if (await requiereSegundoFactor(supabase, user)) return null
   const admin = createAdmin()
   if (admin) {
     const [perfil, sesionVigente] = await Promise.all([
@@ -154,6 +156,11 @@ export async function requireUsuario(siguiente = '/fichas'): Promise<Usuario> {
   const u = await obtenerUsuario()
   const destino = destinoInterno(siguiente)
   if (!u) {
+    if (!sinSupabase()) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor(destino))
+    }
     if (await altaFacebookPendiente()) redirect(rutaAltaFacebook(destino))
     redirect(`/login?${new URLSearchParams({ siguiente: destino })}`)
   }

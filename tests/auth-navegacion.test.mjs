@@ -58,10 +58,11 @@ const cacheHeaders = {
   Expires: '0', Pragma: 'no-cache',
 }
 
-function refreshProxy({ user = { id: 'user' }, facebook = false, fail = false } = {}) {
+function refreshProxy({ user = { id: 'user' }, facebook = false, fail = false, aal = 'aal1' } = {}) {
   const helper = load('lib/supabase/proxy.ts', {
     '@supabase/ssr': {
       createServerClient: (_url, _key, { cookies }) => ({ auth: {
+        getClaims: async () => ({ data: { claims: { sub: user?.id, aal } }, error: null }),
         getUser: async () => {
           assert.equal(cookies.getAll().find(c => c.name === 'sb-test-auth-token.0').value, 'old')
           cookies.setAll([
@@ -105,6 +106,23 @@ function assertRefresh(response) {
   for (const [key, value] of Object.entries(cacheHeaders)) assert.equal(response.headers.get(key), value)
   assert.ok(response.headers.get('content-security-policy').includes('nonce-'))
 }
+
+test('MFA gates private routes, password recovery and Facebook onboarding, preserving refreshed cookies', async () => {
+  const user = { id: 'user', factors: [{ id: 'factor', status: 'verified', factor_type: 'totp' }] }
+  for (const path of ['/admin', '/perfil', '/fichas?q=Ana', '/restablecer', '/registro/facebook']) {
+    const response = await refreshProxy({ user })(request(path))
+    assert.equal(response.status, 307)
+    const url = new URL(response.headers.get('location'))
+    assert.equal(url.pathname, '/login/verificar')
+    assert.equal(url.searchParams.get('siguiente'), path)
+    assertRefresh(response)
+  }
+  assert.equal((await refreshProxy({ user, aal: 'aal2' })(request('/perfil'))).status, 200)
+  assert.equal((await refreshProxy({ user, facebook: true })(request('/login/verificar'))).status, 200)
+  for (const aal of ['aal1', 'aal2']) {
+    assert.equal((await refreshProxy({ user, facebook: true, aal })(request('/invitacion/admin?id=test&continuar=1'))).status, 200, 'invitation checks must run before ordinary Facebook onboarding')
+  }
+})
 
 test('expired sessions refresh for both the browser and the current render on public and private pages', async () => {
   for (const path of ['/', '/login', '/admin', '/perfil']) {

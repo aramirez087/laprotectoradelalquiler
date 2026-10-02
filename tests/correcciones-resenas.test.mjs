@@ -172,7 +172,7 @@ test('profiles offer correction only to active authors when moderation allows it
       '@/components/form-clave': { FormClave: () => null }, '@/components/permiso-consulta': { PanelPermiso: () => null },
       '@/lib/actions/auth': { cerrarSesion: () => {} },
       '@/lib/facebook-auth': { authFacebookHabilitado: () => false, mensajeErrorFacebook: () => null },
-      '@/lib/supabase/server': { sinSupabase: () => false }, '@/lib/util': util,
+      '@/lib/supabase/server': { sinSupabase: () => false, createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { factors: [] } }, error: null }) } }) }, '@/lib/util': util,
       '@/components/avatar': { Avatar: () => null }, '@/components/icono': { Icono: () => null },
       '@/components/perfil-facebook': { PerfilFacebook: () => null },
       '@/components/form-corregir-resena': formComponent,

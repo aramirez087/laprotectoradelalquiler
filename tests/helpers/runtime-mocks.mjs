@@ -3,9 +3,12 @@ import { esOrigenPropio } from '../../lib/origen.ts'
 import { rutaDiagnostico } from '../../lib/ruta-diagnostico.ts'
 import * as busqueda from '../../lib/busqueda-fichas.ts'
 import * as diagnosticoErrorCliente from '../../lib/diagnostico-error-cliente.ts'
+import * as dosFactores from '../../lib/dos-factores.ts'
 
 // VM suites isolate framework/client boundaries; browser checks exercise their runtime.
 export const runtimeMocks = {
+  '@/lib/dos-factores': dosFactores,
+  '@/components/seguridad-dos-factores': { SeguridadDosFactores: () => null },
   '@/lib/diagnostico-error-cliente': diagnosticoErrorCliente,
   '@/lib/busqueda-fichas': busqueda,
   '@/lib/resultado-busqueda-confirmado': { confirmarResultadoBusqueda: () => null, confirmarAperturaFicha: () => null, contextoBusquedaConfirmado: () => null },

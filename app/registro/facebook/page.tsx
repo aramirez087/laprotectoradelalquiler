@@ -9,6 +9,7 @@ import { altaFacebookLista, previaAltaFacebook } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, cuentaCreadaConFacebook, esRutaDeAltaFacebook, nombreDesdeFacebook } from '@/lib/facebook-auth'
 import { createClient, sinSupabase } from '@/lib/supabase/server'
 import { destinoInterno, primer } from '@/lib/util'
+import { requiereSegundoFactor, rutaSegundoFactor } from '@/lib/dos-factores'
 
 export async function generateMetadata(): Promise<Metadata> {
   if (!authFacebookHabilitado()) return {}
@@ -26,6 +27,8 @@ export default async function RegistroFacebookPage(props: {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
   if (!cuentaCreadaConFacebook(user)) redirect('/registro')
+  // Prefetch requests can skip the proxy; protect the service-client reads here.
+  if (await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor('/registro/facebook'))
 
   const pedido = destinoInterno(primer((await props.searchParams).siguiente), '/')
   const siguiente = esRutaDeAltaFacebook(pedido.split('?')[0] ?? '') ? '/' : pedido

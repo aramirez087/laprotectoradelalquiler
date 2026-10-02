@@ -28,6 +28,10 @@ BEGIN
   RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $fn$
   DECLARE sesion text;
   BEGIN
+    -- Keep MFA enforcement when this older maintenance migration is reapplied.
+    IF to_regprocedure('privado.segundo_factor_verificado()') IS NOT NULL THEN
+      IF privado.segundo_factor_verificado() IS NOT TRUE THEN RETURN false; END IF;
+    END IF;
     sesion := coalesce(
       nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id',
       nullif(current_setting('request.jwt.claim.session_id', true), '')
@@ -72,12 +76,13 @@ BEGIN
   CREATE OR REPLACE FUNCTION privado.mi_acceso_consulta()
   RETURNS TABLE (usuario_id integer, puede_consultar boolean, aprobadas integer,
     pendientes integer, rechazadas integer, ultima_aprobacion_en timestamptz, vence_en timestamptz, motivo text)
-  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $fn$
-    SELECT a.usuario_id,
-      a.puede_consultar AND privado.sesion_administracion_actual(),
-      a.aprobadas, a.pendientes, a.rechazadas, a.ultima_aprobacion_en, a.vence_en,
-      CASE WHEN a.motivo <> 'inactiva' AND NOT privado.sesion_administracion_actual() THEN 'error' ELSE a.motivo END
+  LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+  BEGIN
+    -- RLS does not apply inside this function: do not expose even the counters.
+    IF privado.sesion_administracion_actual() IS NOT TRUE THEN RETURN; END IF;
+    RETURN QUERY SELECT a.*
     FROM public.accesos_consulta(ARRAY(SELECT u.id FROM public.usuarios u WHERE u.auth_user_id = auth.uid())) a;
+  END;
   $fn$;
 
   REVOKE ALL ON FUNCTION privado.sesion_administracion_actual(), public.mi_sesion_administracion_vigente() FROM PUBLIC;
