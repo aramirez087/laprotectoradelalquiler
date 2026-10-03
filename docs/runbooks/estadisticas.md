@@ -76,10 +76,12 @@ informes diariamente. La configuración predeterminada cierra los días a GMT−
 2 a. m. de Costa Rica; el período termina en el último día cerrado. Si cambia la zona del
 proyecto Statsig, ajuste `fechasAudiencia` y la explicación de la página juntos.
 
-Visitantes únicos usa `weekly_active_user` (7 días) o `monthly_active_user` (28 días) del
-último día, con `userID` como unidad. Nuevos visitantes usa `new_wau` o `new_mau_28d`.
+Visitantes únicos usa `wau` (7 días) o `mau_28d` (28 días) del
+último día, con `metricType: user` y `userID` como unidad. Nuevos visitantes usa `new_wau` o `new_mau_28d`.
 No se suman visitantes diarios ni variantes de unidad para calcular visitantes del período.
-La tabla diaria consulta `daily_active_user`. Los conteos de eventos usan `overall`, o
+La tabla diaria consulta `dau`. Estos son los nombres que devuelve la Console API;
+la guía de métricas usa los nombres descriptivos `daily_active_user`, `weekly_active_user`
+y `monthly_active_user`. Los conteos de eventos usan `overall`, o
 `userID` cuando `overall` no está presente; no se suman entre sí.
 
 Un guion significa «informe pendiente». Un error de servicio se muestra aparte. Los totales

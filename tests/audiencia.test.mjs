@@ -77,12 +77,13 @@ test('unique visitors use the rolling unique metric, not the sum of daily visito
   const days = dates.map(fecha => ({ fecha, valores: [
     value('site_page_view', 10, 'overall'), value('site_page_view', 10),
     value('site_session_start', 5), value('site_page_inicio', 6), value('site_source_google', 2),
-    value('daily_active_user', 3, 'userID', 'user'),
-    value('weekly_active_user', 8, 'userID', 'user'),
+    value('dau', 3, 'userID', 'user'),
+    value('wau', 8, 'userID', 'user'),
     value('new_wau', 2, 'userID', 'user'),
   ] }))
   const summary = resumirAudiencia(days, 7)
   assert.equal(summary.visitantes, 8)
+  assert.deepEqual(summary.serie.map(d => d.visitantes), Array(7).fill(3))
   assert.equal(summary.nuevos, 2)
   assert.equal(summary.vistas, 70)
   assert.equal(summary.sesiones, 35)
@@ -94,6 +95,46 @@ test('unique visitors use the rolling unique metric, not the sum of daily visito
   assert.equal(incomplete.vistas, 60)
   assert.equal(incomplete.completo, false)
   assert.equal(incomplete.serie.at(-1).vistas, null)
+})
+
+test('Console API user metrics distinguish daily, weekly and 28-day unique browser counts', () => {
+  // Use the Console API row shape; Stable IDs are disabled in the SDK.
+  const days = [
+    {fecha: '2026-09-30', valores: [
+      value('site_page_view', 33, 'overall'), value('dau', 7, 'userID', 'user'),
+    ]},
+    {fecha: '2026-10-01', valores: [
+      value('site_page_view', 116, 'overall'),
+      value('dau', 0, 'stableID', 'user'), value('dau', 54, 'userID', 'user'),
+      value('wau', 0, 'stableID', 'user'), value('wau', 60, 'userID', 'user'),
+      value('mau_28d', 75, 'userID', 'user'),
+      value('new_wau', 53, 'userID', 'user'), value('new_mau_28d', 68, 'userID', 'user'),
+    ]},
+  ]
+  const weekly = resumirAudiencia(days, 7)
+  assert.equal(weekly.visitantes, 60)
+  assert.equal(weekly.nuevos, 53)
+  assert.equal(weekly.vistas, 149)
+  assert.deepEqual(weekly.serie.map(d => d.visitantes), [7, 54])
+  const monthly = resumirAudiencia(days, 28)
+  assert.equal(monthly.visitantes, 75)
+  assert.equal(monthly.nuevos, 68)
+})
+
+test('user reports preserve missing data and explicit zeros and ignore unrelated metric types', () => {
+  const summary = resumirAudiencia([
+    {fecha: '2026-09-29', valores: null},
+    {fecha: '2026-09-30', valores: [value('site_page_view', 10), value('dau', 10)]},
+    {fecha: '2026-10-01', valores: [
+      value('site_page_view', 0), value('dau', 0, 'userID', 'user'),
+      value('wau', 12), value('wau', 0, 'userID', 'user'),
+      value('new_wau', 0, 'userID', 'user'),
+    ]},
+  ], 7)
+  assert.deepEqual(summary.serie.map(d => d.visitantes), [null, null, 0])
+  assert.equal(summary.visitantes, 0)
+  assert.equal(summary.nuevos, 0)
+  assert.equal(resumirAudiencia([{fecha: '2026-10-01', valores: [value('wau', 12)]}], 7).visitantes, null)
 })
 
 test('empty and unavailable reports remain pending instead of inventing zero visits', () => {

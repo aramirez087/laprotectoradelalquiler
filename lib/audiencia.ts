@@ -132,8 +132,9 @@ export function resumirAudiencia(dias: DiaAudiencia[], periodo: PeriodoAudiencia
     disponible: validos.length > 0,
     completo: validos.length === dias.length,
     diasDisponibles: validos.length,
-    visitantes: valorMetricas(metricasUltimo, periodo === 7 ? 'weekly_active_user' : 'monthly_active_user'),
-    nuevos: valorMetricas(metricasUltimo, periodo === 7 ? 'new_wau' : 'new_mau_28d'),
+    // Console API names differ from the long-form names in the user metrics guide.
+    visitantes: valorMetricas(metricasUltimo, periodo === 7 ? 'wau' : 'mau_28d', 'user'),
+    nuevos: valorMetricas(metricasUltimo, periodo === 7 ? 'new_wau' : 'new_mau_28d', 'user'),
     vistas: validos.length ? sumar('site_page_view') : null,
     sesiones: validos.length ? sumar('site_session_start') : null,
     paginas: lista(PAGINAS_AUDIENCIA, 'site_page_'),
@@ -143,7 +144,7 @@ export function resumirAudiencia(dias: DiaAudiencia[], periodo: PeriodoAudiencia
     guias: interacciones(METRICAS_GUIAS_AUDIENCIA),
     serie: dias.map(d => ({ fecha: d.fecha,
       vistas: d.valores ? valorMetricas(d.valores, 'site_page_view', 'event_count') : null,
-      visitantes: d.valores ? valorMetricas(d.valores, 'daily_active_user') : null,
+      visitantes: d.valores ? valorMetricas(d.valores, 'dau', 'user') : null,
     })),
   }
 }
