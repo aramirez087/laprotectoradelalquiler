@@ -32,6 +32,14 @@ export function mesDe(fecha: string) {
   return { desde: `${anio}-${mes}-01`, hasta: `${anio}-${mes}-${String(ultimo).padStart(2, '0')}` }
 }
 
+/** Semana de lunes a domingo, a partir de un día de Costa Rica. */
+export function semanaDe(fecha: string) {
+  const lunes = new Date(`${fecha}T00:00:00Z`)
+  lunes.setUTCDate(lunes.getUTCDate() - (lunes.getUTCDay() + 6) % 7)
+  const domingo = new Date(lunes.getTime() + 6 * DIA)
+  return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) }
+}
+
 export function anioDe(fecha: string) {
   const anio = fecha.slice(0, 4)
   return { desde: `${anio}-01-01`, hasta: `${anio}-12-31` }

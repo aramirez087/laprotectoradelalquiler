@@ -4,7 +4,7 @@ import { cedulaNacional, type VerificacionCedula } from '@/lib/cedula'
 import { createAdmin } from '@/lib/supabase/admin'
 import { requerirRol, historialResenas } from '@/lib/dal'
 import { mensajeAcceso, type AccesoConsulta } from '@/lib/acceso-consulta'
-import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo } from '@/lib/periodo'
+import { anioDe, esFecha, hoyCR, mesDe, rangoInclusivo, semanaDe } from '@/lib/periodo'
 import { etiquetaMotivo, normalizarCedula, palabrasBusqueda, variantesAcento } from '@/lib/util'
 import type { EstadoResena, Rol, VersionResena } from '@/lib/tipos'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -752,6 +752,7 @@ export function atajosPeriodo() {
   const hoy = hoyCR()
   return {
     hoy: { desde: hoy, hasta: hoy },
+    semana: semanaDe(hoy),
     mes: mesDe(hoy),
     anio: anioDe(hoy),
   }

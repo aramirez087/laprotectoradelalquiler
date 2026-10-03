@@ -1479,6 +1479,168 @@ fieldset {
   }
 }
 
+/* Report controls keep the applied period visible and custom dates secondary. */
+.pagina-reportes {
+  max-width: 64rem;
+}
+.filtros-reporte {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--card);
+  padding: 1.25rem;
+}
+.periodos-reporte {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+  margin-top: 1rem;
+  padding: 0.375rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--paper);
+}
+.periodo-reporte {
+  position: relative;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+.periodo-reporte-contenido {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.periodo-reporte-indicador {
+  display: inline-flex;
+  width: 0.875rem;
+  flex-shrink: 0;
+  justify-content: center;
+}
+.periodo-reporte:hover {
+  color: var(--ink);
+  background: var(--seal-soft);
+}
+.periodo-reporte[aria-current] {
+  color: var(--boton-ink);
+  background: var(--boton);
+}
+.periodo-reporte:has([data-cargando='true']) {
+  border-color: var(--seal);
+  color: var(--seal);
+  background: var(--seal-soft);
+}
+.rango-reporte {
+  position: relative;
+  display: flex;
+  min-height: 6rem;
+  align-items: center;
+  gap: 0.875rem;
+  padding-block: 1.25rem;
+}
+.rango-reporte > svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  color: var(--seal);
+}
+.fechas-reporte {
+  border-top: 1px solid var(--line);
+  padding-top: 0.3rem;
+}
+.fechas-reporte-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 1rem 0.75rem;
+}
+.fechas-reporte-campos > button {
+  grid-column: 1 / -1;
+  min-height: 3rem;
+}
+.fechas-reporte input[type='date'] {
+  appearance: none;
+  min-width: 0;
+  padding-inline: 0.5rem;
+}
+.fechas-reporte input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
+.reporte-cargando {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--seal);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.filtros-reporte:has([data-cargando='true'], [aria-busy='true']) .rango-reporte > :is(svg, div) {
+  visibility: hidden;
+}
+.filtros-reporte:has([data-cargando='true'], [aria-busy='true']) .reporte-cargando {
+  display: flex;
+}
+.pagina-reportes:has(.filtros-reporte [data-cargando='true'], .filtros-reporte [aria-busy='true']) .resultados-reporte {
+  opacity: 0.5;
+}
+.resumen-reporte {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding-block: 0.5rem;
+}
+.descarga-reporte {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.reporte-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px dashed var(--control-line);
+  border-radius: 1rem;
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+}
+@media (min-width: 640px) {
+  .filtros-reporte {
+    padding: 1.5rem;
+  }
+  .periodos-reporte {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .fechas-reporte-campos {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .fechas-reporte-campos > button {
+    grid-column: auto;
+  }
+  .descarga-reporte {
+    align-items: flex-end;
+  }
+}
+@media (max-width: 359px) {
+  .filtros-reporte {
+    padding: 1rem;
+  }
+  .fechas-reporte-campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Account administration keeps the overview compact and editing deliberate. */
 .detalles-admin > summary {
   display: flex;
