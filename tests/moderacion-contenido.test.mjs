@@ -88,6 +88,19 @@ test('safe rental complaints send complete persisted text only, with a bounded s
   assert.equal(request.body.includes('synthetic-server-key'), false)
 })
 
+test('names in shared experiences reach the model with an explicit exception to personal-data moderation', async () => {
+  const api = classifier()
+  const comment = 'Juan Carlos Pérez alquiló la vivienda. María Rodríguez estuvo presente en la entrega y acordamos reparar los daños.'
+  const damage = 'Pedro Jiménez revisó la puerta y recomendó cambiar la cerradura.'
+  assert.equal((await api.moderate(comment, damage)).decision, 'segura')
+  assert.equal(api.calls.length, 1)
+  const messages = JSON.parse(api.calls[0].body).messages
+  assert.deepEqual(JSON.parse(messages[1].content), { comentario: comment, detalleDano: damage })
+  assert.ok(messages[0].content.includes('«Experiencia compartida» es el relato de la reseña'))
+  assert.ok(messages[0].content.includes('sean del inquilino o de otras personas'))
+  assert.ok(messages[0].content.includes('Los nombres y apellidos por sí solos NO pertenecen a esta categoría'))
+})
+
 test('unsafe, ambiguous and out-of-context classifications stay queued for a human', async () => {
   for (const [categories, reason] of [
     [['sexual_explicito'], 'contenido_sensible'],
@@ -107,7 +120,7 @@ test('unsafe, ambiguous and out-of-context classifications stay queued for a hum
 })
 
 test('emails, documents and contact numbers are not sent to the provider or copied into results', async () => {
-  for (const privateText of ['su correo es inquilino@example.test', 'documento 102340567',
+  for (const privateText of ['Juan Pérez, su correo es inquilino@example.test', 'documento 102340567',
     'cédula: 1-0234-0567', 'WhatsApp: +506 8888 1111', 'pasaporte: AB123CD45',
     'documento: 123456', 'celular 88881111']) {
     const api = classifier()

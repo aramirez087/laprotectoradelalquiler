@@ -25,7 +25,9 @@ El modelo está fijado en `openai/gpt-oss-120b`, un modelo de producción con JS
 
 Una queja negativa puede ser apta para publicación. Morosidad, daños y disputas no son NSFW por sí solos. Relatos sobrios de amenazas recibidas, violencia, acoso o consumo de drogas no se rechazan automáticamente por mencionar esos temas.
 
-Van a revisión humana contenido sexual explícito, sexualización de menores, violencia gráfica, odio o amenazas del autor, datos personales dentro del relato, órdenes para manipular la moderación, spam, texto sin una experiencia de alquiler y casos inciertos. Revisión humana no equivale a rechazo: la administración conserva la decisión final.
+Van a revisión humana contenido sexual explícito, sexualización de menores, violencia gráfica, odio o amenazas del autor, documentos de identidad, teléfonos, correos, datos bancarios, direcciones exactas y otros identificadores privados dentro del relato, órdenes para manipular la moderación, spam, texto sin una experiencia de alquiler y casos inciertos. Revisión humana no equivale a rechazo: la administración conserva la decisión final.
+
+«Experiencia compartida» es el relato de la reseña. Los nombres y apellidos mencionados en el comentario o detalle de daños están permitidos, tanto del inquilino como de otras personas que aparecen en la experiencia. Un nombre por sí solo no activa `datos_personales` ni `incierto`; otros datos privados que lo acompañen sí requieren revisión. Esta aclaración conserva el contrato de política `resenas-v1` de Postgres.
 
 El contrato admite únicamente `segura` con categorías vacías o `revision` con alguna categoría conocida. No solicita porcentajes de confianza ni conserva explicaciones o citas del modelo. La salida estructurada reduce errores de formato; no garantiza precisión de clasificación.
 
@@ -47,7 +49,7 @@ La evidencia privada conserva resultado, motivos, categorías, modelo, política
 
 Ejecute `node --test tests/moderacion-contenido.test.mjs`. Las pruebas usan respuestas sintéticas y verifican límites, datos enviados, privacidad, plazo y fallos. No miden la precisión real del modelo.
 
-Con credenciales válidas, ejecute `node scripts/probar-moderacion-groq.mjs --ejecutar`. El script clasifica doce casos sintéticos y no lee ni modifica reseñas, usuarios o datos del padrón. Activa la evaluación únicamente en un módulo aislado; no modifica variables, archivos ni la configuración de la aplicación. Imprime etiquetas y resultados, sin relato ni credenciales. Sale con error ante un desacuerdo con las expectativas o un fallo del proveedor. Ajuste `--pausa-ms=10000` si la cuota de la organización exige espaciar llamadas. La suite es una comprobación funcional pequeña; no prueba precisión universal.
+Con credenciales válidas, ejecute `node scripts/probar-moderacion-groq.mjs --ejecutar`. El script clasifica dieciséis casos sintéticos, incluidos nombres permitidos y nombres acompañados de datos privados, y no lee ni modifica reseñas, usuarios o datos del padrón. Activa la evaluación únicamente en un módulo aislado; no modifica variables, archivos ni la configuración de la aplicación. Imprime etiquetas y resultados, sin relato ni credenciales. Sale con error ante un desacuerdo con las expectativas o un fallo del proveedor. Ajuste `--pausa-ms=10000` si la cuota de la organización exige espaciar llamadas. La suite es una comprobación funcional pequeña; no prueba precisión universal.
 
 Antes de ampliar la activación, evalúe una colección sintética etiquetada por personas que incluya español de Costa Rica, quejas legítimas, acoso sin detalles gráficos, material explícito, ambigüedad y manipulación. Revise especialmente aprobaciones incorrectas. Nunca envíe datos reales como pruebas. Cambios del modelo o de política requieren repetir la evaluación.
 
