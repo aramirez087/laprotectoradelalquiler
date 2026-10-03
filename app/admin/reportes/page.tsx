@@ -49,7 +49,7 @@ export default async function ReportesPage(props: { searchParams: Promise<Record
     <div className="contenedor pagina-reportes space-y-7">
       <CabeceraAdmin titulo="Reportes" descripcion="Explore las reseñas por fecha y descargue el reporte que necesita." />
       <FiltrosReporte desde={desde} hasta={hasta} periodos={periodos} intervalo={intervalo} />
-      {aviso ? <section className="expediente space-y-4 border-alerta" aria-labelledby="reporte-error">
+      {aviso ? <section className="expediente reporte-error space-y-4" aria-labelledby="reporte-error">
         <div role="alert"><h2 id="reporte-error" className="text-lg">No pudimos completar el reporte</h2><p className="mt-2 text-sm text-ink-soft">{aviso}</p></div>
         <a className="btn-secundario" href={hrefReporte(desde, hasta, pagina)}>Volver a intentar</a>
       </section> : <section className="resultados-reporte space-y-5" aria-labelledby="resultados-reporte-titulo">

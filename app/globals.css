@@ -1482,6 +1482,7 @@ fieldset {
 /* Report controls keep the applied period visible and custom dates secondary. */
 .pagina-reportes {
   max-width: 64rem;
+  padding-top: 2rem;
 }
 .filtros-reporte {
   border: 1px solid var(--line);
@@ -1593,12 +1594,20 @@ fieldset {
   opacity: 0.5;
 }
 .resumen-reporte {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
-  gap: 1.25rem;
+  gap: 1rem;
   padding-block: 0.5rem;
+}
+.detalle-resena-reporte > .expediente {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.expediente.reporte-error {
+  border-color: var(--alerta);
 }
 .descarga-reporte {
   display: flex;
@@ -1637,6 +1646,9 @@ fieldset {
     padding: 1rem;
   }
   .fechas-reporte-campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resumen-reporte {
     grid-template-columns: minmax(0, 1fr);
   }
 }

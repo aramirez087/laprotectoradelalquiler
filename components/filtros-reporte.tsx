@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useRef, useState, useTransition, type FormEvent, type Ref } from 'react'
+import { useEffect, useRef, useState, useTransition, type FormEvent, type Ref } from 'react'
 
 type Periodo = { etiqueta: string; desde: string; hasta: string; href: string }
 
@@ -17,13 +17,15 @@ function EtiquetaPeriodo({ etiqueta, activo }: { etiqueta: string; activo: boole
   </span>
 }
 
-function FechasReporte({ desde, hasta, ref }: { desde: string; hasta: string; ref: Ref<HTMLFormElement> }) {
-  const router = useRouter()
-  const [pendiente, startTransition] = useTransition()
+function FechasReporte({ desde, hasta, ref, pendiente, onAplicar }: {
+  desde: string; hasta: string; ref: Ref<HTMLFormElement>; pendiente: boolean
+  onAplicar: (desde: string, hasta: string) => void
+}) {
   const [error, setError] = useState<string | null>(null)
 
   function aplicar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (pendiente) return
     const form = event.currentTarget
     const datos = new FormData(form)
     const inicio = String(datos.get('desde') ?? '')
@@ -35,9 +37,7 @@ function FechasReporte({ desde, hasta, ref }: { desde: string; hasta: string; re
       return
     }
     setError(null)
-    startTransition(() => {
-      router.push(`/admin/reportes?${new URLSearchParams({ desde: inicio, hasta: fin })}`, { scroll: false })
-    })
+    onAplicar(inicio, fin)
   }
 
   return <form ref={ref} action="/admin/reportes" method="GET" onSubmit={aplicar}
@@ -66,7 +66,25 @@ export function FiltrosReporte({ desde, hasta, periodos, intervalo }: {
   desde: string; hasta: string; periodos: Periodo[]; intervalo: string
 }) {
   const form = useRef<HTMLFormElement>(null)
+  const rango = useRef<HTMLParagraphElement>(null)
+  const enfocarRango = useRef(false)
+  const router = useRouter()
+  const [pendiente, startTransition] = useTransition()
   const seleccionado = periodos.find(periodo => periodo.desde === desde && periodo.hasta === hasta)
+
+  useEffect(() => {
+    if (!pendiente && enfocarRango.current) {
+      enfocarRango.current = false
+      rango.current?.focus({ preventScroll: true })
+    }
+  }, [pendiente])
+
+  function aplicarFechas(inicio: string, fin: string) {
+    enfocarRango.current = true
+    startTransition(() => {
+      router.push(`/admin/reportes?${new URLSearchParams({ desde: inicio, hasta: fin })}`, { scroll: false })
+    })
+  }
 
   return <section className="filtros-reporte" aria-labelledby="periodo-reporte-titulo">
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -75,7 +93,7 @@ export function FiltrosReporte({ desde, hasta, periodos, intervalo }: {
     </div>
     <nav className="periodos-reporte" aria-label="Períodos del reporte">
       {periodos.map(periodo => <Link key={periodo.etiqueta} href={periodo.href} scroll={false}
-        onNavigate={() => form.current?.reset()} className="periodo-reporte"
+        onNavigate={() => { enfocarRango.current = false; form.current?.reset() }} className="periodo-reporte"
         aria-current={seleccionado === periodo ? 'date' : undefined}>
         <EtiquetaPeriodo etiqueta={periodo.etiqueta} activo={seleccionado === periodo} />
       </Link>)}
@@ -86,13 +104,13 @@ export function FiltrosReporte({ desde, hasta, periodos, intervalo }: {
       </svg>
       <div className="min-w-0">
         <p className="text-xs font-medium text-ink-soft">{seleccionado?.etiqueta ?? 'Fechas personalizadas'}</p>
-        <p className="mt-1 font-medium leading-snug">{intervalo}</p>
+        <p ref={rango} tabIndex={-1} className="mt-1 font-medium leading-snug" aria-label={`Período aplicado: ${intervalo}`}>{intervalo}</p>
       </div>
       <p className="reporte-cargando" role="status"><span className="rueda-carga" aria-hidden="true" />Actualizando reporte…</p>
     </div>
     <details key={`${desde}-${hasta}`} className="fechas-reporte detalles-admin" open={!seleccionado}>
       <summary><span>Elegir otras fechas</span><span className="indicador-admin" aria-hidden="true">⌄</span></summary>
-      <div className="pb-1 pt-3"><FechasReporte ref={form} desde={desde} hasta={hasta} /></div>
+      <div className="pb-1 pt-3"><FechasReporte ref={form} desde={desde} hasta={hasta} pendiente={pendiente} onAplicar={aplicarFechas} /></div>
     </details>
   </section>
 }

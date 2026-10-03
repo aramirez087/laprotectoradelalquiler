@@ -42,7 +42,7 @@ export function ResenaReporte({ fila }: { fila: FilaAdminResena }) {
           <span>Ver reseña y opciones <span className="sr-only">de {nombre}, reseña {fila.id}</span></span>
           <span className="indicador-admin" aria-hidden="true">⌄</span>
         </summary>
-        <div className="border-t border-line [&>article]:rounded-none [&>article]:border-0 [&>article]:bg-transparent">
+        <div className="detalle-resena-reporte border-t border-line">
           <ResenaAdmin fila={fila} nivelTitulo={3} />
         </div>
       </details>
