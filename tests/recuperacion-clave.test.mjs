@@ -7,6 +7,7 @@ import vm from 'node:vm'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
+const util = require('../lib/util.ts')
 const code = ts.transpileModule(readFileSync('lib/actions/auth.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
@@ -17,6 +18,7 @@ function recovery(options = {}) {
   const mocks = {
     'next/headers': { headers: async () => new Headers(options.headers ?? { host: 'www.protectoradelalquiler.com' }) },
     'next/navigation': { unstable_rethrow: error => { if (error?.framework) throw error } },
+    '@/lib/util': util,
     '@/lib/supabase/admin': { createAdmin: () => { throw new Error('Recovery must not look up account existence') } },
     '@/lib/supabase/server': {
       sinSupabase: () => false,
@@ -33,10 +35,12 @@ function recovery(options = {}) {
     module: mod, exports: mod.exports,
     require: name => name in mocks ? mocks[name] : name.startsWith('@/') ? {} : (runtimeMocks[name] ?? require(name)),
     console: { error: (...args) => logs.push(JSON.parse(JSON.stringify(args))) },
+    URL, URLSearchParams,
   })
-  const submit = async (email = 'account@example.test') => {
+  const submit = async (email = 'account@example.test', siguiente) => {
     const data = new FormData()
     if (email !== undefined) data.set('email', email)
+    if (siguiente !== undefined) data.set('siguiente', siguiente)
     return mod.exports.solicitarRecuperacion(undefined, data)
   }
   return { submit, calls, logs }
@@ -144,4 +148,18 @@ test('Next framework interrupts are rethrown before recovery error handling', as
   const h = recovery({ thrown: interrupt })
   await assert.rejects(h.submit(), error => error === interrupt)
   assert.equal(h.logs.length, 0)
+})
+
+test('recovery preserves a review destination without allowing an external return URL', async () => {
+  const h = recovery()
+  await h.submit('account@example.test', '/resenas/nueva?ficha=27')
+  const callback = new URL(h.calls[0].parameters.redirectTo)
+  assert.equal(callback.pathname, '/auth/confirmar')
+  assert.equal(callback.searchParams.get('next'), '/restablecer')
+  assert.equal(callback.searchParams.get('siguiente'), '/resenas/nueva?ficha=27')
+  for (const siguiente of ['https://evil.test', '//evil.test', '/\\evil.test', '/perfil\nsecret']) {
+    const unsafe = recovery()
+    await unsafe.submit('account@example.test', siguiente)
+    assert.equal(new URL(unsafe.calls[0].parameters.redirectTo).searchParams.get('siguiente'), null)
+  }
 })

@@ -5,13 +5,49 @@
 En Supabase → Authentication → URL Configuration, el proyecto utilizado por la aplicación debe tener:
 
 - **Site URL:** `https://www.protectoradelalquiler.com`
-- **Redirect URLs:** `https://www.protectoradelalquiler.com/auth/confirmar?next=/restablecer`
+- **Redirect URLs:** `https://www.protectoradelalquiler.com/auth/confirmar?next=/restablecer` y `https://www.protectoradelalquiler.com/auth/confirmar?next=/registro/resena`.
 
 Conserve las otras rutas de retorno que utilice el proyecto. La aplicación solicita el callback anterior desde el origen público de la petición. El dominio sin `www` redirige al dominio con `www` en producción. Autorice por separado las rutas concretas de desarrollo o pruebas que realmente se usen; no amplíe la configuración de producción a dominios ajenos.
 
-Revise también Authentication → Emails → Reset Password. La plantilla debe conservar el enlace de verificación de Supabase (`{{ .ConfirmationURL }}`), o una plantilla de `TokenHash` configurada expresamente para el callback de la aplicación. No construya el enlace de recuperación con una URL `localhost` ni con la página de inicio. Cambiar únicamente el texto visible del enlace no cambia su destino.
+En Authentication → Emails, copie las plantillas versionadas:
 
-Una vez corregida la configuración, solicite **un enlace nuevo desde `/recuperar` en producción** y ábralo en el mismo navegador que hizo la solicitud. El flujo PKCE necesita las cookies de esa solicitud. Verifique que pasa por `/auth/confirmar` y muestra `/restablecer`; no pruebe modificando manualmente un enlace antiguo ni copie códigos de recuperación en registros o tickets.
+- **Reset Password:** `emails/supabase/reset-password.html`.
+- **Confirm Sign Up:** `emails/supabase/confirm-sign-up.html`.
+
+Estas plantillas usan `{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery` y `type=signup`, respectivamente. El servidor valida el token y guarda la sesión antes de mostrar la pantalla siguiente. No dependen de cookies del navegador que solicitó el mensaje, por lo que pueden abrirse desde el teléfono, otro navegador u otro dispositivo. La configuración de **Site URL** debe apuntar al origen HTTPS de la aplicación. No construya el enlace con `localhost` ni con la página de inicio. Cambiar únicamente el texto visible del enlace no cambia su destino.
+
+La aplicación conserva compatibilidad con enlaces anteriores de `{{ .ConfirmationURL }}`: intercepta códigos que llegan al inicio antes de que el perfil redirija a otra pantalla, reconoce el tipo de recuperación PKCE y procesa los tokens del fragmento en el navegador. Un enlace PKCE anterior todavía necesita el navegador que inició la solicitud; si no puede verificarse, se ofrece pedir otro enlace. Un error de confirmación de correo ofrece reenviar esa confirmación en `/login`; no manda al usuario a recuperar una clave.
+
+Una vez desplegado el código y actualizadas las dos plantillas, solicite **un enlace nuevo desde `/recuperar` en producción**. Verifique que pasa por `/auth/confirmar`, muestra `/restablecer` con el correo de la cuenta, permite guardar la clave y ofrece **Continuar con mi cuenta**. Repita abriendo un enlace nuevo en otro navegador. Un enlace vencido o reutilizado debe ofrecer una nueva solicitud. No copie códigos de recuperación en registros o tickets ni modifique manualmente un enlace antiguo.
+
+Para reconstruir los archivos HTML y `emails/supabase/config.json`, ejecute `node --experimental-strip-types scripts/generar-plantillas-correo.mjs`. Generar estos archivos no cambia Supabase ni envía correos; publicar el sitio tampoco instala las plantillas. Al usar la API de administración de Supabase, aplique únicamente las claves `mailer_subjects_recovery`, `mailer_templates_recovery_content`, `mailer_subjects_confirmation` y `mailer_templates_confirmation_content` del archivo generado, conservando las otras plantillas y la configuración SMTP.
+
+## Comprobación de acceso y registro
+
+- En móvil, el inicio ofrece **Crear una cuenta** y **Ya tiene cuenta: iniciar sesión** sin abrir el menú.
+- Login, registro y recuperación conservan el correo al cambiar de pantalla. Los retornos internos de login y recuperación rechazan URLs externas.
+- Una cuenta existente ofrece iniciar sesión o recuperar la clave; un correo pendiente de confirmar ofrece reenviar la confirmación.
+- Tras solicitar recuperación o confirmación se indica revisar la bandeja y el correo no deseado. Un segundo envío al mismo correo espera un minuto.
+- Guardar una clave nueva muestra una confirmación explícita y continúa con el perfil: las cuentas que necesitan completar su primera reseña reciben ese paso.
+- Facebook pendiente de completar perfil no bloquea recuperar la clave. La verificación en dos pasos sigue siendo necesaria cuando la cuenta la tiene habilitada.
+
+### Validación local — 4 de octubre de 2026
+
+Pasaron 428 pruebas de Node, TypeScript, ESLint sin errores y el build de producción con Webpack. La revisión inicial en navegador pasó 128 comprobaciones con anchos de 320, 390, 768 y 1440 píxeles, incluidas respuestas simuladas de login, registro, recuperación y reenvío de confirmación. Se comprobaron errores, conservación de datos, espera de reenvío, anuncios accesibles y estados de éxito. Las pruebas de callbacks validaron la sesión, el tipo de recuperación, el segundo factor y retornos seguros con clientes de Auth simulados.
+
+La segunda revisión de UX da prioridad al reenvío de confirmación cuando el enlace vence, sin mostrar a la vez el formulario de clave ni la creación de cuenta. Reduce la introducción del registro, coloca los accesos para cuentas existentes antes de los campos y muestra el reenvío posterior al registro dentro de «No recibí el mensaje». También elimina instrucciones repetidas tras solicitar recuperación. Las pruebas automatizadas verifican comportamiento; no sustituyen observar a una persona completar estas tareas.
+
+Esta verificación no envió correos reales, no cambió claves de cuentas ni desplegó el sitio o las plantillas en Supabase. La entrega del correo y la recuperación entre dispositivos deben verificarse después de publicar ambos cambios.
+
+### Publicación y comprobación en producción — 4 de octubre de 2026
+
+Se publicó `dpl_2oEEZVcE4dkebki2wnEZUe3GhMbY` (`https://laprotectoradelalquiler-ggif81de7.vercel.app`) después de verificar un despliegue con dominios sin asignar. El build remoto de Next.js con Turbopack pasó. El despliegue anterior, para referencia de reversión, es `dpl_AcnfVwi5HsEaazn5C3R1NqXdPZXn`.
+
+El proyecto de Supabase de producción es `lqbsuawemfhqwvomputz`, recurso `supabase-byzantine-ocean` de la integración de Vercel. No debe confundirse con el proyecto inactivo que aparece en la sesión independiente del CLI de Supabase. Se comprobaron y guardaron las dos plantillas HTML anteriores mediante el dashboard de ese proyecto, conservando los asuntos existentes. Una lectura posterior a recargar confirmó las tres apariciones de `type=recovery` y `type=signup` en sus respectivas plantillas. El Site URL ya era correcto; se conservó el retorno de recuperación y se añadió el retorno exacto de registro indicado al principio del documento.
+
+La comprobación pública confirmó la nueva navegación y respuestas HTTP 307 desde el inicio con un código ficticio hacia `/auth/confirmar`. Los tokens ficticios de recuperación y registro terminaron en `/recuperar?error=enlace` y `/login?error=confirmacion`, respectivamente, con `no-store` y `no-referrer`. Las pantallas de error devolvieron 200 con sus acciones de nuevo enlace. La consulta de errores del nuevo despliegue no devolvió entradas durante la comprobación inicial.
+
+Se solicitó un único correo de recuperación real para la dirección de prueba autorizada por el propietario. La interfaz confirmó la recepción de la solicitud. Queda pendiente que el propietario confirme la entrega, abra el enlace en otro navegador o dispositivo y complete personalmente el cambio de contraseña. La respuesta pública de solicitud recibida no acredita entrega del correo ni la existencia de una cuenta.
 
 ## Cuando el correo no llega
 

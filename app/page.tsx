@@ -47,13 +47,16 @@ export default async function HomePage() {
           <CabeceraInicio />
           <div className="acciones-inicio mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             <Link href="/registro" className="btn-primario">
-              Unirme a La Protectora <Icono nombre="flecha" className="h-4 w-4 shrink-0" />
+              Crear una cuenta <Icono nombre="flecha" className="h-4 w-4 shrink-0" />
             </Link>
             <Link href="/ejemplo" className="btn-secundario" data-evento-publico="inicio_ejemplo">
               Ver una consulta de ejemplo
             </Link>
           </div>
           <p className="mt-3 text-xs text-ink-soft">Explore el ejemplo ficticio sin registrarse.</p>
+          <p className="mt-3 text-sm text-ink-soft">
+            ¿Ya tiene cuenta?{' '}<a href="/login" className="enlace-texto font-semibold">Iniciar sesión</a>{' '}·{' '}<Link href="/recuperar" className="enlace-texto font-semibold">Recuperar mi clave</Link>
+          </p>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-ink-soft">
             Su primera reseña aprobada le da <strong className="font-medium text-ink">3 meses de consultas gratis.</strong>
           </p>

@@ -14,17 +14,17 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText
-  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)), console }, { filename: file })
+  vm.runInNewContext(code, { module: mod, exports: mod.exports, require: name => mocks[name] ?? (runtimeMocks[name] ?? require(name)), console, URLSearchParams }, { filename: file })
   return mod.exports
 }
-function render({ estado, pendiente = false } = {}) {
+function render({ estado, pendiente = false, props = {} } = {}) {
   const { RecuperarForm } = load('components/recuperar-form.tsx', {
     '@/components/use-form-action': { useFormAction: () => ({ estado, pendiente, formProps: { onSubmit() {}, 'aria-busy': pendiente } }) },
     '@/lib/actions/auth': { solicitarRecuperacion: async () => { throw new Error('Tests must not send recovery requests') } },
     '@/components/mensaje-form': load('components/mensaje-form.tsx'),
     '@/components/enlace': ({ href, children, ...props }) => createElement('a', { href, ...props }, children),
   })
-  return renderToStaticMarkup(createElement(RecuperarForm))
+  return renderToStaticMarkup(createElement(RecuperarForm, props))
 }
 
 test('successful recovery response retains an editable email and retry/correction actions', () => {
@@ -34,21 +34,29 @@ test('successful recovery response retains an editable email and retry/correctio
   assert.match(html, /Corregir correo/)
   assert.match(html, /role="status" tabindex="-1"/)
   assert.match(html, /No recibí el mensaje/)
-  assert.match(html, /Revise su correo/)
+  assert.match(html, /Revise también el correo no deseado/)
   assert.match(html, /correo no deseado/)
   assert.match(html, /Si recibe varios mensajes/)
-  assert.match(html, /Si recibe el mensaje/)
-  assert.match(html, /este mismo navegador/)
-  assert.match(html, /Elija una clave nueva para continuar con su cuenta/)
+  assert.match(html, /enlace de recuperación más reciente/)
+  assert.ok(!html.includes('mismo navegador'))
+  assert.match(html, /para elegir una clave nueva/)
+  assert.ok(!html.includes('<ol'), 'success guidance does not repeat the same instructions as a numbered list')
   assert.ok(!html.includes('vuelva a iniciar sesión'))
   assert.ok(!html.includes('Le enviamos'))
   assert.match(html, /href="\/login"/)
 })
 
+test('recovery preserves the email and original destination on return to login', () => {
+  const html = render({ props: { correo: 'persona@example.com', siguiente: '/resenas/nueva?ficha=123' } })
+  assert.match(html, /name="email"[^>]*value="persona@example.com"/)
+  assert.match(html, /name="siguiente" value="\/resenas\/nueva\?ficha=123"/)
+  assert.match(html, /href="\/login\?siguiente=%2Fresenas%2Fnueva%3Fficha%3D123&amp;correo=persona%40example.com"/)
+})
+
 test('pending recovery disables email editing and submission without repeating old success', () => {
   const html = render({ pendiente: true, estado: { mensaje: 'Respuesta anterior' } })
   assert.match(html, /<input(?=[^>]*name="email")(?=[^>]*disabled="")[^>]*>/)
-  assert.match(html, /<button disabled=""/)
+  assert.match(html, /<button[^>]*disabled=""/)
   assert.match(html, /Solicitando enlace…/)
   assert.match(html, /aria-busy="true"/)
   assert.ok(!html.includes('Respuesta anterior'))

@@ -92,7 +92,7 @@ export function Nav({
             Iniciar sesión
           </a>
           <Link href="/registro" aria-current={actual('/registro')} className={`${clase('/registro')} acceso-nav`}>
-            Registrarse
+            Crear cuenta
           </Link>
         </>
       )}

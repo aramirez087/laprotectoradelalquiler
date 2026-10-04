@@ -6,9 +6,9 @@ import { useFormAction } from '@/components/use-form-action'
 import { solicitarRecuperacion } from '@/lib/actions/auth'
 import { MensajeForm } from '@/components/mensaje-form'
 
-export function RecuperarForm() {
-  const [correo, setCorreo] = useState('')
-  const [correoSolicitado, setCorreoSolicitado] = useState('')
+export function RecuperarForm({ correo: correoInicial = '', siguiente = '/' }: { correo?: string; siguiente?: string }) {
+  const [correo, setCorreo] = useState(correoInicial)
+  const [correoSolicitado, setCorreoSolicitado] = useState(correoInicial)
   const [reintentoDesde, setReintentoDesde] = useState(0)
   const correoInput = useRef<HTMLInputElement>(null)
   const { estado, pendiente, formProps } = useFormAction(async (anterior, datos) => {
@@ -25,6 +25,10 @@ export function RecuperarForm() {
   const resultado = mismaDireccion && !pendiente ? estado : undefined
   const solicitudRecibida = !pendiente && mismaDireccion && Boolean(estado?.mensaje) && !estado?.error
   const esperandoReintento = mismaDireccion && reintentoDesde > 0
+  const parametros = new URLSearchParams()
+  if (siguiente !== '/') parametros.set('siguiente', siguiente)
+  if (correo.trim()) parametros.set('correo', correo.trim())
+  const login = `/login${parametros.size ? `?${parametros}` : ''}`
 
   useEffect(() => {
     if (!reintentoDesde) return
@@ -45,6 +49,7 @@ export function RecuperarForm() {
       }
       formProps.onSubmit(event)
     }} className="space-y-4">
+      <input type="hidden" name="siguiente" value={siguiente} />
       <div>
         <label className="etiqueta-campo" htmlFor="recuperacion-email">
           Correo electrónico de su cuenta
@@ -67,28 +72,20 @@ export function RecuperarForm() {
           className="campo"
           placeholder="usted@correo.com"
         />
-        <p id="recuperacion-email-ayuda" className="mt-2 text-xs leading-6 text-ink-soft">
+        <p id="recuperacion-email-ayuda" hidden={solicitudRecibida} className="mt-2 text-xs leading-6 text-ink-soft">
           Compruebe que sea el correo que utilizó para crear su cuenta.
         </p>
       </div>
       <MensajeForm error={resultado?.error} mensaje={resultado?.mensaje} />
       {solicitudRecibida ? (
         <>
-          <section className="space-y-3" aria-labelledby="recuperacion-pasos-titulo">
-            <h2 id="recuperacion-pasos-titulo" className="text-base font-medium">Revise su correo</h2>
-            {correoSolicitado && <p className="text-sm leading-6 text-ink-soft">Correo de la solicitud: <strong className="break-all font-medium text-ink">{correoSolicitado}</strong>.</p>}
-            <ol className="list-decimal space-y-2 pl-5 text-sm leading-6 text-ink-soft">
-              <li>Espere unos minutos y revise su bandeja de entrada y el correo no deseado.</li>
-              <li>Si recibe el mensaje, abra el enlace en este mismo navegador.</li>
-              <li>Elija una clave nueva para continuar con su cuenta.</li>
-            </ol>
-          </section>
+          <p className="text-sm leading-6 text-ink-soft">Revise también el correo no deseado. Abra el enlace de recuperación más reciente para elegir una clave nueva.</p>
           <details className="border-y border-line">
             <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">No recibí el mensaje</summary>
             <div className="space-y-3 pb-4">
               <p className="text-sm leading-6 text-ink-soft">Compruebe que escribió bien su correo. Si necesita otro enlace, espere al menos un minuto antes de pedirlo.</p>
               <button type="button" disabled={pendiente} onClick={corregirCorreo} className="btn-secundario w-full">Corregir correo</button>
-              <button disabled={pendiente || esperandoReintento} aria-describedby={esperandoReintento ? 'recuperacion-espera' : undefined} className="btn-primario w-full">
+              <button type="submit" disabled={pendiente || esperandoReintento} aria-describedby={esperandoReintento ? 'recuperacion-espera' : undefined} className="btn-primario w-full">
                 {pendiente ? 'Solicitando enlace…' : 'Solicitar otro enlace'}
               </button>
               {esperandoReintento && <p id="recuperacion-espera" className="text-xs leading-6 text-ink-soft">Podrá solicitar otro enlace al pasar un minuto desde la última solicitud.</p>}
@@ -96,7 +93,7 @@ export function RecuperarForm() {
           </details>
         </>
       ) : (
-        <button disabled={pendiente || esperandoReintento} className="btn-primario w-full">
+        <button type="submit" disabled={pendiente || esperandoReintento} className="btn-primario w-full">
           {pendiente ? 'Solicitando enlace…' : resultado?.error ? 'Volver a intentar' : 'Solicitar enlace de recuperación'}
         </button>
       )}
@@ -106,10 +103,10 @@ export function RecuperarForm() {
       </details>
       <details className="border-b border-line">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">El enlace no funciona</summary>
-        <p className="pb-4 text-sm leading-6 text-ink-soft">Si el enlace venció o ya se usó, solicite uno nuevo desde este formulario. Si recibe varios mensajes, abra solo el enlace más reciente, en el mismo navegador donde lo solicitó.</p>
+        <p className="pb-4 text-sm leading-6 text-ink-soft">Si el enlace venció o ya se usó, solicite uno nuevo desde este formulario. Si recibe varios mensajes, abra solo el enlace más reciente. El enlace debe abrir la página para elegir una clave nueva.</p>
       </details>
       <p className="text-center text-sm text-ink-soft">
-        <Link href="/login" className="enlace-texto font-semibold">
+        <Link href={login} className="enlace-texto font-semibold">
           Volver a iniciar sesión
         </Link>
       </p>

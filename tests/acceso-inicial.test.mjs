@@ -55,6 +55,8 @@ const comunes = {
   '@/components/icono': { Icono: () => null },
   '@/components/barrio-vivo': { BarrioVivo: () => null },
   '@/components/aviso-configuracion': { AvisoConfiguracion: () => null },
+  '@/components/confirmar-correo-form': { ConfirmarCorreoForm: () => null },
+  '@/lib/correo-recordado': cargar('lib/correo-recordado.ts'),
   '@/components/estado-conexion': cargar('components/estado-conexion.tsx'),
 }
 
@@ -114,11 +116,14 @@ test('public home offers registration and a fictional example before any real se
   assert.deepEqual([...new Set(destinos)].sort(), [
     '/como-funciona', '/como-funciona#preguntas-frecuentes', '/ejemplo', '/guias',
     '/guias/como-escribir-una-resena', '/guias/preguntas-para-arrendadores', '/guias/referencias-de-inquilinos',
-    '/privacidad', '/registro',
+    '/login', '/privacidad', '/recuperar', '/registro',
   ])
   assert.match(html, /Ver una consulta de ejemplo/)
   assert.match(html, /ejemplo ficticio sin registrarse/)
-  assert.match(html, /Unirme a La Protectora/)
+  assert.match(html, /Crear una cuenta/)
+  assert.match(html, /¿Ya tiene cuenta\?/)
+  assert.match(html, /Iniciar sesión/)
+  assert.match(html, /Recuperar mi clave/)
   assert.match(html, /<h1[^>]*>Proteja su propiedad\./)
   assert.match(html, /propietarios y agencias/i)
   assert.doesNotMatch(html, /role="search"|type="search"|<form/)
@@ -358,7 +363,8 @@ test('registration forms only offer owner and agency account types', () => {
     assert.doesNotMatch(html, /inquilino/i)
   }
   const html = renderToStaticMarkup(createElement(RegistroForm))
-  assert.match(html, /Crear cuenta y confirmar mi correo/)
+  assert.match(html, /Crear cuenta/)
+  assert.match(html, /Recibirá un correo para confirmar su cuenta antes de entrar/)
   assert.match(html, /Iniciar sesión/)
 })
 

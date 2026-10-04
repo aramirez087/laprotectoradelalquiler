@@ -16,12 +16,26 @@ test('email actions reject unsafe links and preserve Supabase confirmation place
   const base = { titulo: 'Título', resumen: '', parrafos: [] }
   for (const url of ['javascript:alert(1)', 'http://example.com', 'https://user:secret@example.com']) assert.throws(() => plantillaCorreo({ ...base, accion: { texto: 'Abrir', url } }))
   assert.match(plantillaCorreo({ ...base, accion: { texto: 'Abrir', url: '{{ .ConfirmationURL }}' } }), /href="{{ .ConfirmationURL }}"/)
+  for (const type of ['recovery', 'signup']) {
+    const url = `{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=${type}`
+    const html = plantillaCorreo({ ...base, accion: { texto: 'Abrir', url } })
+    const enlaces = [...html.matchAll(/href="({{ \.SiteURL }}[^\"]+)"/g)].map(match => match[1])
+    assert.deepEqual(enlaces, [url.replace('&', '&amp;'), url.replace('&', '&amp;')])
+  }
+  for (const url of [
+    '{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=invite',
+    '{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery&next=https://evil.test',
+    '{{ .SiteURL }}.evil.test/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery',
+  ]) assert.throws(() => plantillaCorreo({ ...base, accion: { texto: 'Abrir', url } }))
 })
 test('all saved Auth templates keep required token variables without localhost or private metadata', () => {
   const config = JSON.parse(readFileSync('emails/supabase/config.json', 'utf8'))
   for (const key of ['confirmation', 'recovery', 'invite', 'magic_link', 'email_change', 'reauthentication']) {
     const html = config[`mailer_templates_${key}_content`]
-    assert.match(html, key === 'reauthentication' ? /{{ \.Token }}/ : /href="{{ \.ConfirmationURL }}"/)
+    const enlace = key === 'confirmation' || key === 'recovery'
+      ? new RegExp(`href="{{ \\.SiteURL }}/auth/confirmar\\?token_hash={{ \\.TokenHash }}&amp;type=${key === 'confirmation' ? 'signup' : 'recovery'}"`)
+      : key === 'reauthentication' ? /{{ \.Token }}/ : /href="{{ \.ConfirmationURL }}"/
+    assert.match(html, enlace)
     assert.doesNotMatch(html, /localhost|\.Data|\.Email|\.NewEmail/)
     assert.match(config[`mailer_subjects_${key}`], /La Protectora del Alquiler/)
   }

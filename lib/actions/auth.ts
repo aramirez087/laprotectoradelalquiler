@@ -21,12 +21,18 @@ export type EstadoForm = {
   campos?: Record<string, string>
   mensaje?: string
   advertencia?: string
+  recuperable?: boolean
+  confirmarCorreo?: boolean
+  email?: string
+  destino?: string
   invitacion?: { enlace: string; email: string; venceEn: string; proposito: 'administracion' | 'acceso' }
 } | undefined
 
+const SchemaCorreo = z.string('Escriba un correo válido').trim().toLowerCase().pipe(z.email('Escriba un correo válido'))
+
 const SchemaRegistro = z.object({
   nombre: z.string().trim().min(3, 'Escriba su nombre completo').max(200),
-  email: z.email('Escriba un correo válido'),
+  email: SchemaCorreo,
   cedula: z.string().trim().min(1, 'Escriba su número de cédula'),
   facebook: z.string().trim().min(1, 'Escriba su perfil de Facebook').max(2000),
   clave: z
@@ -38,7 +44,7 @@ const SchemaRegistro = z.object({
 })
 
 const SchemaLogin = z.object({
-  email: z.email('Escriba un correo válido'),
+  email: SchemaCorreo,
   clave: z.string().min(1, 'Escriba su clave'),
 })
 
@@ -47,7 +53,7 @@ const CUENTA_OCUPADA = 'No pudimos crear la cuenta. Si ya está registrado o usa
 function avisoSinSupabase() {
   return {
     error:
-      'El backend aún no está configurado. Cree un proyecto en Supabase, copie .env.example a .env.local y rellene las credenciales. Luego corra: npm run db:aplicar',
+      'El acceso no está disponible en este momento. Intente de nuevo más tarde.',
   } satisfies EstadoForm
 }
 
@@ -69,7 +75,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
 
   const parsed = SchemaRegistro.safeParse({
     nombre: formData.get('nombre'),
-    email: (formData.get('email') as string)?.toLowerCase(),
+    email: formData.get('email'),
     cedula: formData.get('cedula'),
     facebook: formData.get('facebook'),
     clave: formData.get('clave'),
@@ -92,7 +98,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
   }
 
   try {
-    if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA }
+    if (await cedulaEnUso(admin, cedula, email)) return { error: CUENTA_OCUPADA, recuperable: true, email }
     const consulta = await consultarCedula(cedula, true)
     if (consulta.estado === 'encontrada') nombre = consulta.persona.nombreCompleto
     const { data: facebookTomado, error: errorFacebook } = await admin
@@ -102,7 +108,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       .eq('proveedor_id', facebook)
       .maybeSingle()
     if (errorFacebook) return { error: 'No pudimos revisar el perfil de Facebook. Intente de nuevo.' }
-    if (facebookTomado) return { error: CUENTA_OCUPADA }
+    if (facebookTomado) return { error: CUENTA_OCUPADA, recuperable: true, email }
 
     const { data: porEmail, error: errorEmail } = await admin
       .from('usuarios')
@@ -110,7 +116,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       .eq('email', email)
       .maybeSingle()
     if (errorEmail) return { error: 'No pudimos crear la cuenta. Intente de nuevo.' }
-    if (porEmail) return { error: CUENTA_OCUPADA }
+    if (porEmail) return { error: CUENTA_OCUPADA, recuperable: true, email }
 
     const origen = await origenDeLaPeticion()
     if (!origen) return { error: 'No pudimos iniciar el registro. Intente de nuevo.' }
@@ -126,7 +132,7 @@ export async function registrarse(_estado: EstadoForm, formData: FormData): Prom
       },
     })
     if (error) return { error: 'No pudimos enviar la confirmación. Intente de nuevo más tarde.' }
-    return { mensaje: 'Revise su correo y confirme su cuenta para escribir su primera reseña. Si ya tiene cuenta, inicie sesión.' }
+    return { mensaje: 'Revise su correo y confirme su cuenta para escribir su primera reseña. Si ya tiene cuenta, inicie sesión.', email }
   } catch (error) {
     unstable_rethrow(error)
     registrarError('auth_action_error', error, { routeType: 'action' })
@@ -311,61 +317,67 @@ export async function iniciarSesion(_estado: EstadoForm, formData: FormData): Pr
   if (sinSupabase()) return avisoSinSupabase()
 
   const parsed = SchemaLogin.safeParse({
-    email: (formData.get('email') as string)?.toLowerCase(),
+    email: formData.get('email'),
     clave: formData.get('clave'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email,
-    password: parsed.data.clave,
-  })
-  if (error) {
-    if ((error.status ?? 0) >= 500 || error.name === 'AuthRetryableFetchError') {
-      registrarError('login_service_error', error, { routeType: 'action' })
-      return { error: 'El ingreso no está disponible en este momento. Intente de nuevo en unos minutos.' }
-    }
-    if (/email not confirmed/i.test(error.message)) {
-      return { error: 'Confirme su correo antes de entrar. Revise la bandeja de entrada.' }
-    }
-    if (/rate limit/i.test(error.message)) {
-      return { error: 'Espere un momento antes de intentar de nuevo.' }
-    }
-    return { error: 'Correo o clave incorrectos.' }
-  }
-
-  const siguiente = destinoInterno(formData.get('siguiente'), '/')
-  const jar = await cookies()
-  jar.set(COOKIE_CORREO, parsed.data.email, {
-    path: '/',
-    maxAge: 60 * 60 * 24 * 400,
-    sameSite: 'lax',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-  })
   try {
-    if (data.user && await requiereSegundoFactor(supabase, data.user)) {
-      revalidatePath('/', 'layout')
-      redirect(rutaSegundoFactor(siguiente))
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: parsed.data.email,
+      password: parsed.data.clave,
+    })
+    if (error) {
+      if ((error.status ?? 0) >= 500 || error.name === 'AuthRetryableFetchError') {
+        registrarError('login_service_error', error, { routeType: 'action' })
+        return { error: 'El ingreso no está disponible en este momento. Intente de nuevo en unos minutos.' }
+      }
+      if (error.code === 'email_not_confirmed' || /email not confirmed/i.test(error.message)) {
+        return { error: 'Confirme su correo antes de entrar. Revise la bandeja de entrada o solicite otra confirmación.', confirmarCorreo: true, email: parsed.data.email }
+      }
+      if (error.status === 429 || /rate limit/i.test(error.message)) {
+        return { error: 'Espere un momento antes de intentar de nuevo.' }
+      }
+      return { error: 'Correo o clave incorrectos. Revise los datos o recupere su clave.', recuperable: true, email: parsed.data.email }
     }
+
+    const siguiente = destinoInterno(formData.get('siguiente'), '/')
+    const jar = await cookies()
+    jar.set(COOKIE_CORREO, parsed.data.email, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 400,
+      sameSite: 'lax',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+    })
+    try {
+      if (data.user && await requiereSegundoFactor(supabase, data.user)) {
+        revalidatePath('/', 'layout')
+        redirect(rutaSegundoFactor(siguiente))
+      }
+    } catch (error) {
+      unstable_rethrow(error)
+      return { error: 'No pudimos verificar la seguridad de su cuenta. Intente de nuevo.' }
+    }
+
+    if (data.user) {
+      const admin = createAdmin()
+      if (admin) {
+        await admin
+          .from('usuarios')
+          .update({ ultimo_acceso: new Date().toISOString() })
+          .eq('auth_user_id', data.user.id)
+      }
+    }
+
+    revalidatePath('/', 'layout')
+    redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
   } catch (error) {
     unstable_rethrow(error)
-    return { error: 'No pudimos verificar la seguridad de su cuenta. Intente de nuevo.' }
+    registrarError('login_service_error', error, { routeType: 'action' })
+    return { error: 'El ingreso no está disponible en este momento. Intente de nuevo en unos minutos.' }
   }
-
-  if (data.user) {
-    const admin = createAdmin()
-    if (admin) {
-      await admin
-        .from('usuarios')
-        .update({ ultimo_acceso: new Date().toISOString() })
-        .eq('auth_user_id', data.user.id)
-    }
-  }
-
-  revalidatePath('/', 'layout')
-  redirect(data.user ? await destinoTrasLogin(data.user.id, siguiente) : siguiente)
 }
 
 const SchemaClave = z
@@ -404,7 +416,7 @@ function falloRecuperacion(error: unknown) {
 export async function solicitarRecuperacion(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   if (sinSupabase()) return avisoSinSupabase()
 
-  const parsed = z.object({ email: z.string('Escriba un correo válido').trim().toLowerCase().pipe(z.email('Escriba un correo válido')) }).safeParse({
+  const parsed = z.object({ email: SchemaCorreo }).safeParse({
     email: formData.get('email'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Escriba un correo válido.' }
@@ -414,8 +426,10 @@ export async function solicitarRecuperacion(_estado: EstadoForm, formData: FormD
     if (!origen) return { error: 'No pudimos armar el enlace. Intente de nuevo.' }
 
     const supabase = await createClient()
+    const siguiente = destinoInterno(formData.get('siguiente'), '/')
+    const retorno = `${origen}/auth/confirmar?next=/restablecer${siguiente === '/' ? '' : `&${new URLSearchParams({ siguiente })}`}`
     const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-      redirectTo: `${origen}/auth/confirmar?next=/restablecer`,
+      redirectTo: retorno,
     })
     if (error) return falloRecuperacion(error)
   } catch (error) {
@@ -425,28 +439,64 @@ export async function solicitarRecuperacion(_estado: EstadoForm, formData: FormD
   return { mensaje: 'Solicitud recibida. Si el correo corresponde a una cuenta, revise su bandeja de entrada para continuar.' }
 }
 
+export async function confirmarCorreoPendiente(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
+  if (sinSupabase()) return avisoSinSupabase()
+  const parsed = SchemaCorreo.safeParse(formData.get('email'))
+  if (!parsed.success) return { error: 'Escriba un correo válido.' }
+  try {
+    const origen = await origenDeLaPeticion()
+    if (!origen) return { error: 'No pudimos solicitar la confirmación. Intente de nuevo.' }
+    const supabase = await createClient()
+    const { error } = await supabase.auth.resend({
+      type: 'signup', email: parsed.data,
+      options: { emailRedirectTo: `${origen}/auth/confirmar?next=/registro/resena` },
+    })
+    if (error) return falloRecuperacion(error)
+    return { mensaje: 'Si su cuenta necesita confirmar el correo, recibirá un enlace nuevo. Revise también el correo no deseado.' }
+  } catch (error) {
+    unstable_rethrow(error)
+    return falloRecuperacion(error)
+  }
+}
+
 export async function establecerClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {
   if (sinSupabase()) return avisoSinSupabase()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'El enlace venció. Pida otro.' }
-  if (await requiereSegundoFactor(supabase, user)) redirect(rutaSegundoFactor('/restablecer'))
-
-  const parsed = SchemaClave.safeParse({
-    clave: formData.get('clave'),
-    confirmacion: formData.get('confirmacion'),
-  })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise la clave.' }
-
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.clave })
-  if (error) {
-    if (/same password|should be different/i.test(error.message)) {
-      return { error: 'Elija una clave distinta a la actual.' }
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'El enlace venció. Pida otro.' }
+    const siguiente = destinoInterno(formData.get('siguiente'), '/')
+    if (await requiereSegundoFactor(supabase, user)) {
+      redirect(rutaSegundoFactor(`/restablecer${siguiente === '/' ? '' : `?${new URLSearchParams({ siguiente })}`}`))
     }
-    return { error: 'No pudimos guardar la clave. Pida otro enlace e intente de nuevo.' }
+
+    const parsed = SchemaClave.safeParse({
+      clave: formData.get('clave'),
+      confirmacion: formData.get('confirmacion'),
+    })
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Revise la clave.' }
+
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.clave })
+    if (error) {
+      if (error.code === 'same_password' || /same password|should be different/i.test(error.message)) {
+        return { error: 'Elija una clave distinta a la actual.' }
+      }
+      return { error: 'No pudimos guardar la clave. Pida otro enlace e intente de nuevo.' }
+    }
+    revalidatePath('/', 'layout')
+    let destino = '/'
+    try {
+      destino = await destinoTrasLogin(user.id, siguiente)
+    } catch (error) {
+      registrarError('password_destination_error', error, { routeType: 'action' })
+    }
+    return { mensaje: 'Su clave se actualizó. Ya puede continuar con su cuenta.', destino }
+  } catch (error) {
+    unstable_rethrow(error)
+    registrarError('password_update_error', error, { routeType: 'action' })
+    return { error: 'No pudimos guardar la clave. Intente de nuevo en unos minutos.' }
   }
-  redirect('/')
 }
 
 export async function cambiarClave(_estado: EstadoForm, formData: FormData): Promise<EstadoForm> {

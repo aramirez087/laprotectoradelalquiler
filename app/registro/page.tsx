@@ -8,12 +8,14 @@ import { altaFacebookPendiente } from '@/lib/facebook-alta'
 import { authFacebookHabilitado, rutaAltaFacebook, rutaEntrarConFacebook } from '@/lib/facebook-auth'
 import { sinSupabase } from '@/lib/supabase/server'
 import Link from '@/components/enlace'
+import { correoRecordado } from '@/lib/correo-recordado'
 
-export const metadata = { title: 'Registrarse' }
+export const metadata = { title: 'Crear cuenta' }
 
 export default async function RegistroPage(props: PageProps<'/registro'>) {
   const parametros = await props.searchParams
   const siguiente = destinoInterno(primer(parametros.siguiente), '/')
+  const correo = correoRecordado(primer(parametros.correo))
   const desdeEjemplo = primer(parametros.origen) === 'ejemplo'
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
@@ -26,8 +28,8 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
   }
   return (
     <MarcoAcceso
-      titulo="Cree su cuenta"
-      texto="Registro exclusivo para propietarios y agencias. Confirme su correo y después escriba su primera reseña."
+      titulo="Crear una cuenta"
+      texto="Para propietarios y agencias. Cree su cuenta, confirme su correo y comparta su primera reseña."
       pasoRegistro={1}
     >
       {sinSupabase() ? (
@@ -39,11 +41,9 @@ export default async function RegistroPage(props: PageProps<'/registro'>) {
               <Link href="/ejemplo" className="enlace-atras">← Volver a la consulta de ejemplo</Link>
             </p>
           )}
-          <p className="mb-6 rounded-xl border border-seal/20 bg-seal-soft px-4 py-3 text-sm leading-relaxed text-seal">
-            Su primera experiencia aprobada le da <strong className="font-semibold">3 meses para consultar reseñas</strong>. El acceso empieza cuando administración la aprueba.
-          </p>
           <RegistroForm
             siguiente={siguiente}
+            correo={correo}
             enlaceFacebook={authFacebookHabilitado() ? rutaEntrarConFacebook(siguiente) : null}
           />
         </>

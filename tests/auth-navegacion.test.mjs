@@ -9,7 +9,7 @@ import { mocksCedula } from './helpers/cedula-mocks.mjs'
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
 const { NextRequest } = require('next/server')
-const { redirect, notFound } = require('next/navigation')
+const { redirect, notFound, unstable_rethrow } = require('next/navigation')
 
 function load(file, mocks = {}) {
   const mod = { exports: {} }
@@ -58,12 +58,13 @@ const cacheHeaders = {
   Expires: '0', Pragma: 'no-cache',
 }
 
-function refreshProxy({ user = { id: 'user' }, facebook = false, fail = false, aal = 'aal1' } = {}) {
+function refreshProxy({ user = { id: 'user' }, facebook = false, fail = false, aal = 'aal1', authForbidden = false } = {}) {
   const helper = load('lib/supabase/proxy.ts', {
     '@supabase/ssr': {
       createServerClient: (_url, _key, { cookies }) => ({ auth: {
         getClaims: async () => ({ data: { claims: { sub: user?.id, aal } }, error: null }),
         getUser: async () => {
+          if (authForbidden) assert.fail('The fallback callback must route before reading the existing session')
           assert.equal(cookies.getAll().find(c => c.name === 'sb-test-auth-token.0').value, 'old')
           cookies.setAll([
             { name: 'sb-test-auth-token.0', value: 'fresh', options: { path: '/', sameSite: 'lax', secure: true } },
@@ -145,11 +146,47 @@ test('login, onboarding and error redirects preserve refreshed cookies and cache
   }
 })
 
+test('incomplete Facebook onboarding leaves recovery reachable and retains the second-factor guard', async () => {
+  for (const path of ['/recuperar', '/restablecer']) {
+    const response = await refreshProxy({ facebook: true })(request(path))
+    assert.equal(response.status, 200, path)
+    assert.equal(response.headers.get('location'), null)
+    assertRefresh(response)
+  }
+  const user = { id: 'user', factors: [{ id: 'factor', status: 'verified', factor_type: 'totp' }] }
+  const mfa = await refreshProxy({ user, facebook: true })(request('/restablecer'))
+  assert.equal(new URL(mfa.headers.get('location')).pathname, '/login/verificar')
+  assertRefresh(mfa)
+})
+
+test('homepage email callbacks route before session refresh or Facebook onboarding and discard unrelated query data', async () => {
+  for (const facebook of [false, true]) {
+    const response = await refreshProxy({ facebook, authForbidden: true })(request('/?code=private-code&next=%2Frestablecer&sb_flow_id=flow-27&email=private@example.test&utm_source=email'))
+    assert.equal(response.status, 307)
+    const target = new URL(response.headers.get('location'))
+    assert.equal(target.pathname, '/auth/confirmar')
+    assert.equal(target.searchParams.get('code'), 'private-code')
+    assert.equal(target.searchParams.get('next'), '/restablecer')
+    assert.equal(target.searchParams.get('sb_flow_id'), 'flow-27')
+    assert.equal(target.searchParams.has('email'), false)
+    assert.equal(target.searchParams.has('utm_source'), false)
+    assert.match(response.headers.get('cache-control'), /no-store/)
+    assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
+    assert.match(response.headers.get('x-robots-tag'), /noindex/)
+    assert.equal(response.headers.get('set-cookie'), null)
+  }
+  const hashToken = await refreshProxy({ facebook: true, authForbidden: true })(request('/?token_hash=private-token&type=recovery'))
+  const target = new URL(hashToken.headers.get('location'))
+  assert.equal(target.pathname, '/auth/confirmar')
+  assert.equal(target.searchParams.get('token_hash'), 'private-token')
+  assert.equal(target.searchParams.get('type'), 'recovery')
+})
+
 test('login and logout invalidate the shared layout before redirecting', async () => {
   const events = []
   const auth = load('lib/actions/auth.ts', {
     'next/cache': { revalidatePath: (...args) => events.push(['revalidate', ...args]) },
-    'next/navigation': { redirect: path => { events.push(['redirect', path]); return redirect(path) } },
+    'next/navigation': { unstable_rethrow, redirect: path => { events.push(['redirect', path]); return redirect(path) } },
     'next/headers': { cookies: async () => ({ set: () => {} }) },
     '@/lib/dal': { destinoTrasLogin: async () => '/admin' },
     '@/lib/correo-recordado': { COOKIE_CORREO: 'protectora-correo' },

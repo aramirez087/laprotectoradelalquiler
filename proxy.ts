@@ -73,6 +73,22 @@ export async function proxy(request: NextRequest) {
   const continuar = () =>
     conSeguridad(NextResponse.next({ request: { headers: requestHeaders } }), csp, privada)
 
+  // Supabase can fall back to Site URL. Handle codes before profile redirects
+  // or the homepage can discard them before the client callback hydrates.
+  if (path === '/' && (request.nextUrl.searchParams.has('code') || request.nextUrl.searchParams.has('token_hash'))) {
+    const retorno = request.nextUrl.clone()
+    retorno.pathname = '/auth/confirmar'
+    retorno.search = ''
+    for (const nombre of ['code', 'token_hash', 'type', 'next', 'siguiente', 'sb_flow_id']) {
+      const valor = request.nextUrl.searchParams.get(nombre)
+      if (valor) retorno.searchParams.set(nombre, valor)
+    }
+    const response = conSeguridad(NextResponse.redirect(retorno), csp, true)
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+    response.headers.set('Referrer-Policy', 'no-referrer')
+    return response
+  }
+
   // Discovery and PWA files must load without auth refresh or onboarding redirects.
   // Keep security/preview headers above, including worker-src for registration.
   if (['/sitemap.xml', '/robots.txt', '/manifest.webmanifest', '/sw.js', '/offline.html'].includes(path) || sinSupabase() || path === '/api/cedula' || path === '/api/errores') return continuar()
@@ -85,7 +101,7 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/registro/resena')
   const verificando = path === '/login/verificar'
   // Invitations verify their own identity/session and can precede onboarding.
-  const vigilarFacebook = !verificando && path !== '/invitacion/admin' && authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
+  const vigilarFacebook = !verificando && !['/invitacion/admin', '/recuperar', '/restablecer'].includes(path) && authFacebookHabilitado() && !esRutaDeAltaFacebook(path)
   const { supabase, applyCookies } = createProxyClient(request, requestHeaders)
   const redirigir = (url: URL) => applyCookies(conSeguridad(NextResponse.redirect(url), csp, privada))
 

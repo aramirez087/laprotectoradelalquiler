@@ -13,6 +13,7 @@ import { AvisoErrorCliente } from '@/components/aviso-error-cliente'
 import { Marca } from '@/components/marca'
 import { Audiencia } from '@/components/audiencia'
 import { AppInstalable } from '@/components/app-instalable'
+import { RetornoAuth } from '@/components/retorno-auth'
 import type { Tema } from '@/components/selector-tema'
 import Cargando from './loading'
 import { DESCRIPCION_SITIO, NOMBRE_SITIO, ORIGEN_SITIO, ROBOTS_PRIVADOS } from '@/lib/seo'
@@ -82,6 +83,7 @@ export default async function RootLayout(props: LayoutProps<'/'>) {
   return (
     <html lang="es-CR" data-scroll-behavior="smooth" data-theme={tema} className={`${instrumentSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <RetornoAuth />
         <a href="#contenido" className="skip">
           Saltar al contenido
         </a>

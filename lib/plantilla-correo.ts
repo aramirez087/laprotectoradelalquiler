@@ -14,7 +14,8 @@ function escapar(valor: string) {
 /** Inline styles and presentation tables also work in clients without web fonts/CSS. */
 export function plantillaCorreo(contenido: ContenidoCorreo) {
   const url = contenido.accion?.url
-  if (url && url !== '{{ .ConfirmationURL }}') {
+  const enlaceAuth = url && /^{{ \.SiteURL }}\/auth\/confirmar\?token_hash={{ \.TokenHash }}&type=(recovery|signup)$/.test(url)
+  if (url && url !== '{{ .ConfirmationURL }}' && !enlaceAuth) {
     const destino = new URL(url)
     if (destino.protocol !== 'https:' || destino.username || destino.password) throw new Error('El enlace del correo debe ser HTTPS.')
   }

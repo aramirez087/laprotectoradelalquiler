@@ -15,7 +15,8 @@ export const metadata = { title: 'Iniciar sesión' }
 export default async function LoginPage(props: PageProps<'/login'>) {
   const searchParams = await props.searchParams
   const siguiente = destinoInterno(primer(searchParams.siguiente), '/')
-  const correo = correoRecordado((await cookies()).get(COOKIE_CORREO)?.value)
+  const correo = correoRecordado(primer(searchParams.correo)) || correoRecordado((await cookies()).get(COOKIE_CORREO)?.value)
+  const confirmacionVencida = primer(searchParams.error) === 'confirmacion'
   if (!sinSupabase()) {
     const usuario = await obtenerUsuario()
     if (usuario) {
@@ -26,11 +27,13 @@ export default async function LoginPage(props: PageProps<'/login'>) {
 
   return (
     <MarcoAcceso
-      titulo="Iniciar sesión"
+      titulo={confirmacionVencida ? 'Confirme su correo' : 'Iniciar sesión'}
       texto={
-        siguiente.startsWith('/resenas/nueva')
+        confirmacionVencida
+          ? 'Confirme su dirección para entrar a su cuenta.'
+          : siguiente.startsWith('/resenas/nueva')
           ? 'Inicie sesión para compartir su experiencia de alquiler.'
-          : 'Entre con su correo y clave. Con su acceso vigente, irá directamente a consultas.'
+          : 'Entre con el correo y la clave de su cuenta.'
       }
     >
       {sinSupabase() ? (
@@ -40,7 +43,8 @@ export default async function LoginPage(props: PageProps<'/login'>) {
           siguiente={siguiente}
           enlaceFacebook={authFacebookHabilitado() ? rutaEntrarConFacebook(siguiente) : null}
           correo={correo}
-          aviso={mensajeErrorFacebook(primer(searchParams.error), authFacebookHabilitado())}
+          aviso={confirmacionVencida ? 'Este enlace venció o ya se usó. Solicite uno nuevo para confirmar su correo.' : mensajeErrorFacebook(primer(searchParams.error), authFacebookHabilitado())}
+          confirmarCorreo={confirmacionVencida}
         />
       )}
     </MarcoAcceso>

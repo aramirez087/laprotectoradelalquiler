@@ -14,15 +14,28 @@ const preload = `
   import pg from ${JSON.stringify(pgUrl)};
   import { readFileSync } from 'node:fs';
   process.loadEnvFile = () => { process.stdout.write('ENV_LOAD\\n'); };
-  const files = ['db/moderacion-automatica.sql', 'db/busqueda-relevante.sql', 'db/activacion.sql', 'schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
+  const files = ['db/dos-factores.sql', 'db/moderacion-automatica.sql', 'db/busqueda-relevante.sql', 'db/activacion.sql', 'schema.sql', 'db/seeds.sql', 'db/administrar-usuarios.sql',
     'db/invitaciones-admin.sql', 'db/sesiones-admin.sql', 'db/administrar-resenas.sql', 'db/correcciones-resenas.sql',
     'db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/seguridad-supabase.sql', 'db/verificacion-cedulas-tse.sql', 'db/resultados-cedulas-tse.sql'];
   pg.Pool = class {
     constructor() { process.stdout.write('POOL_CREATED\\n'); }
     async query(sql) {
       const name = files.find(file => readFileSync(file, 'utf8') === sql);
-      if (!name) throw new Error('Unexpected SQL');
-      process.stdout.write('APPLIED ' + name + '\\n');
+      if (name) {
+        process.stdout.write('APPLIED ' + name + '\\n');
+        return;
+      }
+      const batches = [
+        ['db/administrar-usuarios.sql', 'db/invitaciones-admin.sql', 'db/sesiones-admin.sql'],
+        ['db/resenas-unicas.sql', 'db/acceso-temporal-consultas.sql', 'db/sesiones-admin.sql'],
+      ];
+      const batch = batches.find(group => {
+        const body = group.map(file => readFileSync(file, 'utf8').replace(/^BEGIN;\\s*$/m, '').replace(/^COMMIT;\\s*$/m, '')).join('\\n');
+        return sql === 'BEGIN;\\n' + body + '\\nCOMMIT;';
+      });
+      if (!batch) throw new Error('Unexpected SQL');
+      process.stdout.write('TRANSACTION_APPLIED\\n');
+      for (const file of batch) process.stdout.write('APPLIED ' + file + '\\n');
     }
     async end() { process.stdout.write('POOL_CLOSED\\n'); }
   };
@@ -63,6 +76,7 @@ test('conflicting or repeated migration flags fail before environment loading or
 
 test('valid additive flags dispatch only their migrations and restore session guards last', () => {
   for (const [flag, expected] of [
+    ['--solo-dos-factores', ['db/dos-factores.sql']],
     ['--solo-moderacion-automatica', ['db/moderacion-automatica.sql']],
     ['--solo-busqueda', ['db/busqueda-relevante.sql']],
     ['--solo-activacion', ['db/activacion.sql']],
@@ -78,6 +92,8 @@ test('valid additive flags dispatch only their migrations and restore session gu
     const result = run([flag], true)
     assert.equal(result.status, 0, result.stderr)
     assert.deepEqual([...result.stdout.matchAll(/^APPLIED (.+)$/gm)].map(match => match[1]), expected)
+    assert.equal([...result.stdout.matchAll(/^TRANSACTION_APPLIED$/gm)].length,
+      ['--solo-admin-usuarios', '--solo-invitaciones-admin', '--solo-acceso-consultas'].includes(flag) ? 1 : 0)
     assert.match(result.stdout, /POOL_CLOSED/)
   }
 })
