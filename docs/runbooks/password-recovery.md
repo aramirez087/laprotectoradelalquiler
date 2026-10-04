@@ -47,7 +47,7 @@ El proyecto de Supabase de producción es `lqbsuawemfhqwvomputz`, recurso `supab
 
 La comprobación pública confirmó la nueva navegación y respuestas HTTP 307 desde el inicio con un código ficticio hacia `/auth/confirmar`. Los tokens ficticios de recuperación y registro terminaron en `/recuperar?error=enlace` y `/login?error=confirmacion`, respectivamente, con `no-store` y `no-referrer`. Las pantallas de error devolvieron 200 con sus acciones de nuevo enlace. La consulta de errores del nuevo despliegue no devolvió entradas durante la comprobación inicial.
 
-Se solicitó un único correo de recuperación real para la dirección de prueba autorizada por el propietario. La interfaz confirmó la recepción de la solicitud. Queda pendiente que el propietario confirme la entrega, abra el enlace en otro navegador o dispositivo y complete personalmente el cambio de contraseña. La respuesta pública de solicitud recibida no acredita entrega del correo ni la existencia de una cuenta.
+Se solicitó un único correo de recuperación real para la dirección de prueba autorizada por el propietario. La interfaz confirmó la recepción de la solicitud. El propietario confirmó que abrió el enlace y llegó a la pantalla donde podía cambiar la contraseña; decidió no cambiarla. Esto verifica el recorrido real hasta el formulario y que ese enlace ya no vuelve al inicio. No se confirmó qué navegador o dispositivo utilizó. Guardar una contraseña nueva e iniciar sesión con ella siguen sin verificarse en producción; esas operaciones cuentan con pruebas automatizadas locales.
 
 ## Cuando el correo no llega
 
