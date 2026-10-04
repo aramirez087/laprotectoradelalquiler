@@ -332,12 +332,11 @@ export async function crearResena(input: {
   if (yo.id !== input.autorId) throw new Error('No puede publicar a nombre de otra cuenta.')
   if (!yo.activo) throw new Error('Su cuenta está inactiva y no puede publicar.')
 
-  const supabase = await createClient()
   const admin = createAdmin()
   if (!admin) throw new Error('No pudimos enviar la reseña. Falta la configuración de administración.')
   const dbPersona = admin
   const enRevision = yo.rol !== 'admin'
-  const dbResena = enRevision ? admin : supabase
+  const dbResena = admin
   const identificacion = input.identificacion.trim().replace(/\s+/g, '')
 
   // 1) Persona: la ficha existente, o la misma cédula aunque cambie el guion.
@@ -400,10 +399,10 @@ export async function crearResena(input: {
     }
   }
 
-  // 2) Guardar primero en revisión; un fallo de moderación no pierde el envío.
-  // El cliente de
-  // servicio hace falta porque la política de lectura oculta los borradores
-  // y un INSERT ... RETURNING no devolvería el id.
+  // 2) Guardar antes de moderar; administración publica de inmediato.
+  // El cliente de servicio es necesario para ambos roles: la sesión no puede
+  // leer version en INSERT ... RETURNING y RLS también oculta los borradores.
+  // La sesión, el autor y el estado se validan arriba antes de esta escritura.
   const { data: resena, error: eResena } = await dbResena
     .from('resenas')
     .insert({

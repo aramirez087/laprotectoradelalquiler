@@ -42,7 +42,8 @@ test('Supabase hardening: confirmed signup, field permissions, RLS, and future g
   const migration = await readFile('db/seguridad-supabase.sql', 'utf8')
   const schema = await readFile('schema.sql', 'utf8')
   assert.ok(schema.includes(migration), 'fresh installs include the security migration unchanged')
-  assert.ok(schema.endsWith(await readFile('db/activacion.sql', 'utf8')), 'activation follows security hardening')
+  const activation = await readFile('db/activacion.sql', 'utf8')
+  assert.ok(schema.includes(activation) && schema.indexOf(activation) > schema.indexOf(migration), 'activation follows security hardening')
   assert.equal(await readFile('supabase/migrations/20260930033313_seguridad_supabase.sql', 'utf8'), migration)
   await db.query(schema)
   await db.query(migration) // repeat application preserves the same permissions
@@ -92,6 +93,38 @@ test('Supabase hardening: confirmed signup, field permissions, RLS, and future g
   await db.query('SET ROLE authenticated')
   await assert.rejects(db.query("INSERT INTO denuncias (resena_id,denunciante_id,motivo) VALUES ($1,$2,'otro')", [draft, user.id]), { code: '42501' })
   await db.query('RESET ROLE')
+  await t.test('admin publication returns its private version only through the service client', async () => {
+    const adminUid = 'd4444444-4444-4444-8444-444444444444'
+    const adminSession = 'e5555555-5555-4555-8555-555555555555'
+    await db.query("SELECT set_config('request.jwt.claim.role', 'service_role', false)")
+    const admin = (await db.query(`INSERT INTO usuarios (auth_user_id,email,nombre,rol)
+      VALUES ($1,'admin@example.com','Administración','admin') RETURNING id`, [adminUid])).rows[0]
+    await db.query('INSERT INTO auth.sessions VALUES ($1,$2)', [adminSession, adminUid])
+    await db.query(`SET ROLE authenticated;
+      SELECT set_config('request.jwt.claim.sub', '${adminUid}', false);
+      SELECT set_config('request.jwt.claim.role', 'authenticated', false);
+      SELECT set_config('request.jwt.claims', '{"session_id":"${adminSession}"}', false);`)
+    const privileges = (await db.query(`SELECT
+      has_column_privilege('authenticated','public.resenas','version','SELECT') session_version,
+      has_column_privilege('service_role','public.resenas','version','SELECT') service_version`)).rows[0]
+    assert.equal(privileges.session_version, false)
+    assert.equal(privileges.service_version, true)
+    const publish = `INSERT INTO resenas (persona_id,autor_id,estado,comentario,anonima)
+      VALUES ($1,$2,'publicada','Pagó a tiempo y entregó la propiedad en buen estado.',true)
+      RETURNING id,version`
+    await assert.rejects(db.query(publish, [persona, admin.id]), { code: '42501' })
+    await db.query('RESET ROLE')
+    assert.equal((await db.query('SELECT count(*)::int n FROM resenas WHERE autor_id=$1', [admin.id])).rows[0].n, 0)
+    await db.query('SET ROLE service_role')
+    let saved
+    try { saved = (await db.query(publish, [persona, admin.id])).rows[0] }
+    finally { await db.query('RESET ROLE') }
+    assert.equal(saved.version, 1)
+    const review = (await db.query('SELECT autor_id,estado,anonima FROM resenas WHERE id=$1', [saved.id])).rows[0]
+    assert.equal(review.autor_id, admin.id)
+    assert.equal(review.estado, 'publicada')
+    assert.equal(review.anonima, true)
+  })
   await db.query('CREATE TABLE public.future_table (id int); CREATE FUNCTION public.future_function() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;')
   for (const role of ['anon', 'authenticated']) {
     const privileges = (await db.query(`SELECT has_table_privilege($1,'public.future_table','SELECT') read,
