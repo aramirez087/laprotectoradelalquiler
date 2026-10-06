@@ -14,15 +14,16 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
   formulario?: RefObject<HTMLFormElement | null>
 } = {}) {
   const accionConAviso: Accion = async (prev, datos) => {
+    let resultado: EstadoForm
     try {
-      const resultado = await accion(prev, datos)
-      onResultado?.(resultado)
-      return resultado
+      resultado = await accion(prev, datos)
     } catch (error) {
       unstable_rethrow(error)
       registrarErrorCliente(error, 'accion')
-      return { error: 'No pudimos confirmar la operación. Sus datos se conservan. Revise el resultado antes de volver a enviar.' }
+      resultado = { error: 'No pudimos confirmar la operación. Sus datos se conservan. Revise el resultado antes de volver a enviar.' }
     }
+    onResultado?.(resultado)
+    return resultado
   }
   const [estado, action, pendiente] = useActionState(accionConAviso, undefined)
   const interno = useRef<HTMLFormElement>(null)
@@ -34,7 +35,8 @@ export function useFormAction(accion: Accion, { resetOnSuccess = false, onResult
     if (resetOnSuccess && estado.mensaje && !estado.error) form?.reset()
     const destino =
       form?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
-      form?.querySelector<HTMLElement>('[role="alert"], [role="status"]')
+      form?.querySelector<HTMLElement>('[role="alert"]') ??
+      form?.querySelector<HTMLElement>('[role="status"][tabindex]')
     const detalles = destino?.closest('details')
     if (detalles) detalles.open = true
     destino?.focus()

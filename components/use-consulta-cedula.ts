@@ -10,12 +10,14 @@ export function useConsultaCedula(cedula: string, alEncontrar: (persona: NombreP
   useEffect(() => {
     if (!clave) return
     const controller = new AbortController()
+    let cancelada = false
     const temporizador = setTimeout(async () => {
       setRespuesta({ clave, resultado: { estado: 'pendiente' } })
+      const limite = setTimeout(() => controller.abort(), 15_000)
       try {
         const respuesta = await fetch('/api/cedula', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cedula: clave }),
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]), cache: 'no-store',
+          signal: controller.signal, cache: 'no-store',
         })
         const resultado: ConsultaEnCurso = respuesta.status === 429
           ? { estado: 'limite' }
@@ -24,10 +26,12 @@ export function useConsultaCedula(cedula: string, alEncontrar: (persona: NombreP
         setRespuesta({ clave, resultado })
         if (resultado.estado === 'encontrada' && resultado.persona.identificacion === clave) alEncontrar(resultado.persona)
       } catch {
-        if (!controller.signal.aborted) setRespuesta({ clave, resultado: { estado: 'no_disponible' } })
+        if (!cancelada) setRespuesta({ clave, resultado: { estado: 'no_disponible' } })
+      } finally {
+        clearTimeout(limite)
       }
     }, 450)
-    return () => { clearTimeout(temporizador); controller.abort() }
+    return () => { cancelada = true; clearTimeout(temporizador); controller.abort() }
   }, [clave, alEncontrar])
   if (!cedula.trim()) return { estado: 'incompleta' } as const
   if (/^[\d\s-]+$/.test(cedula.trim()) && cedula.replace(/[\s-]/g, '').length < 9) return { estado: 'incompleta' } as const

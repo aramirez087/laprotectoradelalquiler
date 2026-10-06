@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import test from 'node:test'
+import { casosAmenazas } from './fixtures/moderacion-amenazas.mjs'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
@@ -116,6 +117,20 @@ test('unsafe, ambiguous and out-of-context classifications stay queued for a hum
     assert.equal(result.decision, 'revision')
     assert.equal(result.motivo, reason)
     assert.deepEqual(result.categorias, categories)
+  }
+})
+
+test('angry narratives and author threats reach the model intact and preserve its decision', async () => {
+  for (const caso of casosAmenazas) {
+    const categorias = caso.decision === 'revision' ? ['odio_o_amenazas'] : []
+    const api = classifier({ respond: () => jsonResponse(envelope(caso.decision, categorias)) })
+    const result = await api.moderate(caso.comentario)
+    assert.equal(api.calls.length, 1, caso.id)
+    assert.deepEqual(JSON.parse(JSON.parse(api.calls[0].body).messages[1].content),
+      { comentario: caso.comentario, detalleDano: null }, caso.id)
+    assert.equal(result.decision, caso.decision, caso.id)
+    assert.deepEqual(result.categorias, categorias, caso.id)
+    assert.equal(result.motivo, caso.decision === 'segura' ? 'contenido_seguro' : 'contenido_sensible', caso.id)
   }
 })
 

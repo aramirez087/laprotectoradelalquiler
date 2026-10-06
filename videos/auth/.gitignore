@@ -1,0 +1,6 @@
+# Local preview/render state only. Source HTML, scripts and assets stay editable.
+**/.hyperframes/
+**/renders/
+**/snapshots/
+**/node_modules/
+.DS_Store

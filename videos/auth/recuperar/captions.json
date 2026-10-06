@@ -1,0 +1,32 @@
+[
+  {
+    "start": 0,
+    "end": 6,
+    "text": "¿Olvidó su clave? Para una cuenta que ya tiene acceso a la plataforma. Desde el inicio, toque «Recuperar mi clave». www.protectoradelalquiler.com"
+  },
+  {
+    "start": 6,
+    "end": 13,
+    "text": "Use el correo de su cuenta. Escriba el correo de su cuenta con acceso ya habilitado. Toque «Solicitar enlace de recuperación». Si viene del sistema anterior, cree aquí una clave nueva."
+  },
+  {
+    "start": 13,
+    "end": 20,
+    "text": "Abra el enlace más reciente. Revise su bandeja de entrada y el correo no deseado. Si pidió varios enlaces, use solo el último. Si no llega, revise el correo y espere 1 minuto antes de pedir otro."
+  },
+  {
+    "start": 20,
+    "end": 28,
+    "text": "Escriba una clave nueva. Repítala en «Confirme la clave nueva». Use al menos 8 caracteres, con letras y números. Toque «Guardar clave nueva»."
+  },
+  {
+    "start": 28,
+    "end": 33,
+    "text": "Vuelva a su cuenta. Cuando la plataforma confirme el cambio… Toque «Continuar con mi cuenta». Si activó la verificación en dos pasos, necesitará su código."
+  },
+  {
+    "start": 33,
+    "end": 39,
+    "text": "¿El enlace no funciona? Si venció o ya se usó, pida uno nuevo. Si su correo aún no tiene acceso, consulte a administración. Abra siempre el mensaje más reciente."
+  }
+]

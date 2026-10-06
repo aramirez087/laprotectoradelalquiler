@@ -1,0 +1,43 @@
+{
+  "duration": 42,
+  "assertions": [
+    {
+      "kind": "appearsBy",
+      "selector": ".brand",
+      "bySec": 0.5
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": ".brand"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-01 .panel"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-02 .panel"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-03 .panel"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-04 .panel"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-05 .panel"
+    },
+    {
+      "kind": "staysInFrame",
+      "selector": "#registro-06 .panel"
+    },
+    {
+      "kind": "keepsMoving",
+      "withinSelector": ".progress",
+      "maxStaticSec": 2
+    }
+  ]
+}

@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { setTimeout as esperar } from 'node:timers/promises'
 import vm from 'node:vm'
+import { casosAmenazas } from '../tests/fixtures/moderacion-amenazas.mjs'
 
 const casos = [
+  ...casosAmenazas,
   { id: 'alquiler_positivo', decision: 'segura',
     comentario: 'La experiencia de alquiler fue buena. Pagó puntualmente, cuidó la vivienda y la entregó limpia al finalizar el contrato.' },
   { id: 'nombre_inquilino', decision: 'segura',

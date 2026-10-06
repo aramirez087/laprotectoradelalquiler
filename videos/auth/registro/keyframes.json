@@ -1,0 +1,2404 @@
+{
+  "project": "registro",
+  "runtime": "all",
+  "compositions": [
+    {
+      "composition": "index.html",
+      "source": "index.html",
+      "tweens": [
+        {
+          "id": ".progress-fromTo-0-scale",
+          "target": ".progress",
+          "method": "fromTo",
+          "group": "scale",
+          "start": 0,
+          "duration": 42,
+          "end": 42,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0,
+              "properties": {
+                "scaleX": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 42,
+              "properties": {
+                "scaleX": 1
+              }
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-01",
+      "source": "compositions/registro-01.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-6990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 6.99,
+          "duration": 0.01,
+          "end": 7,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 6.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 7,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-02",
+      "source": "compositions/registro-02.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-5990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 5.99,
+          "duration": 0.01,
+          "end": 6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 5.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 6,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-03",
+      "source": "compositions/registro-03.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-6990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 6.99,
+          "duration": 0.01,
+          "end": 7,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 6.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 7,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-04",
+      "source": "compositions/registro-04.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-6990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 6.99,
+          "duration": 0.01,
+          "end": 7,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 6.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 7,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-05",
+      "source": "compositions/registro-05.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-7990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 7.99,
+          "duration": 0.01,
+          "end": 8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 7.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 8,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    },
+    {
+      "composition": "registro-06",
+      "source": "compositions/registro-06.html",
+      "tweens": [
+        {
+          "id": ".eyebrow-fromTo-40",
+          "target": ".eyebrow",
+          "method": "fromTo",
+          "start": 0.04,
+          "duration": 0.3,
+          "end": 0.34,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.04,
+              "properties": {
+                "opacity": 0,
+                "x": -18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.34,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -18,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".title-fromTo-80",
+          "target": ".title",
+          "method": "fromTo",
+          "start": 0.08,
+          "duration": 0.45,
+          "end": 0.53,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.08,
+              "properties": {
+                "opacity": 0,
+                "y": 24
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.53,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 24
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".deck-fromTo-220-visual",
+          "target": ".deck",
+          "method": "fromTo",
+          "group": "visual",
+          "start": 0.22,
+          "duration": 0.35,
+          "end": 0.57,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.22,
+              "properties": {
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.57,
+              "properties": {
+                "opacity": 1
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".panel-fromTo-300",
+          "target": ".panel",
+          "method": "fromTo",
+          "start": 0.3,
+          "duration": 0.5,
+          "end": 0.8,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.3,
+              "properties": {
+                "opacity": 0,
+                "y": 32
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.8,
+              "properties": {
+                "opacity": 1,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 0,
+              "y": 32
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".reveal-fromTo-650",
+          "target": ".reveal",
+          "method": "fromTo",
+          "start": 0.65,
+          "duration": 0.32,
+          "end": 0.97,
+          "shape": "keyframes",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.65,
+              "properties": {
+                "opacity": 0,
+                "x": 12,
+                "stagger": 18
+              }
+            },
+            {
+              "pct": 100,
+              "time": 0.97,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "stagger": 18
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 12,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".caption-fromTo-900",
+          "target": ".caption",
+          "method": "fromTo",
+          "start": 0.9,
+          "duration": 0.4,
+          "end": 1.3,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.9,
+              "properties": {
+                "opacity": 0,
+                "x": -15
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.3,
+              "properties": {
+                "opacity": 1,
+                "x": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": -15,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-fromTo-2000",
+          "target": ".tap",
+          "method": "fromTo",
+          "start": 2,
+          "duration": 0.4,
+          "end": 2.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2,
+              "properties": {
+                "opacity": 0,
+                "x": 18,
+                "y": 20
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.4,
+              "properties": {
+                "opacity": 1,
+                "x": 0,
+                "y": 0
+              }
+            }
+          ],
+          "path": [
+            {
+              "x": 18,
+              "y": 20
+            },
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        },
+        {
+          "id": ".tap-dot-to-2500-scale",
+          "target": ".tap-dot",
+          "method": "to",
+          "group": "scale",
+          "start": 2.5,
+          "duration": 0.1,
+          "end": 2.6,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.6,
+              "properties": {
+                "scale": 0.72
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-fromTo-2500",
+          "target": ".tap-ring",
+          "method": "fromTo",
+          "start": 2.5,
+          "duration": 0.25,
+          "end": 2.75,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.5,
+              "properties": {
+                "scale": 0.55,
+                "opacity": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 2.75,
+              "properties": {
+                "scale": 1.7,
+                "opacity": 0.75
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".tap-ring-to-2750-visual",
+          "target": ".tap-ring",
+          "method": "to",
+          "group": "visual",
+          "start": 2.75,
+          "duration": 0.45,
+          "end": 3.2,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 2.75,
+              "properties": {
+                "opacity": 1
+              }
+            },
+            {
+              "pct": 100,
+              "time": 3.2,
+              "properties": {
+                "opacity": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": ".draw-to-700-other",
+          "target": ".draw",
+          "method": "to",
+          "group": "other",
+          "start": 0.7,
+          "duration": 0.7,
+          "end": 1.4,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 0.7,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            },
+            {
+              "pct": 100,
+              "time": 1.4,
+              "properties": {
+                "strokeDashoffset": 0
+              }
+            }
+          ],
+          "path": null
+        },
+        {
+          "id": "dwell/hold-to-6990",
+          "target": "dwell/hold",
+          "method": "to",
+          "start": 6.99,
+          "duration": 0.01,
+          "end": 7,
+          "shape": "flat",
+          "keyframes": [
+            {
+              "pct": 0,
+              "time": 6.99,
+              "properties": {}
+            },
+            {
+              "pct": 100,
+              "time": 7,
+              "properties": {}
+            }
+          ],
+          "path": null
+        }
+      ],
+      "traces": [],
+      "cssKeyframes": [],
+      "anime": []
+    }
+  ],
+  "_meta": {
+    "version": "0.8.117",
+    "updateAvailable": false
+  }
+}

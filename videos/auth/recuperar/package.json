@@ -1,0 +1,10 @@
+{
+  "name": "protectora-video-recuperar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.8.117 preview",
+    "check": "npx --yes hyperframes@0.8.117 check",
+    "render": "npx --yes hyperframes@0.8.117 render --fps 30 --quality delivery --output renders/recuperar.mp4"
+  }
+}
