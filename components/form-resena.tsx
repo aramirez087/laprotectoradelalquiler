@@ -66,6 +66,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
   const draft = useBorradorResena(borrador, personaInicial?.personaId ?? null, formulario)
   const { estado, pendiente, formProps } = useFormAction(accion, { formulario, onResultado: () => draft.continuar() })
   const [comentario, setComentario] = useState(borrador?.datos?.comentario ?? '')
+  const [avisoValidacion, setAvisoValidacion] = useState('')
   const bloqueada = personaInicial != null
 
   function errorCampo(nombre: string) {
@@ -79,7 +80,17 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
   }
 
   return (
-    <form {...formProps} onChange={draft.cambio} onSubmit={event => { draft.pausar(); formProps.onSubmit(event) }} className="space-y-5">
+    <form {...formProps}
+      onChange={() => { setAvisoValidacion(''); draft.cambio() }}
+      onInvalid={event => {
+        const campos = Array.from(event.currentTarget.elements)
+          .filter((campo): campo is HTMLInputElement | HTMLTextAreaElement =>
+            (campo instanceof HTMLInputElement || campo instanceof HTMLTextAreaElement) && campo.willValidate && !campo.validity.valid)
+          .map(campo => campo.labels?.[0]?.textContent?.replace(/\s*\*\s*$/, '').trim())
+          .filter(Boolean)
+        setAvisoValidacion(`Revise estos campos antes de enviar la reseña: ${campos.join(', ')}.`)
+      }}
+      onSubmit={event => { setAvisoValidacion(''); draft.pausar(); formProps.onSubmit(event) }} className="space-y-5">
       <ProtectorEdicionAdmin pendiente={!pendiente && ['cambios','guardando','error','conflicto'].includes(draft.estado)} nombre="la reseña" />
       <p className="text-xs text-ink-soft">Los campos con * son obligatorios. Los demás son opcionales.</p>
       {borrador && <div className="rounded-xl border border-line p-4 text-sm">
@@ -156,6 +167,7 @@ export function FormResena({ personaInicial, accion, enRevision = true, primera 
         </span>
       </label>
       </Paso>
+      <MensajeForm error={avisoValidacion} />
       <div className="cierre-formulario">
         <p className="max-w-sm text-sm text-ink-soft">
           {enRevision
